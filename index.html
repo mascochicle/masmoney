@@ -555,7 +555,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1251";
+<script>window.MM_VER="20260803-1257";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -661,6 +661,10 @@ var CATS=[
  {n:"Alimentación",e:"🧺",subs:["Víveres"]},
  {n:"Salud",e:"❤️",subs:["Medicamentos","Estudios médicos","Terapias","Doctores","Dentista","Fisioterapia","Suplementos","IMSS","Aura","Cuidado personal","Medicina Alt."]},
  {n:"Hijos",e:"👶",subs:["Hijos educación","Hijos vestimenta","Hijos deportes","Hijos videojuegos","Hijos doctores","Hijos medicinas","Hijos Juguetes","Hijos accesorios","Hijos","Hijos cuidado personal","Hijos entretenimiento","Hijos fiestas","Hijos celular","Hijos regalos","Hijos dentista"]},
+ /* Faridee, Marco y Trabajo son categorías de su Money Pro y las usa mucho (75, 36 y 64
+    movimientos). No estaban porque esta taxonomía las repartía por tipo de gasto. */
+ {n:"Faridee",e:"👩",subs:["Medicamentos","Cuidado personal","Doctores","Terapias","Estudios médicos","Suplementos","Ropa y zapatos","General"]},
+ {n:"Marco",e:"👤",subs:["Ropa y accesorios","Cabello","Hobbies"]},
  {n:"Hogar y servicio doméstico",e:"🧹",subs:["Ramón","Limpieza"]},
  {n:"Ocio, viajes y regalos",e:"🍽️",subs:["Restaurantes","Hospedaje","Entretenimiento","Viajes","Regalos","Propinas"]},
  {n:"Transporte",e:"🚗",subs:["Gasolina","Accesorios","Jeep","Mantenimientos","Lavados","Aparcamiento y peajes","Kia Seltos 2026"]},
@@ -671,9 +675,18 @@ var CATS=[
  {n:"Deuda",e:"💳",subs:["Hipoteca","Camioneta","Préstamo prima","Panel solar","Crédito Banamex"]},
  {n:"Propiedades en renta",e:"🏢",subs:["Casa Lomas","Casa San Antonio","Depto Valle Sol","Casa Colosio","Ultramart Portillo","Local Spa","Otras casas"]},
  {n:"Tecnología",e:"💡",subs:["Equipos y Tech","Cables y/o accesorios"]},
+ {n:"Trabajo",e:"💼",subs:["Suscripciones apps","Equipamiento","Papelería"]},
+ {n:"Servicios",e:"🔌",subs:["Celular","Internet","Luz","Agua","Gas"]},
  {n:"Efectivo",e:"🪙",subs:["Efectivo","Extraviado","Temporal"]},
  {n:"Ayudas y donaciones",e:"🤲",subs:["Ayudas y Donaciones"]},
  {n:"Inversiones",e:"📈",subs:["Equipamiento","Suscripciones apps","Papelería"]},
+ /* Las 6 de abajo están en su Money Pro pero NO las ha usado ni una vez. Se ponen para
+    que la lista esté completa; si le estorban, las borra desde Ajustes. */
+ {n:"Servicios Profesionales",e:"👔",subs:[]},
+ {n:"Seguro",e:"☂️",subs:[]},
+ {n:"Intereses",e:"💲",subs:[]},
+ {n:"Intercambio Divisas",e:"💱",subs:[]},
+ {n:"Reclamación",e:"📣",subs:[]},
  {n:"Otros",e:"🗄️",subs:["General","Otros"]}
 ];
 /* Categorías del NEGOCIO. Salen de la columna "Tipo de Ingreso/Gasto" de
@@ -745,7 +758,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=8;
+var MIG_V=9;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -845,6 +858,16 @@ function migrar(){
     if(J){ var hay={}; J.forEach(function(g){ hay[g.n]=1; });
            ING_CATS.forEach(function(g){ if(!hay[g.n]) J.push(JSON.parse(JSON.stringify(g))); });
            sv(K_ING,J); }
+  }
+
+  if(hecho<9){
+    /* 9) las categorías de GASTO que Marco tenía en Money Pro y aquí faltaban. Igual que
+          con las de ingreso: se agregan solo las que no estén, al final, sin tocar el
+          orden que él haya dejado. */
+    var K=ld(K_CAT,null);
+    if(K){ var h9={}; K.forEach(function(g){ h9[g.n]=1; });
+           CATS.forEach(function(g){ if(!h9[g.n]) K.push(JSON.parse(JSON.stringify(g))); });
+           sv(K_CAT,K); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
