@@ -608,7 +608,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1614";
+<script>window.MM_VER="20260803-1632";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -833,7 +833,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=12;
+var MIG_V=13;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1017,6 +1017,35 @@ function migrar(){
         }
       });
       if(t12) saveCtas(C12);
+    }
+  }
+
+  if(hecho<13){
+    /* 13) las dos depreciaciones que Marco YA le había hecho a la camioneta no existían
+           como movimientos: Money Pro no exporta los ajustes de saldo, así que del
+           histórico solo llegó el saldo ya bajado ($480,870) y la cuenta se veía sin
+           historia — "de esta no vi las transacciones" (3-ago-2026).
+
+           Se repone la foto inicial al valor de compra ($534,300) y se meten las dos
+           bajadas como movimientos. El saldo queda EXACTAMENTE igual: 534,300 − 2×26,715
+           = 480,870. `baseTs` se deja en el ancla para no cambiarle el criterio de saldo
+           a la cuenta. */
+    var C13=ctas(), kia13=null;
+    C13.forEach(function(c){ if(/kia/i.test(c.n)) kia13=c; });
+    if(kia13 && Math.round(kia13.base)===480870){
+      kia13.base=534300; kia13.baseTs=ANCLA; saveCtas(C13);
+      var m13=movs();
+      [['2026-05-13','Q1 2026'],['2026-06-30','Q2 2026']].forEach(function(x){
+        var id='auto-'+kia13.id+'-'+x[0].slice(0,4)+'T'+(x[0]==='2026-05-13'?1:2);
+        if(m13.some(function(m){return m.id===id;})) return;
+        m13.unshift({id:id, auto:true, tipo:'Cambio de valor', dir:-1,
+          cuentaId:kia13.id, cuenta:kia13.n, mon:kia13.mon||BASE,
+          grupo:'Depreciación', sub:'Depreciación', e:'📉', amount:26715,
+          ambito:'Personal', agente:null,
+          desc:'Depreciación trimestral (modelo de reventa) · '+x[1],
+          fecha:x[0], hora:'23:59', ts:new Date(x[0]+'T23:59:00').getTime()});
+      });
+      saveMovs(m13);
     }
   }
 
