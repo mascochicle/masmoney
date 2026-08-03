@@ -434,13 +434,13 @@ button{font-family:inherit;}
         <!-- El ámbito va ANTES de la categoría a propósito: es lo que decide si se ofrecen
              las categorías personales o las del negocio. -->
         <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
-          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
+          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
           <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
-          <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s">Comercio o persona</div></div><div class="chev">›</div></button>
+          <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s" id="agLb">Comercio o persona</div></div><div class="chev">›</div></button>
       </div>
       <div class="rows" id="intBox" style="display:none">
         <div class="row" style="cursor:default"><div class="ic">%</div>
@@ -537,7 +537,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1005";
+<script>window.MM_VER="20260803-1018";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -585,15 +585,24 @@ var AGENTES=["Casa Sol", "Marco", "UltraSol", "Amazon", "Faridee", "Mercado Libr
 
 /* ---- las 7 operaciones de Money Pro. o = de dónde sale, d = a dónde va.
    'pago' = cuentas y tarjetas · 'activo' = propiedades · 'deuda' = tarjetas y créditos ---- */
+/* `amb` = de quién ES la cosa (para poder filtrar después);
+   `ag`  = con quién fue la operación. Son preguntas distintas y por eso son dos renglones:
+   en una compra de activo, `ag` es a quién se lo compraste y `amb` de quién queda. */
 var TIPOS=[
- {t:'Gasto',                 e:'🛒', o:'pago',   d:null,     cat:'gasto',   lb:'Cuenta'},
- {t:'Ingreso',               e:'💰', o:'pago',   d:null,     cat:'ingreso', lb:'Cuenta destino'},
+ {t:'Gasto',                 e:'🛒', o:'pago',   d:null,     cat:'gasto',   lb:'Cuenta',
+  amb:'¿De quién es este gasto?'},
+ {t:'Ingreso',               e:'💰', o:'pago',   d:null,     cat:'ingreso', lb:'Cuenta destino',
+  amb:'¿De quién es este ingreso?'},
  /* sinAg: el dinero se queda entre cuentas suyas, no hay comercio de por medio */
  {t:'Transferencia',         e:'🔁', o:'pago',   d:'todas',  lb:'Cuenta origen', sinAg:true, sinAmb:true},
- {t:'Compra de activo',      e:'🏷️', o:'pago',   d:'activo', lb:'Con qué lo pagas'},
- {t:'Venta de activo',       e:'💸', o:'activo', d:'pago',   lb:'Activo que vendes'},
- {t:'Adquisición de pasivo', e:'📄', o:'deuda',  d:'pago',   lb:'Crédito que tomas', sinAg:true},
- {t:'Descarga de pasivo',    e:'✅', o:'pago',   d:'deuda',  lb:'Con qué lo pagas', interes:true, sinAg:true}
+ {t:'Compra de activo',      e:'🏷️', o:'pago',   d:'activo', lb:'Con qué lo pagas',
+  amb:'¿De quién es lo que compraste?', ag:'¿A quién se lo compraste?'},
+ {t:'Venta de activo',       e:'💸', o:'activo', d:'pago',   lb:'Activo que vendes',
+  amb:'¿De quién era lo que vendiste?', ag:'¿A quién se lo vendiste?'},
+ {t:'Adquisición de pasivo', e:'📄', o:'deuda',  d:'pago',   lb:'Crédito que tomas', sinAg:true,
+  amb:'¿De quién es esta deuda?'},
+ {t:'Descarga de pasivo',    e:'✅', o:'pago',   d:'deuda',  lb:'Con qué lo pagas', interes:true, sinAg:true,
+  amb:'¿De quién es la deuda que pagas?'}
 ];
 function tipoDe(t){ for(var i=0;i<TIPOS.length;i++) if(TIPOS[i].t===t) return TIPOS[i]; return TIPOS[0]; }
 function dosCuentas(t){ var x=tipoDe(t); return !!x.d; }
@@ -1115,6 +1124,8 @@ $('rowTipo').onclick=function(){
 function setTipo(t){
   st.tipo=t; var T=tipoDe(t);
   $('tipoNm').textContent=T.t; $('tipoIc').textContent=T.e; $('cuentaLb').textContent=T.lb;
+  $('ambLb').textContent = T.amb || '¿De quién es?';
+  $('agLb').textContent  = T.ag  || 'Comercio o persona';
   $('msiCard').style.display = (t==='Gasto')?'block':'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
@@ -1350,11 +1361,12 @@ var AMBITOS=[
  {n:'Negocio',     e:'🏪', d:'Ultramart / UltraSol'}
 ];
 $('rowAmb').onclick=function(){
-  openSheet('¿De quién es este gasto?');
+  openSheet($('ambLb').textContent);
   $('sheetBody').innerHTML=ambitos().map(function(A){
     return '<div class="acct'+(A.n===st.ambito?' sel':'')+'" data-n="'+A.n+'"><div class="ic">'+A.e+'</div>'+
       '<div class="nm">'+A.n+'<small>'+A.d+'</small></div></div>';}).join('')+
-    '<div class="note">Sirve para poder ver tu gasto solo o el de todos juntos, sin tener que separarlo después.</div>';
+    '<div class="note">Sirve para poder verlo solo lo tuyo o todo junto, sin tener que separarlo después. '+
+      'Con quién fue la operación se pone en el renglón de abajo.</div>';
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
     el.onclick=function(){ setAmbito(el.dataset.n); closeSheet(); }; });
 };
