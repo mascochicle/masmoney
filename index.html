@@ -415,14 +415,16 @@ button{font-family:inherit;}
       <div class="rows">
         <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
           <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">⌄</div></button>
+        <!-- El ámbito va ANTES de la categoría a propósito: es lo que decide si se ofrecen
+             las categorías personales o las del negocio. -->
+        <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
+          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
           <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
           <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s">Comercio o persona</div></div><div class="chev">›</div></button>
-        <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
-          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
       </div>
       <div class="rows" id="intBox" style="display:none">
         <div class="row" style="cursor:default"><div class="ic">%</div>
@@ -515,7 +517,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-0900";
+<script>window.MM_VER="20260803-0915";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1130,22 +1132,63 @@ $('msiMinus').onclick=function(){st.meses=Math.max(2,st.meses-1);$('msiN').textC
 $('msiPlus').onclick=function(){st.meses=Math.min(48,st.meses+1);$('msiN').textContent=st.meses;renderMsiPrev();};
 
 /* ================= foto ================= */
+/* ================= foto de la nota =================
+   La foto va a DOS lados, y a propósito:
+   - una MINIATURA (600px) dentro del movimiento, para verla en la app. Guardar la foto
+     completa aquí llenaría el almacén del navegador con dos o tres notas y ahí vive todo.
+   - la foto COMPLETA se descarga a la carpeta Descargas al guardar el movimiento, con un
+     nombre que dice qué es. De ahí DriveSync la sube sola a Drive, igual que el respaldo.
+   No se puede escribir en Drive directo ni meterle metadatos EXIF desde el navegador; el
+   nombre del archivo es la manera práctica de que la foto se encuentre sola. */
 $('fotoBtn').onclick=function(){ $('fotoIn').click(); };
 $('fotoIn').onchange=function(e){
   var f=e.target.files&&e.target.files[0]; if(!f) return;
   var r=new FileReader();
-  r.onload=function(ev){ var img=new Image();
+  r.onload=function(ev){
+    st.fotoFull=ev.target.result;                 // la original, para el archivo
+    var img=new Image();
     img.onload=function(){
-      var max=900,w=img.width,h=img.height;
+      var max=600,w=img.width,h=img.height;
       if(w>max||h>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
       var c=document.createElement('canvas'); c.width=w; c.height=h;
       c.getContext('2d').drawImage(img,0,0,w,h);
-      st.foto=c.toDataURL('image/jpeg',0.55);
+      st.foto=c.toDataURL('image/jpeg',0.5);      // la miniatura, para la app
       $('fotoImg').src=st.foto; $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
     }; img.src=ev.target.result; };
   r.readAsDataURL(f); e.target.value='';
 };
-$('fotoDel').onclick=function(){ st.foto=null; $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has'); };
+$('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null;
+  $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has'); };
+
+/* nombre del archivo: tipo, cuenta, fecha, hora y monto — así se lee de un vistazo en
+   Drive y se ordena solo. Se arma al GUARDAR, cuando ya están todos los datos. */
+function limpioNom(t){
+  return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^A-Za-z0-9]+/g,'').toLowerCase();
+}
+function nombreFoto(mv){
+  var p=['masmoney', limpioNom(mv.tipo), limpioNom(mv.cuenta),
+         mv.fecha.replace(/-/g,''), (mv.hora||'').replace(':',''),
+         Math.round(mv.amount)];
+  if(mv.agente) p.push(limpioNom(mv.agente).slice(0,18));
+  return p.filter(Boolean).join('-')+'.jpg';
+}
+function guardarFoto(mv, dataUrl){
+  var nom=nombreFoto(mv);
+  try{
+    var b=atob(dataUrl.split(',')[1]), n=b.length, u=new Uint8Array(n);
+    while(n--) u[n]=b.charCodeAt(n);
+    var blob=new Blob([u],{type:'image/jpeg'});
+    if(window.claude&&window.claude.downloads){
+      window.claude.downloads.save({filename:nom, data:blob}).catch(function(){});
+    } else {
+      var url=URL.createObjectURL(blob), l=document.createElement('a');
+      l.href=url; l.download=nom; l.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    }
+  }catch(e){ return null; }
+  return nom;
+}
 
 /* ================= sheets / confirmación ================= */
 /* ---- gesto de retroceder del teléfono ----
@@ -1394,6 +1437,9 @@ $('guardar').onclick=function(){
     amount:num(), msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente, ambito:(T.sinAmb?null:st.ambito), desc:$('desc').value.trim(), foto:st.foto,
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
+  /* la foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
+     movimiento solo queda su nombre, para poder encontrarla */
+  if(st.fotoFull) mv.fotoArch=guardarFoto(mv, st.fotoFull);
   var a=movs(); a.unshift(mv);
   if(!saveMovs(a)) return;
   /* que lo veas caer: si el movimiento queda fuera de lo que estás viendo, la vista se
@@ -1407,7 +1453,7 @@ $('guardar').onclick=function(){
   limpiarForm(); verForm(false); renderCuenta(); renderSaldos(); toast('Guardado');
 };
 function limpiarForm(){
-  st.amount="0"; $('desc').value=''; st.foto=null; $('interes').value=''; setAgente(null); verPad(false);
+  st.amount="0"; $('desc').value=''; st.foto=null; st.fotoFull=null; $('interes').value=''; setAgente(null); verPad(false);
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has');
   if(st.msi){ st.msi=false; $('msiSw').classList.remove('on'); $('msiBody').classList.remove('show'); }
@@ -1566,6 +1612,8 @@ function editarMov(id){
     (m.mon&&m.mon!==BASE?'<div class="fld"><div class="k">Moneda</div><div class="ro">'+m.mon+' · '+fmt2(aBase(m.amount,m.mon))+' MXN</div></div>':'')+
     (m.msi?'<div class="fld"><div class="k">MSI</div><div class="ro">'+m.meses+' meses · '+fmtM(m.amount/m.meses,m.mon)+'/mes</div></div>':'')+
     (m.foto?'<img class="big" src="'+m.foto+'" alt="Nota">':'')+
+    (m.fotoArch?'<div class="note">La foto completa está en <b>Descargas</b> como '+
+      '<b>'+m.fotoArch+'</b>, y de ahí sube sola a Drive.</div>':'')+
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
     '</div>';
   $('eSave').onclick=function(){
