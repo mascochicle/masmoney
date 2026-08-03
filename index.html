@@ -814,9 +814,9 @@ function rango(){
 }
 var PERIODOS=[
   {n:'Hoy',             f:function(){per={t:'dia',f:hoyISO()};}},
-  {n:'Últimos 7 días',  f:function(){per={t:'dias',n:7};}},
-  {n:'Últimos 30 días', f:function(){per={t:'dias',n:30};}},
-  {n:'Últimos 90 días', f:function(){per={t:'dias',n:90};}},
+  {n:'Últimos 5 días',  f:function(){per={t:'dias',n:5};}},
+  /* 30 y 90 días se quitaron el 3-ago-2026: con "este mes", "el mes pasado" y el
+     calendario ya se cubren, y la lista se leía más larga de lo que servía. */
   {n:'Este mes',        f:function(){var d=new Date(); per={t:'mes',y:d.getFullYear(),m:d.getMonth()+1};}},
   {n:'El mes pasado',   f:function(){var d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1);
                                      per={t:'mes',y:d.getFullYear(),m:d.getMonth()+1};}},
