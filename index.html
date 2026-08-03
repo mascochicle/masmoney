@@ -549,7 +549,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1201";
+<script>window.MM_VER="20260803-1214";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -903,7 +903,10 @@ $('tabbar').addEventListener('click',function(e){
 var ctaVer=null;
 /* periodo: 'dia' (default, con ‹ ›), 'mes' (con ‹ ›), 'anio' (con ‹ ›)
    o 'dias' (ventana móvil de N días hacia atrás, sin flechas) */
-var per={t:'dia', f:hoyISO()};
+/* Arranca en los ÚLTIMOS 5 DÍAS. Empezó en 'Hoy' (así lo pidió Marco al fusionar las
+   pestañas), pero usándolo prefirió ver la ventana corta: casi siempre está revisando
+   lo de ayer y antier, no solo lo de hoy. */
+var per={t:'dias', n:5};
 /* siguiente corte a partir de hoy; si el mes no llega a ese día, cae en el último */
 function proxCorte(dia){
   var hoy=new Date(new Date().toDateString()), y=hoy.getFullYear(), m=hoy.getMonth();
