@@ -517,7 +517,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-0915";
+<script>window.MM_VER="20260803-0923";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1212,11 +1212,14 @@ window.addEventListener('popstate', function(){
 });
 
 var scrim=$('scrim'), sheet=$('sheet');
-function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show'); }
+function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show');
+  sheet.style.bottom=''; sheet.style.maxHeight=''; }   // deshace el ajuste del teclado
 function openSheet(t){
   $('sheetTit').textContent=t;
   if(sheet.classList.contains('show')) return;      // solo cambia el título
   scrim.classList.add('show'); sheet.classList.add('show'); abrirCapa(_sheetFuera);
+  /* por si el teclado ya estaba abierto cuando se abrió la hoja */
+  if(typeof ajustaTeclado==='function') setTimeout(ajustaTeclado,60);
 }
 function closeSheet(){ if(sheet.classList.contains('show')) cerrarCapa(); }
 scrim.onclick=closeSheet; $('sheetX').onclick=closeSheet; $('sheetBack').onclick=closeSheet;
@@ -1354,7 +1357,7 @@ function abrirAgentes(){
   }
   $('agEd').onclick=function(){ agEdit=!agEdit; pinta(); };
   q.oninput=pinta; pinta();
-  if(!agEdit) setTimeout(function(){q.focus();},250);
+  if(!agEdit) setTimeout(function(){ q.focus(); setTimeout(ajustaTeclado,300); },250);
 }
 function renombrarAgente(viejo){
   openSheet('Editar agente');
@@ -1963,6 +1966,31 @@ function elegirLetra(){
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
     el.onclick=function(){ setCfg('letra',+el.dataset.i); aplicaLetra(); closeSheet(); renderCfg(); };
   });
+}
+
+/* ---- el teclado no debe tapar la hoja ----
+   Al abrir el teclado, Android encoge la ventana VISUAL pero no la del diseño, así que la
+   hoja se quedaba abajo, debajo del teclado, y había que subir a mano para ver la lista de
+   agentes. Se mide cuánto se comió el teclado y la hoja se levanta esa cantidad.
+   El alto va en píxeles y DIVIDIDO entre el zoom, porque la hoja vive dentro del marco
+   ampliado (la misma trampa del tamaño de letra). */
+function altoTeclado(){
+  if(!window.visualViewport) return 0;
+  var d=window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+  return d>90 ? d : 0;          // menos de 90px es la barra del navegador, no el teclado
+}
+function ajustaTeclado(){
+  var sh=$('sheet'); if(!sh) return;
+  var z=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z'))||1;
+  var kb=altoTeclado()/z;
+  if(!kb){ sh.style.bottom=''; sh.style.maxHeight=''; return; }
+  var alto=document.querySelector('.phone').offsetHeight;
+  sh.style.bottom=Math.round(kb)+'px';
+  sh.style.maxHeight=Math.max(180, Math.round(alto-kb-20))+'px';
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', ajustaTeclado);
+  window.visualViewport.addEventListener('scroll', ajustaTeclado);
 }
 
 function estadoRespaldo(){
