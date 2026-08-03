@@ -544,7 +544,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1135";
+<script>window.MM_VER="20260803-1154";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -700,7 +700,10 @@ var ING_CATS=[
  /* Era "Ultramarinos", el nombre de la tienda. Marco lo tenía como "Negocio" en sus
     frecuentes de Money Pro, y ahí caben las dos formas en que le entra dinero de ahí:
     lo que retira, y lo que el negocio le repone de gastos que él pagó. */
- {n:"Negocio",e:"🏪",subs:["Retiro del negocio","Pago de gastos","Compra de mercancías"]},
+ /* "Pago de tarjetas" va PRIMERA y por eso es la que sale por default: es lo que de
+    verdad pasa 26 de cada 34 veces. Marco: "retiro del negocio me suena a retirar
+    ganancias para usarlo como quiera y no hago eso, tengo deudas que pagar primero". */
+ {n:"Negocio",e:"🏪",subs:["Pago de tarjetas","Retiro del negocio","Pago de gastos","Compra de mercancías"]},
  {n:"Otros",e:"🗄️",subs:["Otros"]}
 ];
 
@@ -718,7 +721,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=6;
+var MIG_V=7;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -798,6 +801,17 @@ function migrar(){
     if(c6){ c6.forEach(function(m){
               if(m.agente && String(m.agente).trim().toLowerCase()==='ultramart'){ m.agente=T2; k6++; } });
             if(k6) sv(K_MOV,c6); }
+  }
+
+  if(hecho<7){
+    /* 7) "Pago de tarjetas" al principio de las subcategorías de ingreso del Negocio, que
+          es como queda de default. Ninguna de las otras tres describía lo que pasa cuando
+          la tienda paga una tarjeta suya. */
+    var I=ld(K_ING,null);
+    if(I){ I.forEach(function(g){
+             if(g.n==='Negocio' && g.subs.indexOf('Pago de tarjetas')<0)
+               g.subs.unshift('Pago de tarjetas'); });
+           sv(K_ING,I); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
