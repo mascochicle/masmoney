@@ -364,6 +364,10 @@ button{font-family:inherit;}
 .pcat .n small{display:block;font-size:10.5px;color:var(--mut2);}
 .pmonto{width:96px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;
   color:var(--ink);font:inherit;font-size:15px;padding:11px 10px;text-align:right;font-variant-numeric:tabular-nums;}
+.plist{flex:1;display:flex;flex-direction:column;gap:5px;}
+.plist .pline{display:flex;align-items:baseline;gap:10px;}
+.plist .pline span{flex:1;min-width:0;}
+.plist .pline b{flex:none;font-variant-numeric:tabular-nums;color:var(--ink);}
 .padd{display:flex;align-items:center;gap:9px;width:100%;background:var(--surface);
   border:1px dashed var(--line);border-radius:12px;padding:10px 11px;color:var(--accent-ink);
   font:inherit;font-size:14px;text-align:left;cursor:pointer;min-height:55px;}   /* el mismo alto que una linea */
@@ -576,7 +580,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1327";
+<script>window.MM_VER="20260803-1342";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1655,10 +1659,12 @@ var AMBITOS=[
  {n:'Propiedades', e:'🏢', d:'Casa Lomas, Colosio, San Antonio, Depto Valle…'},
  {n:'Negocio',     e:'🏪', d:'Ultramart / UltraSol'}
 ];
-/* En un INGRESO solo tienen sentido dos: la tienda le paga y las propiedades le rentan.
-   Marco: "personal ni casa sol; la casa sol no genera ingreso, es donde vivo". En gastos
-   siguen los cuatro, y en ese orden, para que el default siga siendo Personal. */
-var AMB_INGRESO=['Negocio','Propiedades'];
+/* En un INGRESO la única que sobra es Casa Sol: "la casa sol no genera ingreso, es donde
+   vivo". PERSONAL sí va — Marco lo aclaró después: "los ingresos que obtengo por
+   compensaciones bancarias, intereses de Cetes o de yo te presto, o regalos, van en
+   personal". En gastos siguen las cuatro y en su orden, para que el default siga
+   siendo Personal. */
+var AMB_INGRESO=['Negocio','Propiedades','Personal'];
 function ambitosPara(){
   var L=ambitos();
   if(st.tipo!=='Ingreso') return L;
@@ -2095,13 +2101,17 @@ function editarMov(id, pre){
     '<div class="fld"><div class="k">Hora</div><input id="eHor" type="time" value="'+m.hora+'"></div>'+
     (editable
       ? '<button class="fld tocable" id="eCat"><div class="k">Categoría</div>'+
-        '<div class="ro">'+cat.e+'  '+lab+'</div><div class="chev">›</div></button>'
+        '<div class="ro">'+((m.partes&&m.partes.length>1)?'🧾  '+m.partes.length+' categorías':cat.e+'  '+lab)+
+        '</div><div class="chev">›</div></button>'
       : '<div class="fld"><div class="k">'+(dosCuentas(m.tipo)?'Operación':'Categoría')+'</div>'+
         '<div class="ro">'+m.e+'  '+lab+'</div></div>')+
+    /* una línea por parte y los montos alineados a la derecha: envueltos en un párrafo,
+       Marco solo alcanzó a ver el segundo importe y creyó que faltaba el primero */
     (m.partes&&m.partes.length>1
       ? '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:4px">Dividido en</div>'+
-        '<div class="ro" style="flex:1">'+m.partes.map(function(p){
-          return p.e+'  '+((p.sub&&p.sub!==p.g)?p.sub:p.g)+' · '+fmtM(p.amount,m.mon); }).join('<br>')+'</div></div>'
+        '<div class="ro plist">'+m.partes.map(function(p){
+          return '<div class="pline"><span>'+p.e+'  '+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span>'+
+                 '<b>'+fmtM(p.amount,m.mon)+'</b></div>'; }).join('')+'</div></div>'
       : '')+
     (m.interes?'<div class="fld"><div class="k">Interés</div><div class="ro">'+fmtM(m.interes,m.mon)+' · capital '+fmtM(m.amount-m.interes,m.mon)+'</div></div>':'')+
     (m.ajuste?'':'<div class="fld"><div class="k">Cuenta</div><div class="ro">'+m.cuenta+'</div></div>')+
