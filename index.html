@@ -593,7 +593,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1441";
+<script>window.MM_VER="20260803-1451";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1677,7 +1677,9 @@ $('askYes').onclick=function(){ var f=_askCb; cerrarCapa(); if(f) f(); };
    créditos: transferir a un activo sube su valor (construir en la casa) y
    transferir a una deuda la baja (pagarla). */
 var TAGS={corriente:'', tarjeta:'crédito', credito:'deuda', activo:'activo'};
-function listaCuentas(selId,cb,L){
+/* `noCerrar` la usa el EDITOR: ahí la hoja no se cierra, se vuelve a pintar con el
+   movimiento. Si cerrara, se cerraría encima de la que acaba de abrir el callback. */
+function listaCuentas(selId,cb,L,noCerrar){
   L = L || filtro('pago');
   var a=movs();
   $('sheetBody').innerHTML=L.map(function(c){
@@ -1688,7 +1690,7 @@ function listaCuentas(selId,cb,L){
       '<div class="sal-v '+(cero?'cero':neg?'neg':'pos')+'">'+(neg?'−':'')+fmtM(v,c.mon)+
         ((c.mon&&c.mon!==BASE)?'<small>'+fmt2(aBase(v,c.mon))+' MXN</small>':'')+'</div></div>';}).join('');
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
-    el.onclick=function(){ cb(cta(el.dataset.id)); closeSheet(); }; });
+    el.onclick=function(){ cb(cta(el.dataset.id)); if(!noCerrar) closeSheet(); }; });
 }
 $('rowCuenta').onclick=function(){
   var T=tipoDe(st.tipo);
@@ -1720,9 +1722,10 @@ var AMBITOS=[
    personal". En gastos siguen las cuatro y en su orden, para que el default siga
    siendo Personal. */
 var AMB_INGRESO=['Negocio','Propiedades','Personal'];
-function ambitosPara(){
+/* `tipo` se lo pasa el EDITOR, que trabaja sobre un movimiento guardado y no sobre `st` */
+function ambitosPara(tipo){
   var L=ambitos();
-  if(st.tipo!=='Ingreso') return L;
+  if((tipo||st.tipo)!=='Ingreso') return L;
   var out=[];
   AMB_INGRESO.forEach(function(n){
     var a=L.filter(function(x){ return x.n===n; })[0]; if(a) out.push(a); });
@@ -2191,16 +2194,6 @@ function elegirCatEdit(L, listo, q){
     elegirCatEdit(L, listo, v); var n=$('qcat2'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
 
-/* opciones de un <select> de cuentas. Si la que trae el movimiento no está en la lista
-   (p.ej. quedó oculta), se agrega igual: si no, el select arrancaría en otra y al guardar
-   le cambiaría la cuenta sin avisar. */
-function opcCta(L, selId){
-  var hay=L.some(function(c){ return c.id===selId; });
-  if(!hay && selId){ var c0=cta(selId); if(c0) L=[c0].concat(L); }
-  return L.map(function(c){
-    return '<option value="'+c.id+'"'+(c.id===selId?' selected':'')+'>'+c.n+'</option>'; }).join('');
-}
-
 function editarMov(id, pre){
   var m=movs().filter(function(x){return x.id===id;})[0]; if(!m) return;
   var T=tipoDe(m.tipo);
@@ -2211,6 +2204,11 @@ function editarMov(id, pre){
      sirve el `||`: hay que preguntar si el campo viene */
   var partes = (pre && ('partes' in pre)) ? pre.partes : m.partes;
   var dividido = !!(partes && partes.length>1);
+  /* las cuentas ya no son <select>: viven en variables y se eligen en su propia hoja */
+  var cta1 = cta((pre&&pre.ctaId) || m.cuentaId);
+  var cta2 = cta((pre&&pre.desId) || m.destinoId);
+  var ambN = (pre&&pre.amb) || m.ambito || 'Personal';
+  var amb  = ambitos().filter(function(x){return x.n===ambN;})[0] || ambitos()[0];
   /* cuando el grupo no tiene subcategorías, sub == grupo: se escribe una sola vez */
   function texto(c){ return (c.sub && c.sub!==c.g) ? (c.g+' · '+c.sub) : c.g; }
   var lab = m.ajuste ? m.cuenta
@@ -2220,8 +2218,8 @@ function editarMov(id, pre){
     '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="number" inputmode="decimal" step="0.01" '+
       (dividido?'readonly ':'')+'value="'+((pre&&pre.amt!=null)?pre.amt:m.amount)+'"></div>'+
     '<div class="fld"><div class="k">Agente</div><input id="eAg" type="text" value="'+(m.agente||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
-    (m.ajuste?'':'<div class="fld"><div class="k">De quién es</div><select id="eAmb">'+ambitos().map(function(A){
-      return '<option value="'+A.n+'"'+(A.n===(m.ambito||'Personal')?' selected':'')+'>'+A.e+'  '+A.n+'</option>';}).join('')+'</select></div>')+
+    (m.ajuste?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
+      '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
     '<div class="fld"><div class="k">Descripción</div><input id="eDesc" type="text" value="'+(m.desc||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     '<div class="fld"><div class="k">Fecha</div><input id="eFec" type="date" value="'+m.fecha+'"></div>'+
     '<div class="fld"><div class="k">Hora</div><input id="eHor" type="time" value="'+m.hora+'"></div>'+
@@ -2242,10 +2240,12 @@ function editarMov(id, pre){
     (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" type="number" inputmode="decimal" step="0.01" value="'+m.interes+'"></div>':'')+
     /* Cuenta y Destino se podían ver pero no cambiar: si se equivocaba de tarjeta había
        que borrar y recapturar (3-ago-2026) */
-    (m.ajuste?'':'<div class="fld"><div class="k">'+(T.lb||'Cuenta')+'</div><select id="eCta">'+
-      opcCta(filtro(T.o, dosCuentas(m.tipo)?m.destinoId:null), m.cuentaId)+'</select></div>')+
-    (dosCuentas(m.tipo)?'<div class="fld"><div class="k">Destino</div><select id="eDes">'+
-      opcCta(filtro(T.d, m.cuentaId), m.destinoId)+'</select></div>':'')+
+    /* con <select> Android abre su lista a pantalla completa, con renglones enormes que
+       no pegan con el resto del formulario. Se usa el mismo selector de la captura. */
+    (m.ajuste?'':'<button class="fld tocable" id="eCta"><div class="k">'+(T.lb||'Cuenta')+'</div>'+
+      '<div class="ro">'+(cta1?cta1.e+'  '+cta1.n:'—')+'</div><div class="chev">›</div></button>')+
+    (dosCuentas(m.tipo)?'<button class="fld tocable" id="eDes"><div class="k">Destino</div>'+
+      '<div class="ro">'+(cta2?cta2.e+'  '+cta2.n:'—')+'</div><div class="chev">›</div></button>':'')+
     (m.mon&&m.mon!==BASE?'<div class="fld"><div class="k">Moneda</div><div class="ro">'+m.mon+' · '+fmt2(aBase(m.amount,m.mon))+' MXN</div></div>':'')+
     (m.msi?'<div class="fld"><div class="k">MSI</div><div class="ro"><input id="eMes" type="number" inputmode="numeric" step="1" min="2" '+
       'style="width:56px;text-align:right" value="'+(m.meses||0)+'"> meses</div></div>':'')+
@@ -2255,19 +2255,39 @@ function editarMov(id, pre){
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
     '</div>';
   function leer(){ return {amt:$('eAmt').value, ag:$('eAg').value,
-      amb:$('eAmb')?$('eAmb').value:null, desc:$('eDesc').value,
+      amb:$('eAmb')?amb.n:null, desc:$('eDesc').value,
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
-      ctaId:$('eCta')?$('eCta').value:null, desId:$('eDes')?$('eDes').value:null,
+      ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null,
       inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null}; }
   if(pre){                                    // se vuelve del selector: repone lo escrito
     $('eAmt').value=pre.amt; $('eAg').value=pre.ag; $('eDesc').value=pre.desc;
     $('eFec').value=pre.fec; $('eHor').value=pre.hor;
-    if($('eAmb') && pre.amb) $('eAmb').value=pre.amb;
-    if($('eCta') && pre.ctaId) $('eCta').value=pre.ctaId;
-    if($('eDes') && pre.desId) $('eDes').value=pre.desId;
     if($('eInt') && pre.inte!=null) $('eInt').value=pre.inte;
     if($('eMes') && pre.mes!=null) $('eMes').value=pre.mes;
   }
+  if($('eAmb')) $('eAmb').onclick=function(){
+    var v=leer();
+    openSheet('De quién es');
+    /* en un ingreso el catálogo de ámbitos es más corto (Casa Sol no genera ingreso) */
+    var L=ambitosPara(m.tipo);
+    $('sheetBody').innerHTML=L.map(function(A){
+      return '<div class="acct'+(A.n===v.amb?' sel':'')+'" data-n="'+A.n+'"><div class="ic">'+A.e+'</div>'+
+        '<div class="nm">'+A.n+'<small>'+A.d+'</small></div></div>';}).join('');
+    $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+      el.onclick=function(){ v.amb=el.dataset.n; editarMov(id,v); }; });
+  };
+  if($('eCta')) $('eCta').onclick=function(){
+    var v=leer();
+    openSheet(T.lb||'Cuenta');
+    listaCuentas(v.ctaId, function(c){ v.ctaId=c.id; editarMov(id,v); },
+                 filtro(T.o, dosCuentas(m.tipo)?v.desId:null), true);
+  };
+  if($('eDes')) $('eDes').onclick=function(){
+    var v=leer();
+    openSheet('Destino');
+    listaCuentas(v.desId, function(c){ v.desId=c.id; editarMov(id,v); },
+                 filtro(T.d, v.ctaId), true);
+  };
   if($('eCat')) $('eCat').onclick=function(){
     var v=leer();
     /* qué catálogo toca: el mismo criterio que al capturar (tipo + de quién es) */
@@ -2296,12 +2316,11 @@ function editarMov(id, pre){
     if(v<=0){ toast('Monto inválido',true); return; }
     var nInt = $('eInt') ? (parseFloat($('eInt').value)||0) : null;
     if(nInt!=null && nInt>=v){ toast('El interés no puede ser todo el pago',true); return; }
-    var c1 = $('eCta') ? cta($('eCta').value) : null;
-    var c2 = $('eDes') ? cta($('eDes').value) : null;
+    var c1=cta1, c2=dosCuentas(m.tipo)?cta2:null;
     if(c1 && c2 && c1.id===c2.id){ toast('La cuenta y el destino no pueden ser la misma',true); return; }
     var b=movs(); for(var i=0;i<b.length;i++) if(b[i].id===id){
       b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=$('eAg').value.trim()||null;
-      if($('eAmb')) b[i].ambito=$('eAmb').value;
+      if($('eAmb')) b[i].ambito=amb.n;
       if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
                     b[i].partes = dividido ? partes : undefined; }
       /* la cuenta manda la moneda: si la cambia a una en otra divisa, el movimiento
