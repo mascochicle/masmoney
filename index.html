@@ -443,8 +443,10 @@ button{font-family:inherit;}
       <textarea class="desc" id="desc" placeholder="Descripción o comentario…"></textarea>
       <button class="fotobtn" id="fotoBtn" title="Foto de la nota">📷</button>
       <input type="file" id="fotoIn" accept="image/*" capture="environment" style="display:none">
-      <!-- sin `capture`: Android abre la galería y el explorador de archivos -->
-      <input type="file" id="archIn" accept="image/*" style="display:none">
+      <!-- Sin `capture` y aceptando PDF: con solo `image/*`, Android abre el selector de
+           FOTOS (nada más Google Fotos). Al incluir un tipo que no es imagen, abre el
+           EXPLORADOR DE ARCHIVOS, que sí muestra el teléfono y las nubes. -->
+      <input type="file" id="archIn" accept="image/*,application/pdf" style="display:none">
     </div>
     <div class="fotoprev" id="fotoPrev">
       <img id="fotoImg" alt="Nota">
@@ -519,7 +521,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-0934";
+<script>window.MM_VER="20260803-0939";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -830,7 +832,7 @@ var PERIODOS=[
 function _formCerrarYa(){ $('vForm').classList.remove('on'); $('vCta').classList.add('on'); verPad(false); renderCuenta(); }
 /* ¿hay algo escrito que se perdería al salir? */
 function formSucio(){
-  return num()>0 || $('desc').value.trim()!=='' || !!st.foto || !!st.agente ||
+  return num()>0 || $('desc').value.trim()!=='' || !!st.foto || !!st.fotoFull || !!st.agente ||
          (parseFloat($('interes').value)||0)>0;
 }
 var _forzarSalir=false;
@@ -1146,15 +1148,30 @@ $('fotoBtn').onclick=function(){
   openSheet('Foto de la nota');
   $('sheetBody').innerHTML=
     '<div class="acct" id="fCam"><div class="ic">📷</div><div class="nm">Tomar foto<small>abre la cámara</small></div></div>'+
-    '<div class="acct" id="fArch"><div class="ic">🖼️</div><div class="nm">Elegir un archivo<small>galería o archivos del teléfono</small></div></div>';
+    '<div class="acct" id="fArch"><div class="ic">🖼️</div><div class="nm">Elegir un archivo<small>foto o PDF, del teléfono o de tus nubes</small></div></div>';
   $('fCam').onclick=function(){ closeSheet(); $('fotoIn').click(); };
   $('fArch').onclick=function(){ closeSheet(); $('archIn').click(); };
 };
 function tomarFoto(e){
   var f=e.target.files&&e.target.files[0]; if(!f) return;
+  var esPDF=(f.type==='application/pdf')||/\.pdf$/i.test(f.name||'');
   var r=new FileReader();
   r.onload=function(ev){
-    st.fotoFull=ev.target.result;                 // la original, para el archivo
+    st.fotoFull=ev.target.result;                 // el original, para el archivo
+    st.fotoTipo=esPDF?'pdf':'img';
+    st.fotoNom=f.name||'';
+    if(esPDF){
+      /* de un PDF no se puede sacar miniatura sin una librería entera; se enseña una
+         tarjeta con su nombre y el archivo se guarda igual que una foto */
+      st.foto=null;
+      $('fotoImg').style.display='none';
+      $('fotoPrev').querySelector('.txt').textContent='PDF listo: '+(f.name||'documento')+
+        '. Se guarda como archivo al guardar el movimiento.';
+      $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
+      return;
+    }
+    $('fotoImg').style.display='';
+    $('fotoPrev').querySelector('.txt').textContent='Foto lista. Se guarda como archivo al guardar el movimiento.';
     var img=new Image();
     img.onload=function(){
       var max=600,w=img.width,h=img.height;
@@ -1168,7 +1185,8 @@ function tomarFoto(e){
 }
 $('fotoIn').onchange=tomarFoto;
 $('archIn').onchange=tomarFoto;
-$('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null;
+$('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
+  $('fotoImg').style.display='';   // si lo anterior era un PDF, la imagen quedó oculta
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has'); };
 
 /* nombre del archivo: tipo, cuenta, fecha, hora y monto — así se lee de un vistazo en
@@ -1182,22 +1200,25 @@ function limpioNom(t){
    se ordenan juntos y se mueven en bloque a "Transacciones Negocio" / "Transacciones
    Personal". (Si Marco activa "Preguntar dónde guardar cada archivo" en Chrome, elige la
    carpeta en el momento y ya no tiene que mover nada.) */
-function nombreFoto(mv){
+function nombreFoto(mv, ext){
   var destino = (mv.ambito==='Negocio') ? 'negocio' : 'personal';
   var p=[destino, limpioNom(mv.tipo), limpioNom(mv.cuenta),
          mv.fecha.replace(/-/g,''), (mv.hora||'').replace(':',''),
          Math.round(mv.amount)];
   if(mv.agente) p.push(limpioNom(mv.agente).slice(0,18));
-  return p.filter(Boolean).join('-')+'.jpg';
+  return p.filter(Boolean).join('-')+'.'+(ext||'jpg');
 }
-function guardarFoto(mv, dataUrl){
-  var nom=nombreFoto(mv);
+function guardarFoto(mv, dataUrl, tipo){
+  var pdf=(tipo==='pdf');
+  var nom=nombreFoto(mv, pdf?'pdf':'jpg');
   try{
     var b=atob(dataUrl.split(',')[1]), n=b.length, u=new Uint8Array(n);
     while(n--) u[n]=b.charCodeAt(n);
-    var blob=new Blob([u],{type:'image/jpeg'});
+    var blob=new Blob([u],{type:pdf?'application/pdf':'image/jpeg'});
     if(window.claude&&window.claude.downloads){
-      window.claude.downloads.save({filename:nom, data:blob}).catch(function(){});
+      /* el artefacto no deja bajar PDF; en la app instalada no hay esa restricción */
+      window.claude.downloads.save({filename:nom, data:blob})
+        .catch(function(){ if(pdf) toast('El PDF solo se guarda en la app instalada',true); });
     } else {
       var url=URL.createObjectURL(blob), l=document.createElement('a');
       l.href=url; l.download=nom; l.click();
@@ -1459,7 +1480,7 @@ $('guardar').onclick=function(){
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
   /* la foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
      movimiento solo queda su nombre, para poder encontrarla */
-  if(st.fotoFull) mv.fotoArch=guardarFoto(mv, st.fotoFull);
+  if(st.fotoFull) mv.fotoArch=guardarFoto(mv, st.fotoFull, st.fotoTipo);
   var a=movs(); a.unshift(mv);
   if(!saveMovs(a)) return;
   /* que lo veas caer: si el movimiento queda fuera de lo que estás viendo, la vista se
@@ -1473,7 +1494,8 @@ $('guardar').onclick=function(){
   limpiarForm(); verForm(false); renderCuenta(); renderSaldos(); toast('Guardado');
 };
 function limpiarForm(){
-  st.amount="0"; $('desc').value=''; st.foto=null; st.fotoFull=null; $('interes').value=''; setAgente(null); verPad(false);
+  st.amount="0"; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
+  $('interes').value=''; setAgente(null); verPad(false); $('fotoImg').style.display='';
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has');
   if(st.msi){ st.msi=false; $('msiSw').classList.remove('on'); $('msiBody').classList.remove('show'); }
