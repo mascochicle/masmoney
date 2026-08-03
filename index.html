@@ -552,7 +552,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1229";
+<script>window.MM_VER="20260803-1233";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -697,21 +697,34 @@ var NEG_CATS=[
 ];
 
 var ING_CATS=[
- {n:"Arrendamiento",e:"🏢",subs:["Casa Lomas","Casa San Antonio","Depto Valle Sol","Casa Colosio","Local Spa","Otras"]},
- {n:"Stock Trading",e:"📈",subs:["Stock Trading"]},
- {n:"Crypto Trading",e:"🪙",subs:["Crypto Trading"]},
- {n:"SAT",e:"🏛️",subs:["Devolución SAT"]},
- {n:"Venta Garage",e:"🏷️",subs:["Venta Garage"]},
- {n:"Ingresos por intereses",e:"💹",subs:["Intereses"]},
- {n:"Regalos",e:"🎁",subs:["Regalos"]},
- {n:"Ayudas & Donaciones",e:"🤲",subs:["Ayudas & Donaciones"]},
  /* Era "Ultramarinos", el nombre de la tienda. Marco lo tenía como "Negocio" en sus
-    frecuentes de Money Pro, y ahí caben las dos formas en que le entra dinero de ahí:
-    lo que retira, y lo que el negocio le repone de gastos que él pagó. */
- /* "Pago de tarjetas" va PRIMERA y por eso es la que sale por default: es lo que de
+    frecuentes de Money Pro, y ahí caben las formas en que le entra dinero de ahí.
+    "Pago de tarjetas" va PRIMERA y por eso es la que sale por default: es lo que de
     verdad pasa 26 de cada 34 veces. Marco: "retiro del negocio me suena a retirar
     ganancias para usarlo como quiera y no hago eso, tengo deudas que pagar primero". */
  {n:"Negocio",e:"🏪",subs:["Pago de tarjetas","Retiro del negocio","Pago de gastos","Compra de mercancías"]},
+ {n:"Arrendamiento",e:"🏢",subs:["Casa Lomas","Casa San Antonio","Depto Valle Sol","Casa Colosio","Local Spa","Ultramart Portillo","Otras"]},
+ /* Las que faltaban del catálogo de Money Pro (3-ago-2026). Van al final del bloque de
+    inversión/otros y Marco las reacomoda dejando pulsado. */
+ {n:"Stock Trading",e:"📈",subs:["Stock Trading"]},
+ {n:"Crypto Trading",e:"🪙",subs:["Crypto Trading"]},
+ {n:"Futures Trading",e:"🐂",subs:["Futures Trading"]},
+ {n:"Dividendos",e:"💵",subs:["Dividendos"]},
+ {n:"Ingresos por intereses",e:"💹",subs:["Intereses"]},
+ {n:"Afore",e:"🐷",subs:["Afore"]},
+ {n:"SAT",e:"🏛️",subs:["Devolución SAT"]},
+ {n:"Actividad Empresarial",e:"💼",subs:["Actividad Empresarial"]},
+ {n:"Ingresos de negocios",e:"🏬",subs:["Ingresos de negocios"]},
+ {n:"Venta Garage",e:"🏷️",subs:["Venta Garage"]},
+ {n:"Venta Vehículos",e:"🚗",subs:["Venta Vehículos"]},
+ {n:"Devolución",e:"↩️",subs:["Devolución"]},
+ {n:"Cashback",e:"🎯",subs:["Cashback"]},
+ {n:"Compensaciones",e:"⚖️",subs:["Compensaciones"]},
+ {n:"Regalos",e:"🎁",subs:["Regalos"]},
+ {n:"Ayudas & Donaciones",e:"🤲",subs:["Ayudas & Donaciones"]},
+ {n:"Pagos Hijos",e:"👶",subs:["Pagos Hijos"]},
+ {n:"Préstamo",e:"🤝",subs:["Préstamo"]},
+ {n:"Ajuste Saldo",e:"⚙️",subs:["Ajuste Saldo"]},
  {n:"Otros",e:"🗄️",subs:["Otros"]}
 ];
 
@@ -729,7 +742,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=7;
+var MIG_V=8;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -820,6 +833,15 @@ function migrar(){
              if(g.n==='Negocio' && g.subs.indexOf('Pago de tarjetas')<0)
                g.subs.unshift('Pago de tarjetas'); });
            sv(K_ING,I); }
+  }
+
+  if(hecho<8){
+    /* 8) las categorías de ingreso que Marco tenía en Money Pro y aquí faltaban. Se
+          AGREGAN las que no estén, respetando el orden que él haya dejado. */
+    var J=ld(K_ING,null);
+    if(J){ var hay={}; J.forEach(function(g){ hay[g.n]=1; });
+           ING_CATS.forEach(function(g){ if(!hay[g.n]) J.push(JSON.parse(JSON.stringify(g))); });
+           sv(K_ING,J); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
