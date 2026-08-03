@@ -593,7 +593,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1519";
+<script>window.MM_VER="20260803-1546";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2656,7 +2656,9 @@ function editarCuenta(id,grupoNuevo){
       a.unshift({id:'m'+Date.now(), ajuste:true, dir:(delta>0?1:-1), tipo:'Ajuste',
         cuentaId:reg.id, cuenta:nombre, e:'⚖️', amount:Math.abs(delta), mon:reg.mon,
         grupo:'Ajuste', sub:'Ajuste de saldo', desc:'', foto:null,
-        fecha:d.toISOString().slice(0,10), hora:d.toTimeString().slice(0,5), ts:d.getTime()});
+        /* fecha LOCAL: con toISOString(), pasadas las 18:00 en México el ajuste se
+           fechaba mañana (el mismo error que ya se corrigió en la captura) */
+        fecha:dISO(d), hora:d.toTimeString().slice(0,5), ts:d.getTime()});
       saveMovs(a);
     }
     closeSheet(); renderSaldos(); renderCuenta();
