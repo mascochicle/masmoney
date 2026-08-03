@@ -1,4 +1,4 @@
-const V = 'masmoney-20260803-0854';
+const V = 'masmoney-20260803-0900';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -11,12 +11,16 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 
-// La app es un solo archivo y los datos son locales: primero la red (para que una versión
-// nueva llegue sola), y si no hay internet, lo guardado.
+// Primero la red (para que una versión nueva llegue sola) y, si no hay internet, lo
+// guardado. El `cache:'no-store'` es CLAVE: GitHub Pages manda `Cache-Control: max-age=600`,
+// así que sin él el navegador seguía dando su copia vieja durante 10 minutos y la versión
+// publicada no llegaba al teléfono aunque ya estuviera arriba (3-ago-2026).
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(url.href, { cache: 'no-store' })
       .then(r => {
         const copia = r.clone();
         caches.open(V).then(c => c.put(e.request, copia));

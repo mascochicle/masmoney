@@ -515,7 +515,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>
+<script>window.MM_VER="20260803-0900";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1990,8 +1990,10 @@ function renderCfg(){
     '<div class="export"><button class="btn-clr" id="limpiar" style="flex:1">Vaciar movimientos</button></div>'+
 
     '<div class="secttl">Acerca de</div>'+
-    '<div class="cfg-d">MasMoney · hecho para Marco<br><small>Prototipo. Cuando pase al servidor, '+
-      'los datos se respaldan solos y esta pantalla crece.</small></div>';
+    '<div class="cfg-d">MasMoney · hecho para Marco'+
+      (window.MM_VER?'<br><b>versión '+window.MM_VER+'</b>':'')+
+      '<br><small>'+(window.MM_VER?'Si esta versión no es la última, cierra la app por completo y vuelve a abrirla. ':'')+
+      'Cuando pase al servidor, los datos se respaldan solos y esta pantalla crece.</small></div>';
 
   $('cfgBody').querySelectorAll('.cfg-i').forEach(function(el){
     el.onclick=function(){
@@ -2316,10 +2318,25 @@ function exportarTodo(){
 })();
 </script>
 <script>
-/* El service worker es lo que la vuelve instalable y la deja abrir sin internet. */
+/* El service worker la vuelve instalable y la deja abrir sin internet.
+   `updateViaCache:'none'` obliga a revalidar sw.js: si no, GitHub Pages lo deja cacheado
+   10 minutos y la versión nueva tardaba en llegar. Se busca actualización al abrir y cada
+   vez que Marco vuelve a la app; cuando el service worker nuevo toma el control, se recarga
+   UNA vez, para que lo que ve sea siempre lo último publicado. */
 if ('serviceWorker' in navigator) {
+  var _recargando = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if (_recargando) return;
+    _recargando = true;
+    location.reload();
+  });
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(e){ console.warn('sw:', e); });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg){
+      reg.update();
+      document.addEventListener('visibilitychange', function(){
+        if (!document.hidden) reg.update();
+      });
+    }).catch(function(e){ console.warn('sw:', e); });
   });
 }
 </script>
