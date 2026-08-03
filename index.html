@@ -338,6 +338,15 @@ button{font-family:inherit;}
 .gcell.acomoda{transition:transform .16s ease;}
 .gcell .e{font-size:20px;line-height:1;} .gcell .n{font-size:10px;color:var(--ink);line-height:1.15;}
 .gback{display:flex;align-items:center;gap:8px;padding:5px 4px 11px;color:var(--mut);font-size:13px;cursor:pointer;}
+/* buscador del selector de grupo: con 26 grupos, encontrar algo que vive DENTRO de otro
+   (p.ej. "Propinas" en Ocio) era imposible sin abrirlos uno por uno (3-ago-2026) */
+.busca{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);
+  border-radius:11px;padding:0 11px;margin-bottom:9px;}
+.busca span{color:var(--mut);font-size:14px;}
+.busca input{flex:1;background:none;border:0;outline:none;color:var(--ink);font-size:14.5px;
+  padding:10px 0;font-family:inherit;}
+.busca input::placeholder{color:var(--mut);}
+.sub-i .via{margin-left:auto;color:var(--mut);font-size:11.5px;text-align:right;}
 .sublist .sub-i{display:flex;align-items:center;gap:11px;padding:12px 9px;border-bottom:1px solid var(--surface);cursor:pointer;font-size:14.5px;}
 .sublist .sub-i:active{background:var(--surface);}
 .edit-b{display:flex;flex-direction:column;gap:9px;padding:2px 4px;}
@@ -580,7 +589,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1358";
+<script>window.MM_VER="20260803-1427";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -686,6 +695,10 @@ var EMOJIS=['💵','💳','🏦','🪙','📈','🏠','🚗','🧾','☀️','�
 /* categorías (2 niveles, sacadas de sus propios datos) */
 var CATS=[
  {n:"Alimentación",e:"🧺",subs:["Víveres"]},
+ /* Restaurantes va SOLO, no dentro de Ocio: en su Money Pro es categoría de primer nivel
+    ("Restaurantes y cafeterías", 73 movimientos) y ahí la buscó. Sin subcategorías, para
+    que se elija de un toque. */
+ {n:"Restaurantes",e:"🍽️",subs:[]},
  {n:"Salud",e:"❤️",subs:["Medicamentos","Estudios médicos","Terapias","Doctores","Dentista","Fisioterapia","Suplementos","IMSS","Aura","Cuidado personal","Medicina Alt."]},
  {n:"Hijos",e:"👶",subs:["Hijos educación","Hijos vestimenta","Hijos deportes","Hijos videojuegos","Hijos doctores","Hijos medicinas","Hijos Juguetes","Hijos accesorios","Hijos","Hijos cuidado personal","Hijos entretenimiento","Hijos fiestas","Hijos celular","Hijos regalos","Hijos dentista"]},
  /* Faridee, Marco y Trabajo son categorías de su Money Pro y las usa mucho (75, 36 y 64
@@ -693,7 +706,7 @@ var CATS=[
  {n:"Faridee",e:"👩",subs:["Medicamentos","Cuidado personal","Doctores","Terapias","Estudios médicos","Suplementos","Ropa y zapatos","General"]},
  {n:"Marco",e:"👤",subs:["Ropa y accesorios","Cabello","Hobbies"]},
  {n:"Hogar y servicio doméstico",e:"🧹",subs:["Ramón","Limpieza"]},
- {n:"Ocio, viajes y regalos",e:"🍽️",subs:["Restaurantes","Hospedaje","Entretenimiento","Viajes","Regalos","Propinas"]},
+ {n:"Ocio, viajes y regalos",e:"🎡",subs:["Hospedaje","Entretenimiento","Viajes","Regalos","Propinas"]},
  {n:"Transporte",e:"🚗",subs:["Gasolina","Accesorios","Jeep","Mantenimientos","Lavados","Aparcamiento y peajes","Kia Seltos 2026"]},
  {n:"Cuidado personal y ropa",e:"👕",subs:["Ropa y accesorios","Cuidado personal","Hobbies","Cabello"]},
  {n:"Vivienda y mantenimiento",e:"🔧",subs:["Mantenimiento Casa","Electrodomésticos","Climas","Gas","Herramientas","Muebles y accesorios","FERRETERÍA","Energía","Cocina utensilios"]},
@@ -785,7 +798,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=10;
+var MIG_V=11;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -903,6 +916,37 @@ function migrar(){
            viejo: si Marco lo puso a mano, se respeta. */
     var T10=ld(K_TC,null);
     if(T10 && Math.abs((T10.USD||0)-17.371528)<0.000001){ T10.USD=17.3317; sv(K_TC,T10); }
+  }
+
+  if(hecho<11){
+    /* 11) "Restaurantes" sale de "Ocio, viajes y regalos" y queda como grupo propio. En su
+           Money Pro es de primer nivel ("Restaurantes y cafeterías", 73 movimientos) y ahí
+           lo buscó: "no encuentro restaurantes". Se mueve la categoría Y lo ya capturado,
+           si no las sumas por grupo quedarían partidas en dos. */
+    var C11=ld(K_CAT,null);
+    if(C11){
+      var hay11=false, iAli=-1;
+      C11.forEach(function(g,i){ if(g.n==='Restaurantes') hay11=true;
+                                 if(g.n==='Alimentación') iAli=i;
+        if(g.n==='Ocio, viajes y regalos'){
+          var k=g.subs.indexOf('Restaurantes'); if(k>=0) g.subs.splice(k,1);
+          if(g.e==='🍽️') g.e='🎡';   /* el plato se va con Restaurantes */
+        } });
+      if(!hay11) C11.splice(iAli>=0?iAli+1:0, 0, {n:'Restaurantes',e:'🍽️',subs:[]});
+      sv(K_CAT,C11);
+    }
+    var m11=ld(K_MOV,null), k11=0;
+    var reCat=function(o){ if(o && o.g==='Ocio, viajes y regalos' && o.sub==='Restaurantes'){
+                             o.g='Restaurantes'; o.e='🍽️'; return true; } return false; };
+    /* los que se quedan en Ocio ya no llevan el plato: se fue con Restaurantes */
+    var reIco=function(o,g){ if(g==='Ocio, viajes y regalos' && o.e==='🍽️'){ o.e='🎡'; k11++; } };
+    if(m11){ m11.forEach(function(m){
+               if(m.grupo==='Ocio, viajes y regalos' && m.sub==='Restaurantes'){
+                 m.grupo='Restaurantes'; m.e='🍽️'; k11++; }
+               else reIco(m, m.grupo);
+               if(m.partes) m.partes.forEach(function(p){
+                 if(reCat(p)) k11++; else reIco(p, p.g); }); });
+             if(k11) sv(K_MOV,m11); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
@@ -1848,19 +1892,49 @@ function soltarRejilla(){
 document.addEventListener('pointerup', soltarRejilla);
 document.addEventListener('pointercancel', soltarRejilla);
 
-function showCatGrid(){
+/* quita acentos y mayúsculas para que "propinas" encuentre "Propinas" y "cafeteria" a
+   "Cafetería" */
+function llano(s){ return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+function showCatGrid(q){
   $('sheetTit').textContent='Grupo';
   var L=catsActuales(), b=$('sheetBody');
-  b.innerHTML='<div class="grid">'+L.map(function(c,i){
-    return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
-    '</div><div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
-  b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
-    var c=L[+el.dataset.i];
-    /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
-    if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
-    showSubs(c);
-  }; });
-  arrastrarRejilla(b.querySelector('.grid'), cualLista());
+  q=q||'';
+  var caja='<div class="busca"><span>🔍</span><input id="qcat" placeholder="Buscar categoría" '+
+           'autocomplete="off" value="'+q.replace(/"/g,'&quot;')+'"></div>';
+
+  if(llano(q).trim()){
+    /* buscando: lista plana con grupos Y subcategorías, para llegar de un toque a algo
+       que está enterrado dentro de otro grupo */
+    var t=llano(q).trim(), hits=[];
+    L.forEach(function(c){
+      if(!c.subs || !c.subs.length){ if(llano(c.n).indexOf(t)>=0) hits.push({c:c,s:c.n,via:''}); return; }
+      if(llano(c.n).indexOf(t)>=0) c.subs.forEach(function(s){ hits.push({c:c,s:s,via:c.n}); });
+      else c.subs.forEach(function(s){ if(llano(s).indexOf(t)>=0) hits.push({c:c,s:s,via:c.n}); });
+    });
+    b.innerHTML=caja+(hits.length
+      ? '<div class="sublist">'+hits.map(function(h,i){
+          return '<div class="sub-i" data-i="'+i+'"><span class="e">'+h.c.e+'</span>'+h.s+
+                 (h.via?'<span class="via">'+h.via+'</span>':'')+'</div>'; }).join('')+'</div>'
+      : '<div class="note">Nada con «'+q+'».</div>');
+    b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){
+      var h=hits[+el.dataset.i]; pickCat(h.c.n,h.c.e,h.s); closeSheet(); }; });
+  } else {
+    b.innerHTML=caja+'<div class="grid">'+L.map(function(c,i){
+      return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
+      '</div><div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
+    b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
+      var c=L[+el.dataset.i];
+      /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
+      if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
+      showSubs(c);
+    }; });
+    arrastrarRejilla(b.querySelector('.grid'), cualLista());
+  }
+
+  var qi=$('qcat');
+  qi.oninput=function(){ var v=this.value, pos=this.selectionStart;
+    showCatGrid(v); var n=$('qcat'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
 function showSubs(c){
   $('sheetTit').textContent='Subcategoría';
@@ -2065,22 +2139,46 @@ function renderCal(dir){
    cambiar después de guardar: había que borrar el movimiento y capturarlo otra vez). */
 /* Selector de grupo y subcategoría para el EDITOR. Es aparte del de captura porque aquel
    escribe en `st` y este devuelve el resultado por callback. */
-function elegirCatEdit(L, listo){
+function elegirCatEdit(L, listo, q){
   $('sheetTit').textContent='Grupo';
   var b=$('sheetBody');
-  b.innerHTML='<div class="grid">'+L.map(function(c,i){
-    return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
-  b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
-    var c=L[+el.dataset.i];
-    if(!c.subs || !c.subs.length){ listo({g:c.n, e:c.e, sub:c.n}); return; }
-    $('sheetTit').textContent='Subcategoría';
-    b.innerHTML='<div class="gback" id="gb2">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
-      c.subs.map(function(x){ return '<div class="sub-i" data-s="'+x.replace(/"/g,'&quot;')+'">'+
-        '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+'</div>';
-    $('gb2').onclick=function(){ elegirCatEdit(L, listo); };
-    b.querySelectorAll('.sub-i').forEach(function(y){
-      y.onclick=function(){ listo({g:c.n, e:c.e, sub:y.dataset.s}); }; });
-  }; });
+  q=q||'';
+  var caja='<div class="busca"><span>🔍</span><input id="qcat2" placeholder="Buscar categoría" '+
+           'autocomplete="off" value="'+q.replace(/"/g,'&quot;')+'"></div>';
+
+  if(llano(q).trim()){
+    var t=llano(q).trim(), hits=[];
+    L.forEach(function(c){
+      if(!c.subs || !c.subs.length){ if(llano(c.n).indexOf(t)>=0) hits.push({c:c,s:c.n,via:''}); return; }
+      if(llano(c.n).indexOf(t)>=0) c.subs.forEach(function(s){ hits.push({c:c,s:s,via:c.n}); });
+      else c.subs.forEach(function(s){ if(llano(s).indexOf(t)>=0) hits.push({c:c,s:s,via:c.n}); });
+    });
+    b.innerHTML=caja+(hits.length
+      ? '<div class="sublist">'+hits.map(function(h,i){
+          return '<div class="sub-i" data-i="'+i+'"><span class="e">'+h.c.e+'</span>'+h.s+
+                 (h.via?'<span class="via">'+h.via+'</span>':'')+'</div>'; }).join('')+'</div>'
+      : '<div class="note">Nada con «'+q+'».</div>');
+    b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){
+      var h=hits[+el.dataset.i]; listo({g:h.c.n, e:h.c.e, sub:h.s}); }; });
+  } else {
+    b.innerHTML=caja+'<div class="grid">'+L.map(function(c,i){
+      return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
+    b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
+      var c=L[+el.dataset.i];
+      if(!c.subs || !c.subs.length){ listo({g:c.n, e:c.e, sub:c.n}); return; }
+      $('sheetTit').textContent='Subcategoría';
+      b.innerHTML='<div class="gback" id="gb2">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
+        c.subs.map(function(x){ return '<div class="sub-i" data-s="'+x.replace(/"/g,'&quot;')+'">'+
+          '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+'</div>';
+      $('gb2').onclick=function(){ elegirCatEdit(L, listo); };
+      b.querySelectorAll('.sub-i').forEach(function(y){
+        y.onclick=function(){ listo({g:c.n, e:c.e, sub:y.dataset.s}); }; });
+    }; });
+  }
+
+  var q2=$('qcat2');
+  q2.oninput=function(){ var v=this.value, pos=this.selectionStart;
+    elegirCatEdit(L, listo, v); var n=$('qcat2'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
 
 function editarMov(id, pre){
