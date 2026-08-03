@@ -328,6 +328,11 @@ button{font-family:inherit;}
 .gcell{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 4px 9px;
   display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:center;}
 .gcell:active{background:var(--surface2);}
+/* arrastre en la rejilla: la celda levantada no debe recibir el puntero, si no
+   elementFromPoint la devuelve a ella misma y nunca detecta sobre cuál va */
+.gcell.moviendo{z-index:5;pointer-events:none;background:var(--surface2);
+  border-color:var(--accent);box-shadow:0 8px 20px rgba(0,0,0,.4);}
+.gcell.acomoda{transition:transform .16s ease;}
 .gcell .e{font-size:20px;line-height:1;} .gcell .n{font-size:10px;color:var(--ink);line-height:1.15;}
 .gback{display:flex;align-items:center;gap:8px;padding:5px 4px 11px;color:var(--mut);font-size:13px;cursor:pointer;}
 .sublist .sub-i{display:flex;align-items:center;gap:11px;padding:12px 9px;border-bottom:1px solid var(--surface);cursor:pointer;font-size:14.5px;}
@@ -544,7 +549,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1154";
+<script>window.MM_VER="20260803-1201";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1232,6 +1237,11 @@ function setTipo(t){
 }
 /* Un gasto con ámbito Negocio se clasifica con las categorías del negocio, no con las
    personales: son contabilidades distintas y mezclarlas es justo lo que hay que evitar. */
+/* qué lista se está usando: sirve para saber dónde guardar al reordenar */
+function cualLista(){
+  if(st.tipo==='Ingreso') return 'ingreso';
+  return st.ambito==='Negocio' ? 'negocio' : 'gasto';
+}
 function catsActuales(){
   if(st.tipo==='Ingreso') return ings();
   return st.ambito==='Negocio' ? negs() : cats();
@@ -1548,17 +1558,80 @@ function setAgente(n){ st.agente=n||null;
   $('agNm').textContent=n||'Sin agente';
   $('agNm').style.color=n?'var(--ink)':'var(--mut2)'; }
 
+/* Reordenar la rejilla DEJANDO PULSADO. Un toque normal elige el grupo; medio segundo
+   sin soltar levanta la celda y la sigue el dedo. Se hace aquí, en la pantalla de captura,
+   porque es donde Marco lo pidió: "pensé que lo habías hecho ordenable al dejar pulsado". */
+var rej=null, rejT=null;
+function arrastrarRejilla(cont, cual){
+  cont.querySelectorAll('.gcell').forEach(function(el){
+    el.addEventListener('pointerdown', function(e){
+      var x0=e.clientX, y0=e.clientY;
+      rejT=setTimeout(function(){
+        rejT=null; rej={el:el, x:x0, y:y0, cual:cual, movio:false};
+        el.classList.add('moviendo');
+        if(navigator.vibrate) try{ navigator.vibrate(12); }catch(_){}
+      }, 450);
+    });
+  });
+}
+document.addEventListener('pointermove', function(e){
+  if(rejT){                                    // se movió antes de tiempo: era scroll
+    clearTimeout(rejT); rejT=null;
+  }
+  if(!rej) return;
+  rej.movio=true;
+  rej.el.style.transform='translate('+(e.clientX-rej.x)+'px,'+(e.clientY-rej.y)+'px)';
+  var bajo=document.elementFromPoint(e.clientX, e.clientY);
+  var dest=bajo && bajo.closest && bajo.closest('.gcell');
+  if(!dest || dest.parentNode!==rej.el.parentNode){
+    /* el dedo cayó en el hueco entre celdas: se toma la más cercana, si no el arrastre
+       se siente muerto justo en los bordes */
+    var mejor=null, min=1e9;
+    rej.el.parentNode.querySelectorAll('.gcell').forEach(function(x){
+      if(x===rej.el) return;
+      var r=x.getBoundingClientRect();
+      var dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2), d=dx*dx+dy*dy;
+      if(d<min){ min=d; mejor=x; }
+    });
+    dest = (min < 90*90) ? mejor : null;
+  }
+  if(!dest || dest===rej.el) return;
+  var r=dest.getBoundingClientRect();
+  rej.el.parentNode.insertBefore(rej.el, (e.clientX > r.left+r.width/2) ? dest.nextSibling : dest);
+  rej.x=e.clientX; rej.y=e.clientY; rej.el.style.transform='';   // ya quedó en su hueco
+}, {passive:false});
+/* mientras se arrastra, el dedo no debe scrollear la hoja */
+document.addEventListener('touchmove', function(e){ if(rej) e.preventDefault(); }, {passive:false});
+function soltarRejilla(){
+  if(rejT){ clearTimeout(rejT); rejT=null; }
+  if(!rej) return;
+  var g=rej; rej=null;
+  g.el.classList.remove('moviendo'); g.el.style.transform='';
+  if(!g.movio) return;
+  var por={}; lista(g.cual).forEach(function(c){ por[c.n]=c; });
+  var nuevo=[];
+  g.el.parentNode.querySelectorAll('.gcell').forEach(function(x){
+    var n=x.querySelector('.n').textContent; if(por[n]) nuevo.push(por[n]);
+  });
+  if(nuevo.length===lista(g.cual).length){ guardaLista(g.cual,nuevo); toast('Orden guardado'); }
+  showCatGrid();
+}
+document.addEventListener('pointerup', soltarRejilla);
+document.addEventListener('pointercancel', soltarRejilla);
+
 function showCatGrid(){
   $('sheetTit').textContent='Grupo';
   var L=catsActuales(), b=$('sheetBody');
   b.innerHTML='<div class="grid">'+L.map(function(c,i){
-    return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
+    return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
+    '</div><div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
   b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
     var c=L[+el.dataset.i];
     /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
     if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
     showSubs(c);
   }; });
+  arrastrarRejilla(b.querySelector('.grid'), cualLista());
 }
 function showSubs(c){
   $('sheetTit').textContent='Subcategoría';
