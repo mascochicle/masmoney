@@ -2,14 +2,25 @@
 <title>MasMoney</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+/* ===== TEMAS =====
+   Los valores de aquí son el tema NOCTURNO (el de siempre). Los otros dos los pone el JS
+   encima, en `aplicaTema()`. Todo color estructural pasa por una variable justamente para
+   que cambiar de tema sea cambiar esta lista y nada más. */
 :root{
+  --fondo:#000;
   --ground:#0d0e10; --surface:#191b1f; --surface2:#22252a; --line:#2c3036;
   --ink:#eef0f3; --mut:#8b929c; --mut2:#5c626b;
-  --accent:#3b49c4; --accent-soft:#20264f; --accent-ink:#8f9bff;
+  --accent:#3b49c4; --accent-soft:#20264f; --accent-ink:#8f9bff; --accent-2:#2f3aa5;
   --gasto:#d64f45; --ingreso:#2fa25f; --op:#c9772e;
+  --soft-ink:#c5cbf5;                          /* texto sobre accent-soft */
+  --chip-bg:#3a2c17; --chip-ink:#e0b177;       /* la etiqueta del ámbito */
+  --nuevo-bg:#173d27; --nuevo-ink:#5fd08d;     /* el "+ nuevo" de las listas */
+  --del-line:#4a2b28;                          /* borde del botón Borrar */
+  --avres-bg:#3a2a12; --avres-line:#6b4c1d; --avres-ink:#f0d9a8;   /* aviso de respaldo */
+  --scrim:rgba(0,0,0,.6);
 }
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;}
-html,body{background:#000;height:100%;overflow:hidden;}
+html,body{background:var(--fondo);height:100%;overflow:hidden;}
 body{font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);display:flex;justify-content:center;}
 /* alto fijo al viewport: así la barra de pestañas queda clavada y solo scrollea el contenido */
 /* `zoom` agranda TODO (letra, iconos, barras) sin tocar los 100 tamaños del CSS.
@@ -21,7 +32,7 @@ body{font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(
   align-self:flex-start;height:100dvh;
   display:flex;flex-direction:column;position:relative;overflow:hidden;}
 @media(min-width:460px){.phone{margin:18px 0;height:calc(100vh - 36px);border-radius:30px;
-  box-shadow:0 30px 80px rgba(0,0,0,.6);border:1px solid #1c1e22;}}
+  box-shadow:0 30px 80px rgba(0,0,0,.6);border:1px solid var(--line);}}
 button{font-family:inherit;}
 :focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px;}
 .pane{display:none;flex-direction:column;flex:1;min-height:0;}
@@ -43,12 +54,16 @@ button{font-family:inherit;}
 .row .lb .s{font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .chev{color:var(--mut2);font-size:17px;}
 .amount{padding:16px 18px 6px;text-align:center;}
+/* la moneda va PEGADA al monto, no debajo: se lee de un golpe cuánto y en qué */
+.amount .montoln{display:flex;align-items:baseline;justify-content:center;gap:7px;}
 .amount .big{font-size:42px;font-weight:750;letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1;}
 .amount .big.zero{color:var(--mut2);}
+.amount .moneda{font-size:15px;font-weight:650;color:var(--mut);letter-spacing:.04em;}
 .amount .equiv{font-size:12px;color:var(--accent-ink);margin-top:7px;min-height:15px;font-variant-numeric:tabular-nums;}
-.amount .cur{font-size:11px;color:var(--mut);letter-spacing:.06em;margin-top:7px;
-  background:transparent;border:0;cursor:pointer;font-family:inherit;}
-.amount .cur u{text-decoration:none;border-bottom:1px dashed var(--mut2);padding-bottom:1px;}
+/* la fecha, más grande y más clara: es un dato que se revisa, no una nota al pie */
+.amount .cur{font-size:14px;color:var(--ink);letter-spacing:.06em;margin-top:9px;text-transform:uppercase;
+  background:transparent;border:0;cursor:pointer;font-family:inherit;font-weight:600;}
+.amount .cur u{text-decoration:none;border-bottom:1px dashed var(--mut);padding-bottom:2px;}
 .extras{padding:0 16px;display:flex;gap:9px;align-items:stretch;}
 .desc{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);
   padding:11px 13px;font-size:14px;resize:none;height:44px;font-family:inherit;}
@@ -68,7 +83,8 @@ button{font-family:inherit;}
 .msi-head .lb .s{font-size:11px;color:var(--mut);margin-top:1px;}
 .sw{width:45px;height:27px;border-radius:16px;background:var(--surface2);position:relative;flex:none;cursor:pointer;transition:.2s;border:0;}
 .sw.on{background:var(--accent);}
-.sw::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.2s;}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;
+  background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.35);}  /* la sombra lo hace visible en el tema claro */
 .sw.on::after{left:21px;}
 .msi-body{display:none;padding:0 15px 13px;flex-direction:column;gap:10px;}
 .msi-body.show{display:flex;}
@@ -76,7 +92,7 @@ button{font-family:inherit;}
 .step .lb{flex:1;font-size:13px;color:var(--mut);}
 .step button{width:31px;height:31px;border-radius:9px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);font-size:18px;cursor:pointer;line-height:1;}
 .step .n{font-size:15.5px;font-weight:700;min-width:26px;text-align:center;font-variant-numeric:tabular-nums;}
-.msi-prev{background:var(--accent-soft);border-radius:10px;padding:9px 12px;font-size:12.5px;color:#c5cbf5;line-height:1.4;}
+.msi-prev{background:var(--accent-soft);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--soft-ink);line-height:1.4;}
 .msi-prev b{color:#fff;}
 /* la pestaña Movimientos tiene dos vistas: la cuenta y, con el +, el formulario */
 .vista{display:none;flex-direction:column;flex:1;min-height:0;}
@@ -86,7 +102,7 @@ button{font-family:inherit;}
 .ftit{flex:1;text-align:center;font-size:14px;font-weight:700;color:var(--mut);margin-right:56px;}
 .mas{width:34px;height:34px;border-radius:50%;border:0;background:var(--accent);color:#fff;
   font-size:22px;line-height:1;cursor:pointer;flex:none;}
-.mas:active{background:#2f3aa5;}
+.mas:active{background:var(--accent-2);}
 .ctaSaldo{padding:2px 16px 12px;display:flex;flex-direction:column;gap:5px;}
 .ctaSaldo .ln{display:flex;align-items:baseline;font-size:13.5px;color:var(--mut);}
 .ctaSaldo .ln b{margin-left:auto;font-size:16px;font-variant-numeric:tabular-nums;color:var(--ink);}
@@ -195,7 +211,7 @@ button{font-family:inherit;}
 .mov .amt{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--gasto);white-space:nowrap;}
 .mov .amt.i{color:var(--ingreso);} .mov .amt.t{color:var(--mut);}
 .msi-b{font-size:9.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 6px;border-radius:6px;margin-left:6px;}
-.amb-b{font-size:9.5px;color:#e0b177;background:#3a2c17;padding:1px 6px;border-radius:6px;margin-left:6px;}
+.amb-b{font-size:9.5px;color:var(--chip-ink);background:var(--chip-bg);padding:1px 6px;border-radius:6px;margin-left:6px;}
 .empty{padding:38px 24px;text-align:center;color:var(--mut2);font-size:13.5px;line-height:1.6;}
 .export{display:flex;gap:9px;padding:14px 16px 18px;}
 .export button{border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);}
@@ -271,7 +287,7 @@ button{font-family:inherit;}
 .tabbar button.on{color:var(--accent-ink);}
 
 /* ---------- sheets ---------- */
-.scrim{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;visibility:hidden;transition:.2s;z-index:40;}
+.scrim{position:absolute;inset:0;background:var(--scrim);opacity:0;visibility:hidden;transition:.2s;z-index:40;}
 .scrim.show{opacity:1;visibility:visible;}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ground);border-radius:20px 20px 0 0;
   transform:translateY(101%);transition:transform .25s cubic-bezier(.3,.9,.4,1);z-index:50;max-height:88%;
@@ -293,7 +309,7 @@ button{font-family:inherit;}
 .acct .sal-v small{display:block;font-size:10px;font-weight:500;color:var(--mut2);margin-top:1px;}
 .acct .sal-v.pos{color:var(--ingreso);} .acct .sal-v.neg{color:var(--gasto);} .acct .sal-v.cero{color:var(--mut);}
 .acct.sel .nm{color:var(--accent-ink);}
-.acct.nuevo .nm{color:var(--ingreso);} .acct.nuevo .ic{background:#173d27;color:#5fd08d;}
+.acct.nuevo .nm{color:var(--ingreso);} .acct.nuevo .ic{background:var(--nuevo-bg);color:var(--nuevo-ink);}
 .buscar{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);
   padding:12px 14px;font-size:15px;font-family:inherit;margin:0 0 8px;position:sticky;top:0;z-index:2;}
 .buscar::placeholder{color:var(--mut2);}
@@ -327,7 +343,7 @@ button{font-family:inherit;}
 .edit-acts{display:flex;gap:9px;margin-top:5px;}
 .edit-acts button{flex:1;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);}
 .b-save{background:var(--accent);color:#fff;border-color:var(--accent);}
-.b-del{background:transparent;color:var(--gasto);border-color:#4a2b28;}
+.b-del{background:transparent;color:var(--gasto);border-color:var(--del-line);}
 .note{font-size:11.5px;color:var(--mut);line-height:1.5;padding:2px 6px;}
 
 /* confirmación propia (confirm() no corre dentro del artefacto) */
@@ -360,8 +376,8 @@ button{font-family:inherit;}
 .cfg-i .sw{flex:none;}
 /* aviso de respaldo: se sienta justo encima de las pestañas */
 .avres{position:absolute;left:8px;right:8px;bottom:66px;z-index:70;display:flex;align-items:center;gap:8px;
-  background:#3a2a12;border:1px solid #6b4c1d;border-radius:13px;padding:10px 11px;font-size:11.5px;
-  color:#f0d9a8;line-height:1.4;box-shadow:0 8px 22px rgba(0,0,0,.45);}
+  background:var(--avres-bg);border:1px solid var(--avres-line);border-radius:13px;padding:10px 11px;
+  font-size:11.5px;color:var(--avres-ink);line-height:1.4;box-shadow:0 8px 22px rgba(0,0,0,.45);}
 .avres button{border:0;border-radius:9px;padding:7px 11px;font-size:11.5px;font-weight:700;cursor:pointer;
   background:#e0a92e;color:#241a06;flex:none;}
 .avres button.x{background:transparent;color:#c7a86b;padding:7px 4px;font-weight:550;}
@@ -434,9 +450,9 @@ button{font-family:inherit;}
     </div>
 
     <div class="amount">
-      <div class="big zero" id="disp">0</div>
+      <div class="montoln"><div class="big zero" id="disp">0</div><span class="moneda" id="monLbl">MXN</span></div>
       <div class="equiv" id="equiv"></div>
-      <button class="cur" id="fechaBtn"><span id="monLbl">MXN</span> · <u id="fechaLbl">hoy</u></button>
+      <button class="cur" id="fechaBtn"><u id="fechaLbl">hoy</u></button>
     </div>
 
     <div class="extras">
@@ -521,7 +537,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-0939";
+<script>window.MM_VER="20260803-1005";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1978,6 +1994,55 @@ function pesoDatos(){
 /* ---- recordatorio de respaldo ----
    Los datos viven en el navegador del teléfono. Mientras no haya servidor, el archivo
    exportado es el único respaldo, así que la app avisa cuando lleva días sin uno. */
+/* ---- temas ----
+   Tres, como los de Telegram que le gustaron a Marco:
+     Nocturno — casi negro, el de siempre
+     Oscuro   — gris azulado, oscuro pero suave
+     Día      — claro
+   Solo se listan las variables que CAMBIAN; las demás siguen siendo las del :root. */
+var TEMAS=[
+ {n:'Nocturno', d:'casi negro, el de siempre', v:{}},
+ {n:'Oscuro', d:'gris azulado, más suave', v:{
+   '--fondo':'#0e1621', '--ground':'#17212b', '--surface':'#1e2c3a', '--surface2':'#26374a',
+   '--line':'#33475d', '--ink':'#eaf0f6', '--mut':'#8ea3b8', '--mut2':'#63798f',
+   '--accent-soft':'#22305c', '--accent-ink':'#9fb2ff', '--soft-ink':'#cdd6f8',
+   '--chip-bg':'#3d3320', '--nuevo-bg':'#1c4630', '--del-line':'#52322e',
+   '--avres-bg':'#40311a', '--avres-line':'#75542a', '--avres-ink':'#f2dfb2',
+   '--scrim':'rgba(4,12,20,.62)'}},
+ {n:'Día', d:'claro', v:{
+   '--fondo':'#e9edf2', '--ground':'#ffffff', '--surface':'#f2f4f7', '--surface2':'#e7eaef',
+   '--line':'#d9dee6', '--ink':'#171a1f', '--mut':'#5f6875', '--mut2':'#767f8c',
+   '--accent-soft':'#e6e9ff', '--accent-ink':'#3b49c4', '--soft-ink':'#2d3894',
+   '--gasto':'#c62f26', '--ingreso':'#1e7a45', '--op':'#a85d18',
+   '--chip-bg':'#fdf1dd', '--chip-ink':'#8a5a17',
+   '--nuevo-bg':'#e0f5e8', '--nuevo-ink':'#1e7a45', '--del-line':'#f0c9c5',
+   '--avres-bg':'#fff4dc', '--avres-line':'#e6c98a', '--avres-ink':'#7a5410',
+   '--scrim':'rgba(23,26,31,.38)'}}
+];
+function aplicaTema(){
+  var i=ld(K_CFG,{}).tema||0, T=TEMAS[i]||TEMAS[0], e=document.documentElement;
+  /* se limpian las del tema anterior antes de poner las nuevas: si no, un tema con
+     menos variables heredaría las del otro */
+  TEMAS.forEach(function(X){ Object.keys(X.v).forEach(function(k){ e.style.removeProperty(k); }); });
+  Object.keys(T.v).forEach(function(k){ e.style.setProperty(k, T.v[k]); });
+  var m=document.querySelector('meta[name=theme-color]');
+  if(m) m.setAttribute('content', getComputedStyle(e).getPropertyValue('--ground').trim());
+}
+function elegirTema(){
+  var act=cfg().tema||0;
+  openSheet('Tema');
+  $('sheetBody').innerHTML=TEMAS.map(function(T,i){
+    var g=T.v['--ground']||'#0d0e10', su=T.v['--surface2']||'#22252a', tk=T.v['--ink']||'#eef0f3';
+    return '<div class="acct'+(i===act?' sel':'')+'" data-i="'+i+'">'+
+      '<div class="ic" style="background:'+g+';border:1px solid '+(T.v['--line']||'#2c3036')+';color:'+tk+'">Aa</div>'+
+      '<div class="nm">'+T.n+'<small>'+T.d+'</small></div>'+
+      '<div style="width:34px;height:20px;border-radius:6px;background:'+su+';border:1px solid '+(T.v['--line']||'#2c3036')+'"></div></div>';
+  }).join('');
+  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+    el.onclick=function(){ setCfg('tema',+el.dataset.i); aplicaTema(); closeSheet(); renderCfg(); };
+  });
+}
+
 /* ---- tamaño de letra ---- */
 var LETRAS=[{n:'Normal', z:1}, {n:'Grande', z:1.09}, {n:'Más grande', z:1.18}];
 function aplicaLetra(){
@@ -2082,6 +2147,7 @@ function renderCfg(){
          'siguen contando, no se listan')+
 
     '<div class="secttl">Formato</div>'+
+    fila('tema','🎨','Tema', TEMAS[c.tema||0].n, TEMAS[c.tema||0].d)+
     fila('letra','Aa','Tamaño de letra', LETRAS[c.letra||0].n, 'agranda toda la app')+
     '<div class="cfg-i" data-a="centavos"><div class="ic">🔢</div>'+
       '<div class="nm">Mostrar centavos<small>'+(c.centavos===false?'$1,250':'$1,250.00')+'</small></div>'+
@@ -2124,6 +2190,7 @@ function renderCfg(){
       else if(a==='centavos'){ setCfg('centavos', cfg().centavos===false); renderCfg(); renderCuenta(); renderSaldos(); }
       else if(a==='semana'){ setCfg('semana', cfg().semana===1?0:1); renderCfg(); renderCal(); }
       else if(a==='letra') elegirLetra();
+      else if(a==='tema') elegirTema();
     };
   });
   conectarRespaldo();
@@ -2421,7 +2488,7 @@ function exportarTodo(){
 
 /* ================= init ================= */
 (function(){
-  migrar(); aplicaLetra();
+  migrar(); aplicaTema(); aplicaLetra();
   if(primeraVez()){ pantallaInicio(); return; }
   var c=cta(st.cuentaId)||ctas()[0]; st.cuentaId=c.id;
   $('cuentaNm').textContent=c.n; $('cuentaIc').textContent=c.e;
