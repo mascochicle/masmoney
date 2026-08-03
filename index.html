@@ -362,11 +362,11 @@ button{font-family:inherit;}
 .pcat .e{font-size:17px;flex:none;}
 .pcat .n{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pcat .n small{display:block;font-size:10.5px;color:var(--mut2);}
-.pmonto{width:106px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+.pmonto{width:96px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;
   color:var(--ink);font:inherit;font-size:15px;padding:11px 10px;text-align:right;font-variant-numeric:tabular-nums;}
 .pdel{flex:none;width:28px;height:28px;border-radius:50%;background:transparent;border:0;color:var(--gasto);
   font-size:15px;cursor:pointer;}
-.ptot{display:flex;align-items:baseline;margin-top:12px;padding:0 2px;font-size:11px;color:var(--mut2);
+.ptot{display:flex;align-items:baseline;margin-top:16px;padding:12px 2px 0;border-top:1px solid var(--line);font-size:11px;color:var(--mut2);
   text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
 .ptot b{margin-left:auto;font-size:19px;color:var(--ink);letter-spacing:0;font-variant-numeric:tabular-nums;}
 .edit-b img.big{width:100%;border-radius:12px;border:1px solid var(--line);}
@@ -471,8 +471,6 @@ button{font-family:inherit;}
           <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
-        <button class="row" id="rowPart"><div class="ic">🧾</div>
-          <div class="lb"><div class="t" id="partNm">Una sola categoría</div><div class="s">Dividir entre varias</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
           <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s" id="agLb">Comercio o persona</div></div><div class="chev">›</div></button>
       </div>
@@ -571,7 +569,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1306";
+<script>window.MM_VER="20260803-1320";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1337,7 +1335,6 @@ function setTipo(t){
   $('rowAg').style.display  = T.sinAg?'none':'flex';
   /* dividir solo tiene sentido en gasto e ingreso: los demás no llevan categoría */
   var parte=(t==='Gasto'||t==='Ingreso');
-  $('rowPart').style.display = parte?'flex':'none';
   if(!parte){ st.partes=null; }
   if(typeof pintaPartes==='function') pintaPartes();
   $('rowAmb').style.display = T.sinAmb?'none':'flex';   // una transferencia no es de nadie
@@ -1372,12 +1369,19 @@ function catsActuales(){
 }
 
 /* ---- dividir un movimiento entre varias categorías ---- */
+/* Cuando va dividido, el propio renglón de CATEGORÍA lo dice y al tocarlo abre las
+   líneas. Antes había un renglón aparte para dividir y a Marco no le gustó: "métemelo
+   todo dentro de la parte que dice comisiones bancarias". */
 function pintaPartes(){
   var n=(st.partes&&st.partes.length>1)?st.partes.length:0;
-  $('partNm').textContent = n ? (n+' categorías · '+fmt2(sumaPartes())) : 'Una sola categoría';
+  if(n){
+    $('catIc').textContent='🧾';
+    $('catNm').textContent=n+' categorías';
+    $('catSub').textContent='dividido · '+fmt2(sumaPartes());
+    st.amount=sumaPartes().toFixed(2);          // el monto grande muestra la suma
+  }
   $('abrirPad').disabled = !!n;                 // con partes, el monto lo mandan ellas
   $('abrirPad').style.opacity = n ? .5 : 1;
-  if(n) st.amount = sumaPartes().toFixed(2);    // el monto grande muestra la suma
   renderAmt();
 }
 function dividir(){
@@ -1400,8 +1404,7 @@ function verDividir(){
   }).join('')+'</div>'+
   '<button class="acct nuevo" id="pAdd"><div class="ic">＋</div><div class="nm">Agregar categoría</div></button>'+
   '<div class="ptot">TOTAL<b id="pTot">'+fmt2(L.reduce(function(a,p){return a+(parseFloat(p.amount)||0);},0))+'</b></div>'+
-  '<div class="note">Es UN solo movimiento: el total es lo que se compara contra el banco. '+
-    'Con una sola línea vuelve a ser un gasto normal.</div>'+
+  '<div class="note">Sigue siendo UN movimiento: el total es lo que cuadra contra el banco.</div>'+
   '<div class="edit-acts"><button class="b-save" id="pOk">Listo</button></div>';
 
   function total(){
@@ -1436,7 +1439,7 @@ function verDividir(){
     closeSheet(); pintaPartes();
   };
 }
-$('rowPart').onclick=dividir;
+
 
 /* ================= MSI ================= */
 $('msiSw').onclick=function(){ st.msi=!st.msi; this.classList.toggle('on',st.msi);
@@ -1631,6 +1634,8 @@ $('rowCat').onclick=function(){
     listaCuentas(st.cuenta2Id,function(c){ st.cuenta2Id=c.id;
       $('catNm').textContent=c.n; $('catIc').textContent=c.e; renderAmt(); },
       filtro(T.d,st.cuentaId)); return; }
+  /* si ya está dividido, el mismo renglón abre las líneas */
+  if(st.partes && st.partes.length>1){ verDividir(); return; }
   openSheet('Grupo'); showCatGrid();
 };
 /* ---- ámbito: de quién es el gasto. Es el identificador que hoy Marco resuelve a mano
@@ -1833,13 +1838,19 @@ function showCatGrid(){
   var L=catsActuales(), b=$('sheetBody');
   b.innerHTML='<div class="grid">'+L.map(function(c,i){
     return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
-    '</div><div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
+    '</div>'+
+    ((st.tipo==='Gasto'||st.tipo==='Ingreso')
+      ? '<button class="acct nuevo" id="gDiv"><div class="ic">🧾</div>'+
+        '<div class="nm">Dividir entre varias<small>un cargo con más de una categoría</small></div></button>'
+      : '')+
+    '<div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
   b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
     var c=L[+el.dataset.i];
     /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
     if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
     showSubs(c);
   }; });
+  if($('gDiv')) $('gDiv').onclick=dividir;
   arrastrarRejilla(b.querySelector('.grid'), cualLista());
 }
 function showSubs(c){
@@ -1851,6 +1862,7 @@ function showSubs(c){
   b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){ pickCat(c.n,c.e,el.dataset.s); closeSheet(); }; });
 }
 function pickCat(g,e,sub){ st.cat={g:g,e:e,sub:sub};
+  if(st.partes&&st.partes.length<2) st.partes=null;
   $('catNm').textContent=sub; $('catSub').textContent=g; $('catIc').textContent=e; }
 
 /* ================= guardar movimiento ================= */
