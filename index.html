@@ -517,7 +517,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-0923";
+<script>window.MM_VER="20260803-0928";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1166,8 +1166,14 @@ function limpioNom(t){
   return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
     .replace(/[^A-Za-z0-9]+/g,'').toLowerCase();
 }
+/* El nombre empieza por el DESTINO — negocio o personal — porque Android no deja que
+   el navegador escriba en una subcarpeta: todo cae en la raíz de Descargas. Así al menos
+   se ordenan juntos y se mueven en bloque a "Transacciones Negocio" / "Transacciones
+   Personal". (Si Marco activa "Preguntar dónde guardar cada archivo" en Chrome, elige la
+   carpeta en el momento y ya no tiene que mover nada.) */
 function nombreFoto(mv){
-  var p=['masmoney', limpioNom(mv.tipo), limpioNom(mv.cuenta),
+  var destino = (mv.ambito==='Negocio') ? 'negocio' : 'personal';
+  var p=[destino, limpioNom(mv.tipo), limpioNom(mv.cuenta),
          mv.fecha.replace(/-/g,''), (mv.hora||'').replace(':',''),
          Math.round(mv.amount)];
   if(mv.agente) p.push(limpioNom(mv.agente).slice(0,18));
@@ -2055,7 +2061,7 @@ function renderCfg(){
       '<button class="btn-imp" id="importar">Importar</button>'+
     '</div>'+
     '<div class="hint" style="text-align:left;padding:0 16px 14px">Se descarga '+
-      '<b>masmoney-'+hoyISO()+'.json</b> a <b>Descargas</b> del teléfono, y de ahí '+
+      '<b>masmoney-backup-'+hoyISO()+'.json</b> a <b>Descargas</b> del teléfono, y de ahí '+
       'DriveSync lo sube solo a <b>Drive › SamsungS25ultra › Descargas</b>. '+
       'Lo único que tienes que hacer es tocar Exportar; lo demás va solo.</div>'+
 
@@ -2367,7 +2373,7 @@ function exportarTodo(){
   var data=JSON.stringify({app:"MasMoney", v:12, generado:new Date().toISOString(),
     base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a},null,2);
   /* con la fecha en el nombre: se acumulan en Descargas y así se sabe cuál es el bueno */
-  var nom='masmoney-'+hoyISO()+'.json';
+  var nom='masmoney-backup-'+hoyISO()+'.json';   // va a la carpeta "Masmoney Backup"
   if(window.claude&&window.claude.downloads){
     window.claude.downloads.save({filename:nom,data:data})
       .then(function(){ setCfg('respaldo',Date.now()); renderCfg(); avisoRespaldo(); toast('Exportado'); })
