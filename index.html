@@ -608,7 +608,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1632";
+<script>window.MM_VER="20260803-1651";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -833,7 +833,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=13;
+var MIG_V=14;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1046,6 +1046,34 @@ function migrar(){
           fecha:x[0], hora:'23:59', ts:new Date(x[0]+'T23:59:00').getTime()});
       });
       saveMovs(m13);
+    }
+  }
+
+  if(hecho<14){
+    /* 14) la camioneta pasa a MENSUAL. Marco: "mi depreciación era trimestral y esos
+           montos están cargados como mayo y junio, hay que corregir eso, además yo quería
+           que me los pusieras por mes".
+
+           Cuota mensual = saldo al inicio del año × tasa del año ÷ 12. Los cierres de año
+           NO cambian (sigue cerrando 2026 en $427,440 y 2035 en $198,421.48), solo la
+           frecuencia. Y cuadra solo: los $53,430 que él ya había bajado son exactamente
+           6 meses × $8,905, o sea ene-jun 2026. Por eso `desde` es el 31-dic-2025 y se
+           borran los dos movimientos trimestrales que había puesto la migración 13. */
+    var C14=ctas(), k14=null, cam=false;
+    C14.forEach(function(c){
+      if(/kia/i.test(c.n) && c.auto && c.auto.modo==='trim'){
+        c.auto.modo='mes-tasa'; c.auto.desde='2025-12-31'; delete c.auto.arranca;
+        c.auto.nota='Depreciación mensual (modelo de reventa)';
+        k14=c; cam=true;
+      }
+      /* el nombre viejo del modo del inmueble, para que quede explícito */
+      if(c.auto && c.auto.modo==='mes'){ c.auto.modo='mes-inpc'; cam=true; }
+    });
+    if(cam) saveCtas(C14);
+    if(k14){
+      var fuera={}; fuera['auto-'+k14.id+'-2026T1']=1; fuera['auto-'+k14.id+'-2026T2']=1;
+      var m14=movs().filter(function(m){ return !fuera[m.id]; });
+      saveMovs(m14);
     }
   }
 
@@ -2558,17 +2586,22 @@ function olvidaAuto(id){
 /* la lista completa de periodos de una regla, del primero después de `desde` hasta hoy */
 function periodosAuto(c){
   var R=c.auto, out=[], hoy=hoyISO(), val=R.valor0, desde=R.desde;
-  if(R.modo==='trim'){
-    var y0=+R.arranca.slice(0,4), ys=Object.keys(R.tasas).map(Number).sort();
-    for(var k=0;k<ys.length;k++){
-      var y=ys[k], cuota=Math.round(val*R.tasas[y]/4*100)/100;
-      [[3,30],[6,30],[9,30],[12,30]].forEach(function(q){
-        var f=y+'-'+String(q[0]).padStart(2,'0')+'-'+q[1];
-        if(y>=y0 && f>desde && f<=hoy)
-          out.push({f:f, monto:cuota, per:y+'T'+(q[0]/3)});
-      });
-      val=Math.round((val-4*cuota)*100)/100;
-    }
+  var p2=function(n){ return String(n).padStart(2,'0'); };
+  if(R.modo==='trim' || R.modo==='mes-tasa'){
+    /* tabla de tasas por año. La cuota del periodo es el saldo al INICIO del año por la
+       tasa de ese año, repartida entre 4 (trimestral) o 12 (mensual): así los cierres de
+       año dan lo mismo en las dos frecuencias. */
+    var trim=(R.modo==='trim'), n=trim?4:12;
+    Object.keys(R.tasas).map(Number).sort().forEach(function(y){
+      var cuota=Math.round(val*R.tasas[y]/n*100)/100;
+      for(var k=1;k<=n;k++){
+        var mo=trim?k*3:k;
+        var f  = trim ? (y+'-'+p2(mo)+'-30') : finMes(y,mo);
+        var per= trim ? (y+'T'+k) : (y+'-'+p2(mo));
+        if(f>desde && f<=hoy) out.push({f:f, monto:cuota, per:per});
+      }
+      val=Math.round((val-n*cuota)*100)/100;
+    });
   } else {                                   // mensual con INPC
     /* se avanza con año/mes a mano y NO con setMonth(): partiendo de un día 30, al pasar
        a febrero la fecha se desborda a marzo y ese mes se pierde (se comió uno) */
