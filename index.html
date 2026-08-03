@@ -544,7 +544,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1047";
+<script>window.MM_VER="20260803-1101";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -700,7 +700,7 @@ var ING_CATS=[
  /* Era "Ultramarinos", el nombre de la tienda. Marco lo tenía como "Negocio" en sus
     frecuentes de Money Pro, y ahí caben las dos formas en que le entra dinero de ahí:
     lo que retira, y lo que el negocio le repone de gastos que él pagó. */
- {n:"Negocio",e:"🏪",subs:["Retiro del negocio","Pago de gastos","Compra de mercancías","Ultramarinos"]},
+ {n:"Negocio",e:"🏪",subs:["Retiro del negocio","Pago de gastos","Compra de mercancías"]},
  {n:"Otros",e:"🗄️",subs:["Otros"]}
 ];
 
@@ -718,7 +718,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=3;
+var MIG_V=4;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -752,6 +752,16 @@ function migrar(){
              if(g.n==='Negocio' && g.subs.indexOf('Compra de mercancías')<0)
                g.subs.splice(2,0,'Compra de mercancías'); });
            sv(K_ING,G); }
+  }
+
+  if(hecho<4){
+    /* 4) fuera la subcategoría "Ultramarinos". Venía del nombre que esa categoría tiene en
+          Money Pro, pero Ultramarinos / UltraSol / Ultramart / Negocio son el mismo lugar
+          para Marco, y tener las dos solo confundía. Ningún movimiento la usaba. */
+    var H=ld(K_ING,null);
+    if(H){ H.forEach(function(g){
+             if(g.n==='Negocio'){ var i=g.subs.indexOf('Ultramarinos'); if(i>=0) g.subs.splice(i,1); } });
+           sv(K_ING,H); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
