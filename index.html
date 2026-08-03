@@ -443,6 +443,8 @@ button{font-family:inherit;}
       <textarea class="desc" id="desc" placeholder="Descripción o comentario…"></textarea>
       <button class="fotobtn" id="fotoBtn" title="Foto de la nota">📷</button>
       <input type="file" id="fotoIn" accept="image/*" capture="environment" style="display:none">
+      <!-- sin `capture`: Android abre la galería y el explorador de archivos -->
+      <input type="file" id="archIn" accept="image/*" style="display:none">
     </div>
     <div class="fotoprev" id="fotoPrev">
       <img id="fotoImg" alt="Nota">
@@ -517,7 +519,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-0928";
+<script>window.MM_VER="20260803-0934";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1140,8 +1142,15 @@ $('msiPlus').onclick=function(){st.meses=Math.min(48,st.meses+1);$('msiN').textC
      nombre que dice qué es. De ahí DriveSync la sube sola a Drive, igual que el respaldo.
    No se puede escribir en Drive directo ni meterle metadatos EXIF desde el navegador; el
    nombre del archivo es la manera práctica de que la foto se encuentre sola. */
-$('fotoBtn').onclick=function(){ $('fotoIn').click(); };
-$('fotoIn').onchange=function(e){
+$('fotoBtn').onclick=function(){
+  openSheet('Foto de la nota');
+  $('sheetBody').innerHTML=
+    '<div class="acct" id="fCam"><div class="ic">📷</div><div class="nm">Tomar foto<small>abre la cámara</small></div></div>'+
+    '<div class="acct" id="fArch"><div class="ic">🖼️</div><div class="nm">Elegir un archivo<small>galería o archivos del teléfono</small></div></div>';
+  $('fCam').onclick=function(){ closeSheet(); $('fotoIn').click(); };
+  $('fArch').onclick=function(){ closeSheet(); $('archIn').click(); };
+};
+function tomarFoto(e){
   var f=e.target.files&&e.target.files[0]; if(!f) return;
   var r=new FileReader();
   r.onload=function(ev){
@@ -1156,7 +1165,9 @@ $('fotoIn').onchange=function(e){
       $('fotoImg').src=st.foto; $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
     }; img.src=ev.target.result; };
   r.readAsDataURL(f); e.target.value='';
-};
+}
+$('fotoIn').onchange=tomarFoto;
+$('archIn').onchange=tomarFoto;
 $('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null;
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has'); };
 
