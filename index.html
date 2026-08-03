@@ -552,7 +552,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1233";
+<script>window.MM_VER="20260803-1239";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1239,7 +1239,7 @@ function setTipo(t){
   $('tipoNm').textContent=T.t; $('tipoIc').textContent=T.e; $('cuentaLb').textContent=T.lb;
   $('ambLb').textContent = T.amb || '¿De quién es?';
   $('agLb').textContent  = T.ag  || 'Comercio o persona';
-  acomodaCat();
+  acomodaAmbito(); acomodaCat();
   $('msiCard').style.display = (t==='Gasto')?'block':'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
@@ -1479,11 +1479,29 @@ var AMBITOS=[
  {n:'Propiedades', e:'🏢', d:'Casa Lomas, Colosio, San Antonio, Depto Valle…'},
  {n:'Negocio',     e:'🏪', d:'Ultramart / UltraSol'}
 ];
+/* En un INGRESO solo tienen sentido dos: la tienda le paga y las propiedades le rentan.
+   Marco: "personal ni casa sol; la casa sol no genera ingreso, es donde vivo". En gastos
+   siguen los cuatro, y en ese orden, para que el default siga siendo Personal. */
+var AMB_INGRESO=['Negocio','Propiedades'];
+function ambitosPara(){
+  var L=ambitos();
+  if(st.tipo!=='Ingreso') return L;
+  var out=[];
+  AMB_INGRESO.forEach(function(n){
+    var a=L.filter(function(x){ return x.n===n; })[0]; if(a) out.push(a); });
+  return out.length?out:L;
+}
+function acomodaAmbito(){
+  var L=ambitosPara();
+  if(L.length && !L.filter(function(a){ return a.n===st.ambito; }).length) setAmbito(L[0].n);
+}
 $('rowAmb').onclick=function(){
   openSheet($('ambLb').textContent);
-  $('sheetBody').innerHTML=ambitos().map(function(A){
+  $('sheetBody').innerHTML=ambitosPara().map(function(A){
+    /* en ingreso, "Propiedades" se lee mejor como lo que es: lo que cobras de renta */
+    var d=(st.tipo==='Ingreso'&&A.n==='Propiedades')?'Las rentas que cobras':A.d;
     return '<div class="acct'+(A.n===st.ambito?' sel':'')+'" data-n="'+A.n+'"><div class="ic">'+A.e+'</div>'+
-      '<div class="nm">'+A.n+'<small>'+A.d+'</small></div></div>';}).join('')+
+      '<div class="nm">'+A.n+'<small>'+d+'</small></div></div>';}).join('')+
     '<div class="note">Sirve para poder verlo solo lo tuyo o todo junto, sin tener que separarlo después. '+
       'Con quién fue la operación se pone en el renglón de abajo.</div>';
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
