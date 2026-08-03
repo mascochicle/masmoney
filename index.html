@@ -355,6 +355,20 @@ button{font-family:inherit;}
 .fld.tocable{width:100%;text-align:left;cursor:pointer;font:inherit;color:var(--ink);}
 .fld.tocable:active{background:var(--surface2);}
 .fld .chev{color:var(--mut2);font-size:16px;margin-left:auto;}
+.partes{display:flex;flex-direction:column;gap:7px;}
+.parte{display:flex;align-items:center;gap:8px;}
+.pcat{flex:1;display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;padding:10px 11px;color:var(--ink);font:inherit;text-align:left;cursor:pointer;min-width:0;}
+.pcat .e{font-size:17px;flex:none;}
+.pcat .n{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pcat .n small{display:block;font-size:10.5px;color:var(--mut2);}
+.pmonto{width:106px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  color:var(--ink);font:inherit;font-size:15px;padding:11px 10px;text-align:right;font-variant-numeric:tabular-nums;}
+.pdel{flex:none;width:28px;height:28px;border-radius:50%;background:transparent;border:0;color:var(--gasto);
+  font-size:15px;cursor:pointer;}
+.ptot{display:flex;align-items:baseline;margin-top:12px;padding:0 2px;font-size:11px;color:var(--mut2);
+  text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+.ptot b{margin-left:auto;font-size:19px;color:var(--ink);letter-spacing:0;font-variant-numeric:tabular-nums;}
 .edit-b img.big{width:100%;border-radius:12px;border:1px solid var(--line);}
 .edit-acts{display:flex;gap:9px;margin-top:5px;}
 .edit-acts button{flex:1;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);}
@@ -457,6 +471,8 @@ button{font-family:inherit;}
           <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
+        <button class="row" id="rowPart"><div class="ic">🧾</div>
+          <div class="lb"><div class="t" id="partNm">Una sola categoría</div><div class="s">Dividir entre varias</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
           <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s" id="agLb">Comercio o persona</div></div><div class="chev">›</div></button>
       </div>
@@ -555,7 +571,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1300";
+<script>window.MM_VER="20260803-1306";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1259,7 +1275,15 @@ function verPad(v){
 $('abrirPad').onclick=function(){ verPad($('pad').classList.contains('off')); };
 $('disp').onclick=function(){ verPad(true); };
 $('desc').addEventListener('focus',function(){ verPad(false); });   // deja lugar al teclado del teléfono
-function num(){return parseFloat(st.amount)||0;}
+/* Un cargo del banco suele traer comisión + IVA en UNA sola línea del estado de cuenta.
+   Money Pro deja partirlo por categorías dentro de la misma ficha y aquí igual: el
+   movimiento sigue siendo UNO (por eso el monto cuadra contra el banco) y por dentro
+   guarda sus partes. Si hay partes, el monto es su suma y el teclado se apaga. */
+function sumaPartes(){
+  if(!st.partes || st.partes.length<2) return null;
+  return st.partes.reduce(function(a,p){ return a+(parseFloat(p.amount)||0); },0);
+}
+function num(){ var s=sumaPartes(); return (s!==null)?s:(parseFloat(st.amount)||0); }
 function renderMsiPrev(){
   if(!st.msi) return;
   var t=num(), m=st.meses;
@@ -1311,6 +1335,11 @@ function setTipo(t){
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
   $('rowAg').style.display  = T.sinAg?'none':'flex';
+  /* dividir solo tiene sentido en gasto e ingreso: los demás no llevan categoría */
+  var parte=(t==='Gasto'||t==='Ingreso');
+  $('rowPart').style.display = parte?'flex':'none';
+  if(!parte){ st.partes=null; }
+  if(typeof pintaPartes==='function') pintaPartes();
   $('rowAmb').style.display = T.sinAmb?'none':'flex';   // una transferencia no es de nadie
   if(T.sinAg) setAgente(null);
   /* la cuenta de origen tiene que existir dentro del filtro de este tipo */
@@ -1341,6 +1370,73 @@ function catsActuales(){
   if(st.tipo==='Ingreso') return ings();
   return st.ambito==='Negocio' ? negs() : cats();
 }
+
+/* ---- dividir un movimiento entre varias categorías ---- */
+function pintaPartes(){
+  var n=(st.partes&&st.partes.length>1)?st.partes.length:0;
+  $('partNm').textContent = n ? (n+' categorías · '+fmt2(sumaPartes())) : 'Una sola categoría';
+  $('abrirPad').disabled = !!n;                 // con partes, el monto lo mandan ellas
+  $('abrirPad').style.opacity = n ? .5 : 1;
+  if(n) st.amount = sumaPartes().toFixed(2);    // el monto grande muestra la suma
+  renderAmt();
+}
+function dividir(){
+  /* arranca con lo que ya hay puesto, para no volver a elegirlo */
+  if(!st.partes || st.partes.length<2){
+    st.partes=[{g:st.cat.g, e:st.cat.e, sub:st.cat.sub, amount:num()||''}];
+  }
+  verDividir();
+}
+function verDividir(){
+  openSheet('Dividir entre categorías');
+  var L=st.partes;
+  $('sheetBody').innerHTML='<div class="partes">'+L.map(function(p,i){
+    return '<div class="parte" data-i="'+i+'">'+
+      '<button class="pcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
+        '<span class="n">'+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'<small>'+p.g+'</small></span></button>'+
+      '<input class="pmonto" data-m="'+i+'" type="number" inputmode="decimal" step="0.01" '+
+        'placeholder="0.00" value="'+(p.amount===''?'':p.amount)+'">'+
+      (L.length>1?'<button class="pdel" data-del="'+i+'">✕</button>':'')+'</div>';
+  }).join('')+'</div>'+
+  '<button class="acct nuevo" id="pAdd"><div class="ic">＋</div><div class="nm">Agregar categoría</div></button>'+
+  '<div class="ptot">TOTAL<b id="pTot">'+fmt2(L.reduce(function(a,p){return a+(parseFloat(p.amount)||0);},0))+'</b></div>'+
+  '<div class="note">Es UN solo movimiento: el total es lo que se compara contra el banco. '+
+    'Con una sola línea vuelve a ser un gasto normal.</div>'+
+  '<div class="edit-acts"><button class="b-save" id="pOk">Listo</button></div>';
+
+  function total(){
+    var t=st.partes.reduce(function(a,p){ return a+(parseFloat(p.amount)||0); },0);
+    $('pTot').textContent=fmt2(t);
+  }
+  $('sheetBody').querySelectorAll('.pmonto').forEach(function(el){
+    el.oninput=function(){ st.partes[+el.dataset.m].amount=el.value; total(); };
+  });
+  $('sheetBody').querySelectorAll('.pcat').forEach(function(el){
+    el.onclick=function(){ var i=+el.dataset.cat;
+      elegirCatEdit(catsActuales(), function(c){
+        st.partes[i].g=c.g; st.partes[i].e=c.e; st.partes[i].sub=c.sub; verDividir(); });
+    };
+  });
+  $('sheetBody').querySelectorAll('.pdel').forEach(function(el){
+    el.onclick=function(){ st.partes.splice(+el.dataset.del,1); verDividir(); };
+  });
+  $('pAdd').onclick=function(){
+    elegirCatEdit(catsActuales(), function(c){
+      st.partes.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(); });
+  };
+  $('pOk').onclick=function(){
+    st.partes=st.partes.filter(function(p){ return (parseFloat(p.amount)||0)>0; });
+    if(st.partes.length<2){                       // una sola: vuelve a ser normal
+      if(st.partes.length===1){ var p=st.partes[0];
+        pickCat(p.g,p.e,p.sub); st.amount=String(p.amount); }
+      st.partes=null;
+    } else {
+      var p0=st.partes[0]; pickCat(p0.g,p0.e,p0.sub);   // la ficha muestra la primera
+    }
+    closeSheet(); pintaPartes();
+  };
+}
+$('rowPart').onclick=dividir;
 
 /* ================= MSI ================= */
 $('msiSw').onclick=function(){ st.msi=!st.msi; this.classList.toggle('on',st.msi);
@@ -1775,6 +1871,11 @@ $('guardar').onclick=function(){
     destino:   dos&&c2?c2.n:null,
     grupo: dos?null:st.cat.g,
     sub:   dos?null:st.cat.sub,
+    /* si va dividido, las partes viajan dentro; el monto del movimiento es su suma,
+       que es lo que tiene que cuadrar contra el estado de cuenta */
+    partes: (st.partes&&st.partes.length>1)
+            ? st.partes.map(function(p){ return {g:p.g,e:p.e,sub:p.sub,amount:+(parseFloat(p.amount)||0)}; })
+            : undefined,
     e: dos?T.e:st.cat.e,
     amount:num(), msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente, ambito:(T.sinAmb?null:st.ambito), desc:$('desc').value.trim(), foto:st.foto,
@@ -1795,8 +1896,9 @@ $('guardar').onclick=function(){
   limpiarForm(); verForm(false); renderCuenta(); renderSaldos(); toast('Guardado');
 };
 function limpiarForm(){
-  st.amount="0"; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
+  st.amount="0"; st.partes=null; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
   $('interes').value=''; setAgente(null); verPad(false); $('fotoImg').style.display='';
+  pintaPartes();
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has');
   if(st.msi){ st.msi=false; $('msiSw').classList.remove('on'); $('msiBody').classList.remove('show'); }
@@ -1815,6 +1917,7 @@ function ordenados(){ return movs().slice().sort(function(a,b){return (b.ts||0)-
 function filaMov(m,cid){
   var lab = m.ajuste ? ('Ajuste de saldo · '+m.cuenta)
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : m.sub;
+  if(m.partes && m.partes.length>1) lab += ' +'+(m.partes.length-1)+' más';
   var extra = (m.interes ? '<span class="msi-b">interés '+fmtM(m.interes,m.mon)+'</span>' : '')
             + (m.ambito&&m.ambito!=='Personal' ? '<span class="amb-b">'+m.ambito+'</span>' : '');
   var meta = dstr(m.fecha)+' · '+m.hora+(m.agente?' · '+m.agente:'')+' · '+(m.ajuste?'saldo corregido':m.cuenta)+
@@ -1981,6 +2084,11 @@ function editarMov(id, pre){
         '<div class="ro">'+cat.e+'  '+lab+'</div><div class="chev">›</div></button>'
       : '<div class="fld"><div class="k">'+(dosCuentas(m.tipo)?'Operación':'Categoría')+'</div>'+
         '<div class="ro">'+m.e+'  '+lab+'</div></div>')+
+    (m.partes&&m.partes.length>1
+      ? '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:4px">Dividido en</div>'+
+        '<div class="ro" style="flex:1">'+m.partes.map(function(p){
+          return p.e+'  '+((p.sub&&p.sub!==p.g)?p.sub:p.g)+' · '+fmtM(p.amount,m.mon); }).join('<br>')+'</div></div>'
+      : '')+
     (m.interes?'<div class="fld"><div class="k">Interés</div><div class="ro">'+fmtM(m.interes,m.mon)+' · capital '+fmtM(m.amount-m.interes,m.mon)+'</div></div>':'')+
     (m.ajuste?'':'<div class="fld"><div class="k">Cuenta</div><div class="ro">'+m.cuenta+'</div></div>')+
     (m.mon&&m.mon!==BASE?'<div class="fld"><div class="k">Moneda</div><div class="ro">'+m.mon+' · '+fmt2(aBase(m.amount,m.mon))+' MXN</div></div>':'')+
