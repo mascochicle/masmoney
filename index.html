@@ -259,6 +259,11 @@ button{font-family:inherit;}
 .sal.arrastrando{position:relative;z-index:30;background:var(--surface2);
   box-shadow:0 10px 26px rgba(0,0,0,.55);border-radius:12px;}
 .sal.arrastrando .asa{color:var(--accent-ink);}
+/* las filas de la lista de categorías se arrastran igual que las cuentas */
+.acct.catrow.arrastrando{position:relative;z-index:30;background:var(--surface2);border-radius:12px;}
+.acct.catrow.deslizando{transition:transform .2s cubic-bezier(.3,.9,.4,1);}
+.acct.catrow.asentando{transition:transform .2s cubic-bezier(.3,.9,.4,1);}
+.acct .asa{margin-left:auto;}
 .sal.asentando{transition:transform .22s cubic-bezier(.2,.9,.3,1);}
 .sal.deslizando{transition:transform .18s ease;}
 .sal{display:flex;align-items:center;gap:11px;padding:11px 16px;border-top:1px solid var(--surface);}
@@ -429,14 +434,16 @@ button{font-family:inherit;}
     <div class="capscroll">
     <div class="top">
       <div class="rows">
+        <!-- La CUENTA va primero: al capturar desde la pantalla de una cuenta ya viene
+             puesta, y es lo primero que Marco revisa. -->
+        <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
+          <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
         <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
           <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">⌄</div></button>
         <!-- El ámbito va ANTES de la categoría a propósito: es lo que decide si se ofrecen
              las categorías personales o las del negocio. -->
         <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
           <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
-        <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
-          <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
@@ -537,7 +544,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1018";
+<script>window.MM_VER="20260803-1036";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1126,6 +1133,7 @@ function setTipo(t){
   $('tipoNm').textContent=T.t; $('tipoIc').textContent=T.e; $('cuentaLb').textContent=T.lb;
   $('ambLb').textContent = T.amb || '¿De quién es?';
   $('agLb').textContent  = T.ag  || 'Comercio o persona';
+  acomodaCat();
   $('msiCard').style.display = (t==='Gasto')?'block':'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
@@ -1373,12 +1381,18 @@ $('rowAmb').onclick=function(){
 function setAmbito(n){
   var A=ambitos().filter(function(x){return x.n===n;})[0]||ambitos()[0];
   st.ambito=A.n; $('ambNm').textContent=A.n; $('ambIc').textContent=A.e;
-  /* si la categoría puesta no existe en el catálogo que ahora toca, se cambia a la
-     primera: si no, un gasto del negocio se quedaría con "Alimentación · Víveres" */
-  var L=catsActuales();
-  if(!L.filter(function(c){ return c.n===st.cat.g; }).length && L.length){
-    var c=L[0]; pickCat(c.n, c.e, (c.subs&&c.subs.length)?c.subs[0]:c.n);
-  }
+  acomodaCat();
+}
+/* Si la categoría puesta no existe en el catálogo que ahora toca, se cambia sola: si no,
+   un gasto del negocio se quedaría con "Alimentación · Víveres" y un ingreso con una
+   categoría de gasto. En ingreso arranca en Negocio, que es de donde le entra casi todo. */
+var CAT_DEF={ Ingreso:'Negocio' };
+function acomodaCat(){
+  var L=catsActuales(); if(!L.length) return;
+  if(L.filter(function(c){ return c.n===st.cat.g; }).length) return;
+  var pref=CAT_DEF[st.tipo];
+  var c=(pref && L.filter(function(x){ return x.n===pref; })[0]) || L[0];
+  pickCat(c.n, c.e, (c.subs&&c.subs.length)?c.subs[0]:c.n);
 }
 
 /* ---- agente: con quién fue la transacción. Buscador, porque son 249. ---- */
@@ -1739,20 +1753,26 @@ function setOrden(o){ sv(K_ORD,o); renderSaldos(); }
    la posicion vieja). Al soltar, la fila se asienta sola en su hueco. */
 var arr=null;
 function hermano(el,dir){
+  var cls=(arr&&arr.cls)||'sal';
   var n=dir<0?el.previousElementSibling:el.nextElementSibling;
-  while(n && !(n.classList&&n.classList.contains('sal'))) n=dir<0?n.previousElementSibling:n.nextElementSibling;
-  return (n && n.dataset.g===el.dataset.g) ? n : null;   // nunca sale de su seccion
+  while(n && !(n.classList&&n.classList.contains(cls))) n=dir<0?n.previousElementSibling:n.nextElementSibling;
+  if(!n) return null;
+  /* las cuentas no salen de su sección; las listas sin `data-g` se mueven libremente */
+  return (el.dataset.g===undefined || n.dataset.g===el.dataset.g) ? n : null;
+}
+/* Hace arrastrable cualquier lista: `asa` es el tirador, `cls` la clase de la fila y
+   `fin` lo que se hace al soltar. Nació para Saldos y lo reusan las categorías. */
+function arrastrable(asa, cls, fin){
+  asa.addEventListener('pointerdown', function(e){
+    e.preventDefault(); e.stopPropagation();
+    var el=asa.closest('.'+cls); if(!el) return;
+    arr={el:el, y0:e.clientY, dy:0, movio:false, cls:cls, fin:fin};
+    el.classList.add('arrastrando'); el.classList.remove('asentando');
+    asa.setPointerCapture(e.pointerId);
+  });
 }
 function activarArrastre(){
-  $('saldos').querySelectorAll('.asa').forEach(function(h){
-    h.addEventListener('pointerdown', function(e){
-      e.preventDefault(); e.stopPropagation();
-      var el=h.closest('.sal'); if(!el) return;
-      arr={el:el, y0:e.clientY, dy:0, movio:false};
-      el.classList.add('arrastrando'); el.classList.remove('asentando');
-      h.setPointerCapture(e.pointerId);
-    });
-  });
+  $('saldos').querySelectorAll('.asa').forEach(function(h){ arrastrable(h,'sal',null); });
 }
 document.addEventListener('pointermove', function(e){
   if(!arr) return;
@@ -1781,10 +1801,11 @@ document.addEventListener('pointermove', function(e){
 });
 function soltar(){
   if(!arr) return;
-  var el=arr.el, movio=arr.movio; arr=null;
+  var el=arr.el, movio=arr.movio, fin=arr.fin; arr=null;
   el.classList.add('asentando'); el.style.transform='';   // se acomoda solo en su hueco
   setTimeout(function(){ el.classList.remove('arrastrando','asentando'); },240);
   if(!movio) return;
+  if(fin){ fin(); return; }
   // el nuevo orden sale del DOM
   var pos={}; $('saldos').querySelectorAll('.sal[data-id]').forEach(function(x,i){ pos[x.dataset.id]=i; });
   var L=ctas().slice().sort(function(a,b){
@@ -2225,14 +2246,31 @@ function verCategorias(cual){
     '<div class="agbar"><span>'+L.length+' grupos · '+
       L.reduce(function(s,c){return s+c.subs.length;},0)+' subcategorías</span></div>'+
     L.map(function(c,i){
-      return '<div class="acct" data-i="'+i+'"><div class="ic">'+c.e+'</div>'+
+      return '<div class="acct catrow" data-i="'+i+'" data-n="'+c.n.replace(/"/g,'&quot;')+'">'+
+        '<div class="ic">'+c.e+'</div>'+
         '<div class="nm">'+c.n+'<small>'+c.subs.length+' subcategoría'+(c.subs.length===1?'':'s')+'</small></div>'+
-        '<div class="tag">editar ›</div></div>';}).join('')+
-    '<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Nuevo grupo</div></div>';
+        '<div class="asa" title="Arrastra para reordenar">≡</div></div>';}).join('')+
+    '<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Nuevo grupo</div></div>'+
+    '<div class="note">Toca un grupo para editarlo. Arrastra el ≡ para cambiar el orden: '+
+      'es el mismo en el que aparecen al capturar.</div>';
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
     el.onclick=function(){
-      if(el.dataset.nuevo) editarGrupo(cual,-1); else editarGrupo(cual,+el.dataset.i);
+      if(el.dataset.nuevo){ editarGrupo(cual,-1); return; }
+      if(arr) return;                       // venía de un arrastre, no de un toque
+      editarGrupo(cual,+el.dataset.i);
     };
+  });
+  /* al soltar, el orden nuevo sale del DOM y se guarda */
+  $('sheetBody').querySelectorAll('.catrow .asa').forEach(function(h){
+    arrastrable(h,'catrow',function(){
+      var por={}; lista(cual).forEach(function(c){ por[c.n]=c; });
+      var nuevo=[];
+      $('sheetBody').querySelectorAll('.catrow').forEach(function(x){
+        if(por[x.dataset.n]) nuevo.push(por[x.dataset.n]);
+      });
+      if(nuevo.length===lista(cual).length){ guardaLista(cual,nuevo); toast('Orden guardado'); }
+      setTimeout(function(){ verCategorias(cual); },260);
+    });
   });
 }
 function editarGrupo(cual,i){
