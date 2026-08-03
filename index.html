@@ -12,7 +12,13 @@
 html,body{background:#000;height:100%;overflow:hidden;}
 body{font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);display:flex;justify-content:center;}
 /* alto fijo al viewport: así la barra de pestañas queda clavada y solo scrollea el contenido */
-.phone{width:100%;max-width:430px;background:var(--ground);height:100vh;height:100dvh;
+/* `zoom` agranda TODO (letra, iconos, barras) sin tocar los 100 tamaños del CSS.
+   La altura la calcula el JS en píxeles (--h): con zoom, `100dvh` no da lo que uno
+   espera y la barra de pestañas se salía de la pantalla. */
+.phone{zoom:var(--z,1);width:100%;max-width:430px;background:var(--ground);
+  /* align-self hace falta: el body es flex y su `stretch` le ganaba a la altura,
+     así que el marco crecía con el zoom y la barra de pestañas se salía. */
+  align-self:flex-start;height:100dvh;
   display:flex;flex-direction:column;position:relative;overflow:hidden;}
 @media(min-width:460px){.phone{margin:18px 0;height:calc(100vh - 36px);border-radius:30px;
   box-shadow:0 30px 80px rgba(0,0,0,.6);border:1px solid #1c1e22;}}
@@ -630,7 +636,10 @@ var ING_CATS=[
  {n:"Ingresos por intereses",e:"💹",subs:["Intereses"]},
  {n:"Regalos",e:"🎁",subs:["Regalos"]},
  {n:"Ayudas & Donaciones",e:"🤲",subs:["Ayudas & Donaciones"]},
- {n:"Ultramarinos",e:"🏪",subs:["Retiro del negocio"]},
+ /* Era "Ultramarinos", el nombre de la tienda. Marco lo tenía como "Negocio" en sus
+    frecuentes de Money Pro, y ahí caben las dos formas en que le entra dinero de ahí:
+    lo que retira, y lo que el negocio le repone de gastos que él pagó. */
+ {n:"Negocio",e:"🏪",subs:["Retiro del negocio","Pago de gastos","Ultramarinos"]},
  {n:"Otros",e:"🗄️",subs:["Otros"]}
 ];
 
@@ -642,6 +651,36 @@ var K_CAT='appcaptura_cats_v1', K_ING='appcaptura_ingcats_v1', K_AMB='appcaptura
 function cats(){  var v=ld(K_CAT,null); return (v&&v.length)?v:CATS.slice(); }
 function ings(){  var v=ld(K_ING,null); return (v&&v.length)?v:ING_CATS.slice(); }
 function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice(); }
+/* ---- arreglos que no llegan solos ----
+   Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
+   eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
+   uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
+var MIG_V=2;
+function migrar(){
+  var hecho=ld(K_CFG,{}).mig||0;
+  if(hecho>=MIG_V) return;
+
+  if(hecho<1){
+    /* 1) "Ultramarinos" pasó a llamarse "Negocio" (2 lugares: la lista y lo capturado) */
+    var L=ld(K_ING,null);
+    if(L){ L.forEach(function(g){ if(g.n==='Ultramarinos'){ g.n='Negocio';
+             if(g.subs.indexOf('Pago de gastos')<0) g.subs.push('Pago de gastos'); } });
+           sv(K_ING,L); }
+    var a=ld(K_MOV,null), k=0;
+    if(a){ a.forEach(function(m){ if(m.grupo==='Ultramarinos'){ m.grupo='Negocio'; k++; } });
+           if(k) sv(K_MOV,a); }
+  }
+  if(hecho<2){
+    /* 2) el préstamo de la prima fue de $260,000, no de $240,000 (13 pagos, no 12).
+          El relleno de campos vacíos no lo corrige porque el dato ya estaba puesto. */
+    var C=ld(K_CTA,null);
+    if(C){ C.forEach(function(c){ if(c.id==='d3' && Math.round(c.orig)===240000) c.orig=260000; });
+           sv(K_CTA,C); }
+  }
+
+  var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
+}
+
 function saveCats(L){ return sv(K_CAT,L); }
 function saveIngs(L){ return sv(K_ING,L); }
 function saveAmbitos(L){ return sv(K_AMB,L); }
@@ -1278,7 +1317,12 @@ function showCatGrid(){
   var L=catsActuales(), b=$('sheetBody');
   b.innerHTML='<div class="grid">'+L.map(function(c,i){
     return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
-  b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){ showSubs(L[+el.dataset.i]); }; });
+  b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
+    var c=L[+el.dataset.i];
+    /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
+    if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
+    showSubs(c);
+  }; });
 }
 function showSubs(c){
   $('sheetTit').textContent='Subcategoría';
@@ -1672,8 +1716,9 @@ function renderSaldos(){
         return '<div class="sal'+(edMode?' ed':'')+(c.oculta?' off':'')+'" data-id="'+c.id+'" data-g="'+c.g+'">'+
           '<button class="del" data-del="'+c.id+'">−</button>'+
           '<div class="ic">'+c.e+'</div><div class="nm">'+c.n+
+            /* la nota de la cuenta NO va aquí: ensucia la lista y ya se ve completa al
+               entrar a la cuenta. Aquí solo lo que no está en ningún otro lado. */
             (extranjera?'<small>'+fmt2(c._mx)+' MXN · TC '+tc(c.mon)+'</small>':'')+
-            (c.nota?'<small>'+c.nota+'</small>':'')+
             (c.oculta?'<small>oculta de la lista</small>':'')+'</div>'+
           '<div class="v '+(cero?'cero':neg?'neg':'pos')+'">'+(neg?'−':'')+fmtM(c._v,c.mon)+'</div>'+
           (edMode&&ord==='manual'
@@ -1806,6 +1851,35 @@ function pesoDatos(){
 /* ---- recordatorio de respaldo ----
    Los datos viven en el navegador del teléfono. Mientras no haya servidor, el archivo
    exportado es el único respaldo, así que la app avisa cuando lleva días sin uno. */
+/* ---- tamaño de letra ---- */
+var LETRAS=[{n:'Normal', z:1}, {n:'Grande', z:1.09}, {n:'Más grande', z:1.18}];
+function aplicaLetra(){
+  var z=(LETRAS[ld(K_CFG,{}).letra||0]||LETRAS[0]).z;
+  var e=document.documentElement, ph=document.querySelector('.phone');
+  if(!ph){ e.style.setProperty('--z', z); return; }
+  /* Se MIDE el alto natural (zoom 1, sin altura forzada) y se divide entre el zoom.
+     Dos detalles que costaron encontrarlo: el `stretch` del body le ganaba a la altura
+     (de ahí el align-self del CSS), y una variable heredada de <html> se RE-ESCALA al
+     cruzar el zoom, así que la altura va inline en el propio marco. */
+  e.style.setProperty('--z', 1); ph.style.height='';
+  var base=ph.getBoundingClientRect().height;
+  e.style.setProperty('--z', z);
+  ph.style.height=(base/z).toFixed(2)+'px';
+}
+window.addEventListener('resize', aplicaLetra);
+if(window.visualViewport) window.visualViewport.addEventListener('resize', aplicaLetra);
+function elegirLetra(){
+  var act=cfg().letra||0;
+  openSheet('Tamaño de letra');
+  $('sheetBody').innerHTML=LETRAS.map(function(L,i){
+    return '<div class="acct'+(i===act?' sel':'')+'" data-i="'+i+'"><div class="ic">Aa</div>'+
+      '<div class="nm" style="font-size:'+(14.5*L.z).toFixed(1)+'px">'+L.n+'</div></div>';
+  }).join('')+'<div class="note">Agranda toda la app, no solo el texto.</div>';
+  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+    el.onclick=function(){ setCfg('letra',+el.dataset.i); aplicaLetra(); closeSheet(); renderCfg(); };
+  });
+}
+
 function estadoRespaldo(){
   var t=cfg().respaldo;
   if(!movs().length) return {dias:0, txt:'', cls:''};
@@ -1854,6 +1928,7 @@ function renderCfg(){
          'siguen contando, no se listan')+
 
     '<div class="secttl">Formato</div>'+
+    fila('letra','Aa','Tamaño de letra', LETRAS[c.letra||0].n, 'agranda toda la app')+
     '<div class="cfg-i" data-a="centavos"><div class="ic">🔢</div>'+
       '<div class="nm">Mostrar centavos<small>'+(c.centavos===false?'$1,250':'$1,250.00')+'</small></div>'+
       '<div class="sw'+(c.centavos===false?'':' on')+'"></div></div>'+
@@ -1891,6 +1966,7 @@ function renderCfg(){
       else if(a==='ambitos') verAmbitos();
       else if(a==='centavos'){ setCfg('centavos', cfg().centavos===false); renderCfg(); renderCuenta(); renderSaldos(); }
       else if(a==='semana'){ setCfg('semana', cfg().semana===1?0:1); renderCfg(); renderCal(); }
+      else if(a==='letra') elegirLetra();
     };
   });
   conectarRespaldo();
@@ -1927,7 +2003,8 @@ function editarGrupo(cual,i){
     '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
       '<div class="emojis" id="gE">'+EMOJIS_CAT.map(function(x){
         return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+'</div></div>'+
-    '<div class="note">Subcategorías (es el segundo nivel, tu Agente 2)</div>'+
+    '<div class="note">Subcategorías (opcional; es el segundo nivel, tu Agente 2). '+
+      'Si no le pones ninguna, al capturar se elige el grupo directo.</div>'+
     '<div class="sublist" id="gSubs">'+c.subs.map(function(s,k){
       return '<div class="sub-i" data-k="'+k+'"><span class="e">'+c.e+'</span>'+s+
              '<span class="tag" style="margin-left:auto">editar</span></div>';}).join('')+
@@ -1946,7 +2023,6 @@ function editarGrupo(cual,i){
   });
   $('gOk').onclick=function(){
     var nom=$('gN').value.trim(); if(!nom){ toast('Ponle nombre',true); return; }
-    if(!subs.length){ toast('Necesita al menos una subcategoría',true); return; }
     var A=esIng?ings():cats(), viejo=nuevo?null:A[i].n;
     var reg={n:nom,e:pick,subs:subs};
     if(nuevo) A.push(reg); else A[i]=reg;
@@ -2183,6 +2259,7 @@ function exportarTodo(){
 
 /* ================= init ================= */
 (function(){
+  migrar(); aplicaLetra();
   if(primeraVez()){ pantallaInicio(); return; }
   var c=cta(st.cuentaId)||ctas()[0]; st.cuentaId=c.id;
   $('cuentaNm').textContent=c.n; $('cuentaIc').textContent=c.e;
