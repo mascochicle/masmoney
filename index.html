@@ -555,7 +555,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1248";
+<script>window.MM_VER="20260803-1251";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -912,6 +912,17 @@ function nivelUso(u){
   if(u<50)  return 'ya pasa del 30% que recomienda Buró';
   if(u<75)  return 'alto';
   return 'muy alto · nivel de los peores scores';
+}
+/* ---- color de lo que falta de un crédito ----
+   Aquí no hay recomendación de banco que seguir, así que el criterio es propio: el verde
+   se GANA. Un crédito a la mitad todavía es medio crédito, así que a 50% pendiente la
+   barra apenas llega a amarillo; el verde aparece cuando de verdad ya falta poco.
+   La curva (elevar a 1.6) es lo que retrasa el verde en vez de repartirlo parejo.
+     100% pendiente rojo · 50% amarillo · 25% verde lima · 10% verde · 0% liquidado */
+function colorDeuda(pend){
+  if(pend<=0) return 'hsl(145 55% 44%)';
+  var t=Math.pow(1-Math.min(1,pend/100), 1.6);
+  return 'hsl('+Math.round(145*t)+' 70% 47%)';
 }
 function fmt(n){return '$'+Math.round(Math.abs(n)).toLocaleString('en-US');}
 function fmt2(n){var d=_dec();
@@ -2158,12 +2169,18 @@ function renderSaldos(){
                entrar a la cuenta. Aquí solo lo que no está en ningún otro lado. */
             (extranjera?'<small>'+fmt2(c._mx)+' MXN · TC '+tc(c.mon)+'</small>':'')+
             (c.oculta?'<small>oculta de la lista</small>':'')+
-            /* barrita del uso de la línea, sin texto: el color ya dice todo */
-            (c.limite>0 && G.deuda
+            /* barritas sin texto: el color ya dice todo.
+               En TARJETA la barra crece con lo que debes (uso de la línea).
+               En CRÉDITO la barra es lo que FALTA por pagar: encoge conforme abonas. */
+            (c.limite>0 && c.g==='tarjeta'
               ? (function(){ var u=Math.max(0, c._v/c.limite*100);
                   return '<i class="usomin" title="'+u.toFixed(1)+'% de la línea"><b style="width:'+
                     Math.min(100,u).toFixed(1)+'%;background:'+colorUso(u)+'"></b></i>'; })()
-              : '')+'</div>'+
+              : (c.orig>0 && c.g==='credito'
+              ? (function(){ var pd=Math.max(0, Math.min(100, c._v/c.orig*100));
+                  return '<i class="usomin" title="falta el '+pd.toFixed(1)+'%"><b style="width:'+
+                    pd.toFixed(1)+'%;background:'+colorDeuda(pd)+'"></b></i>'; })()
+              : ''))+'</div>'+
           '<div class="v '+(cero?'cero':neg?'neg':'pos')+'">'+(neg?'−':'')+fmtM(c._v,c.mon)+'</div>'+
           (edMode&&ord==='manual'
             ? '<div class="asa" data-asa="'+c.id+'">≡</div>'
