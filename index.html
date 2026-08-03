@@ -627,6 +627,29 @@ var CATS=[
  {n:"Inversiones",e:"📈",subs:["Equipamiento","Suscripciones apps","Papelería"]},
  {n:"Otros",e:"🗄️",subs:["General","Otros"]}
 ];
+/* Categorías del NEGOCIO. Salen de la columna "Tipo de Ingreso/Gasto" de
+   `Ultramart Contabilidad.xlsx`, ordenadas por lo que Marco usó en 2026 (el número entre
+   paréntesis son los movimientos de ese año). Ahí la contabilidad es de UN solo nivel,
+   así que van sin subcategorías. */
+var NEG_CATS=[
+ {n:"Compra de mercancías",e:"📦",subs:[]},        /* 1130 */
+ {n:"Sueldos",e:"👷",subs:[]},                     /*  261 */
+ {n:"Comisiones Terminal",e:"💳",subs:[]},         /*  211 */
+ {n:"Gastos varios",e:"🗄️",subs:[]},               /*  203 */
+ {n:"Recargas",e:"📱",subs:[]},                    /*  172 */
+ {n:"Artículos de limpieza",e:"🧹",subs:[]},       /*   38 */
+ {n:"Gasolina",e:"⛽",subs:[]},                    /*   30 */
+ {n:"Impuestos",e:"🏛️",subs:[]},                   /*   29 */
+ {n:"Pago de servicios",e:"💡",subs:[]},           /*   21 */
+ {n:"Contabilidad",e:"📊",subs:[]},                /*    9 */
+ {n:"Mantenimiento equipos",e:"🔧",subs:[]},       /*    9 */
+ {n:"Seguro Social",e:"🏥",subs:[]},               /*    6 */
+ {n:"Papelería y oficina",e:"📎",subs:[]},         /*    4 */
+ {n:"Documentos y trámites",e:"📄",subs:[]},       /*    3 */
+ {n:"Mantenimiento de edificios",e:"🏗️",subs:[]},  /*    3 */
+ {n:"Software",e:"💻",subs:[]}                     /*    1 */
+];
+
 var ING_CATS=[
  {n:"Arrendamiento",e:"🏢",subs:["Casa Lomas","Casa San Antonio","Depto Valle Sol","Casa Colosio","Local Spa","Otras"]},
  {n:"Stock Trading",e:"📈",subs:["Stock Trading"]},
@@ -647,9 +670,11 @@ function $(i){return document.getElementById(i);}
 
 /* ---- listas que Marco puede editar desde Ajustes ----
    Nacen del catálogo de arriba y en cuanto toca una, pasa a vivir en su teléfono. */
-var K_CAT='appcaptura_cats_v1', K_ING='appcaptura_ingcats_v1', K_AMB='appcaptura_ambitos_v1';
+var K_CAT='appcaptura_cats_v1', K_ING='appcaptura_ingcats_v1', K_AMB='appcaptura_ambitos_v1',
+    K_NEG='appcaptura_negcats_v1';
 function cats(){  var v=ld(K_CAT,null); return (v&&v.length)?v:CATS.slice(); }
 function ings(){  var v=ld(K_ING,null); return (v&&v.length)?v:ING_CATS.slice(); }
+function negs(){  var v=ld(K_NEG,null); return (v&&v.length)?v:NEG_CATS.slice(); }
 function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice(); }
 /* ---- arreglos que no llegan solos ----
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
@@ -683,6 +708,7 @@ function migrar(){
 
 function saveCats(L){ return sv(K_CAT,L); }
 function saveIngs(L){ return sv(K_ING,L); }
+function saveNegs(L){ return sv(K_NEG,L); }
 function saveAmbitos(L){ return sv(K_AMB,L); }
 function ld(k,d){try{var v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}}
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}
@@ -1090,7 +1116,12 @@ function setTipo(t){
   }
   renderAmt();
 }
-function catsActuales(){ return st.tipo==='Ingreso'?ings():cats(); }
+/* Un gasto con ámbito Negocio se clasifica con las categorías del negocio, no con las
+   personales: son contabilidades distintas y mezclarlas es justo lo que hay que evitar. */
+function catsActuales(){
+  if(st.tipo==='Ingreso') return ings();
+  return st.ambito==='Negocio' ? negs() : cats();
+}
 
 /* ================= MSI ================= */
 $('msiSw').onclick=function(){ st.msi=!st.msi; this.classList.toggle('on',st.msi);
@@ -1230,6 +1261,12 @@ $('rowAmb').onclick=function(){
 function setAmbito(n){
   var A=ambitos().filter(function(x){return x.n===n;})[0]||ambitos()[0];
   st.ambito=A.n; $('ambNm').textContent=A.n; $('ambIc').textContent=A.e;
+  /* si la categoría puesta no existe en el catálogo que ahora toca, se cambia a la
+     primera: si no, un gasto del negocio se quedaría con "Alimentación · Víveres" */
+  var L=catsActuales();
+  if(!L.filter(function(c){ return c.n===st.cat.g; }).length && L.length){
+    var c=L[0]; pickCat(c.n, c.e, (c.subs&&c.subs.length)?c.subs[0]:c.n);
+  }
 }
 
 /* ---- agente: con quién fue la transacción. Buscador, porque son 249. ---- */
@@ -1922,6 +1959,8 @@ function renderCfg(){
          cats().reduce(function(s,x){return s+x.subs.length;},0)+' subcategorías')+
     fila('ings','💰','Categorías de ingreso', ings().length+' grupos',
          ings().reduce(function(s,x){return s+x.subs.length;},0)+' subcategorías')+
+    fila('negs','🏪','Categorías del negocio', negs().length+' grupos',
+         'salen cuando el ámbito es Negocio')+
     fila('ambitos','🏷️','Ámbitos', ambitos().length, ambitos().map(function(x){return x.n;}).join(' · '))+
     fila('agentes','👤','Agentes', agentes().length, 'comercios y personas')+
     fila('ocultas','🙈','Cuentas ocultas', L.filter(function(x){return x.oculta;}).length,
@@ -1963,6 +2002,7 @@ function renderCfg(){
       else if(a==='ocultas') verOcultas();
       else if(a==='cats') verCategorias('gasto');
       else if(a==='ings') verCategorias('ingreso');
+      else if(a==='negs') verCategorias('negocio');
       else if(a==='ambitos') verAmbitos();
       else if(a==='centavos'){ setCfg('centavos', cfg().centavos===false); renderCfg(); renderCuenta(); renderSaldos(); }
       else if(a==='semana'){ setCfg('semana', cfg().semana===1?0:1); renderCfg(); renderCal(); }
@@ -1977,9 +2017,14 @@ var EMOJIS_CAT=['🧺','❤️','👶','🧹','🍽️','🚗','👕','🔧','�
 function usoDeGrupo(g,sub){
   return movs().filter(function(m){ return m.grupo===g && (!sub||m.sub===sub); }).length;
 }
+/* Las tres listas de categorías se editan con la misma pantalla; `cual` dice cuál. */
+function lista(cual){ return cual==='ingreso'?ings():cual==='negocio'?negs():cats(); }
+function guardaLista(cual,L){ return cual==='ingreso'?saveIngs(L):cual==='negocio'?saveNegs(L):saveCats(L); }
+function tituloLista(cual){ return cual==='ingreso'?'Categorías de ingreso':
+  cual==='negocio'?'Categorías del negocio':'Categorías de gasto'; }
 function verCategorias(cual){
-  var esIng=(cual==='ingreso'), L=esIng?ings():cats();
-  openSheet(esIng?'Categorías de ingreso':'Categorías de gasto');
+  var L=lista(cual);
+  openSheet(tituloLista(cual));
   $('sheetBody').innerHTML=
     '<div class="agbar"><span>'+L.length+' grupos · '+
       L.reduce(function(s,c){return s+c.subs.length;},0)+' subcategorías</span></div>'+
@@ -1995,7 +2040,7 @@ function verCategorias(cual){
   });
 }
 function editarGrupo(cual,i){
-  var esIng=(cual==='ingreso'), L=esIng?ings():cats();
+  var L=lista(cual);
   var nuevo=(i<0), c=nuevo?{n:'',e:'📦',subs:[]}:L[i];
   openSheet(nuevo?'Nuevo grupo':'Grupo');
   $('sheetBody').innerHTML='<div class="edit-b">'+
@@ -2023,10 +2068,10 @@ function editarGrupo(cual,i){
   });
   $('gOk').onclick=function(){
     var nom=$('gN').value.trim(); if(!nom){ toast('Ponle nombre',true); return; }
-    var A=esIng?ings():cats(), viejo=nuevo?null:A[i].n;
+    var A=lista(cual), viejo=nuevo?null:A[i].n;
     var reg={n:nom,e:pick,subs:subs};
     if(nuevo) A.push(reg); else A[i]=reg;
-    (esIng?saveIngs:saveCats)(A);
+    guardaLista(cual,A);
     if(viejo && viejo!==nom){                       // arrastra el cambio a los movimientos
       var b=movs(), k=0;
       b.forEach(function(m){ if(m.grupo===viejo){ m.grupo=nom; m.e=pick; k++; } });
@@ -2040,7 +2085,7 @@ function editarGrupo(cual,i){
     ask('¿Borrar el grupo <b>'+c.n+'</b> y sus '+c.subs.length+' subcategorías?'+
         (uso?'<br><span style="color:var(--op)">Lo usan '+uso+' movimiento'+(uso>1?'s':'')+'; ahí se queda escrito.</span>':''),
       'Borrar', function(){
-        var A=esIng?ings():cats(); A.splice(i,1); (esIng?saveIngs:saveCats)(A);
+        var A=lista(cual); A.splice(i,1); guardaLista(cual,A);
         verCategorias(cual); toast('Borrado');
       });
   };
@@ -2065,9 +2110,9 @@ function volverAlGrupo(cual,gi,c,subs,emoji){
   closeSheet(); setTimeout(function(){ editarGrupoConservando(cual,gi,c,subs,emoji); },120);
 }
 function editarGrupoConservando(cual,gi,c,subs,emoji){
-  var esIng=(cual==='ingreso'), A=esIng?ings():cats();
-  if(gi>=0){ A[gi]={n:c.n,e:emoji,subs:subs}; (esIng?saveIngs:saveCats)(A); editarGrupo(cual,gi); }
-  else { A.push({n:c.n||'Nuevo grupo',e:emoji,subs:subs}); (esIng?saveIngs:saveCats)(A); editarGrupo(cual,A.length-1); }
+  var A=lista(cual);
+  if(gi>=0){ A[gi]={n:c.n,e:emoji,subs:subs}; guardaLista(cual,A); editarGrupo(cual,gi); }
+  else { A.push({n:c.n||'Nuevo grupo',e:emoji,subs:subs}); guardaLista(cual,A); editarGrupo(cual,A.length-1); }
 }
 
 /* ---- ámbitos ---- */
