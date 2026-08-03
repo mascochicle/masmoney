@@ -555,7 +555,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1257";
+<script>window.MM_VER="20260803-1300";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -643,7 +643,9 @@ var MONEDAS=[
 ];
 /* 17.371528 es el TC exacto que reproduce al centavo los dos totales de su Money Pro:
    11,481.90 USD → 199,458.15 MXN  y  5,600 USD → 97,280.56 MXN */
-var TC_DEF={MXN:1, USD:17.371528, EUR:19.10, BTC:1850000};
+/* USD = FIX de Banxico. Se actualiza a mano en cada versión de la app; cuando haya
+   servidor se jalará solo. Última: 3-ago-2026. */
+var TC_DEF={MXN:1, USD:17.3317, EUR:19.10, BTC:1850000};
 var K_TC='appcaptura_tc_v1';
 function tcs(){ var t=ld(K_TC,{}); var r={}; MONEDAS.forEach(function(m){
   r[m.c] = (t[m.c]!=null?t[m.c]:TC_DEF[m.c]) || 1; }); return r; }
@@ -758,7 +760,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=9;
+var MIG_V=10;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -868,6 +870,14 @@ function migrar(){
     if(K){ var h9={}; K.forEach(function(g){ h9[g.n]=1; });
            CATS.forEach(function(g){ if(!h9[g.n]) K.push(JSON.parse(JSON.stringify(g))); });
            sv(K_CAT,K); }
+  }
+
+  if(hecho<10){
+    /* 10) el tipo de cambio del dólar quedó guardado en el teléfono al importar, así que
+           cambiar TC_DEF ya no le llega. Se actualiza solo si sigue teniendo el valor
+           viejo: si Marco lo puso a mano, se respeta. */
+    var T10=ld(K_TC,null);
+    if(T10 && Math.abs((T10.USD||0)-17.371528)<0.000001){ T10.USD=17.3317; sv(K_TC,T10); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
@@ -2190,7 +2200,8 @@ function renderSaldos(){
           '<div class="ic">'+c.e+'</div><div class="nm">'+c.n+
             /* la nota de la cuenta NO va aquí: ensucia la lista y ya se ve completa al
                entrar a la cuenta. Aquí solo lo que no está en ningún otro lado. */
-            (extranjera?'<small>'+fmt2(c._mx)+' MXN · TC '+tc(c.mon)+'</small>':'')+
+            /* solo el equivalente en pesos; el tipo de cambio vive en Ajustes */
+            (extranjera?'<small>'+fmt2(c._mx)+' MXN</small>':'')+
             (c.oculta?'<small>oculta de la lista</small>':'')+
             /* barritas sin texto: el color ya dice todo.
                En TARJETA la barra crece con lo que debes (uso de la línea).
