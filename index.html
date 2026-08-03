@@ -349,6 +349,9 @@ button{font-family:inherit;}
 .emojis button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
   font-size:17px;cursor:pointer;}
 .emojis button.on{border-color:var(--accent-ink);background:var(--accent-soft);}
+.fld.tocable{width:100%;text-align:left;cursor:pointer;font:inherit;color:var(--ink);}
+.fld.tocable:active{background:var(--surface2);}
+.fld .chev{color:var(--mut2);font-size:16px;margin-left:auto;}
 .edit-b img.big{width:100%;border-radius:12px;border:1px solid var(--line);}
 .edit-acts{display:flex;gap:9px;margin-top:5px;}
 .edit-acts button{flex:1;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);}
@@ -549,7 +552,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1214";
+<script>window.MM_VER="20260803-1229";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1826,11 +1829,38 @@ function renderCal(dir){
   });
 }
 
-function editarMov(id){
+/* `pre` trae lo que ya estaba escrito en los campos. Sirve para ir al selector de
+   categoría y volver sin perder lo que llevaba tecleado (antes la categoría no se podía
+   cambiar después de guardar: había que borrar el movimiento y capturarlo otra vez). */
+/* Selector de grupo y subcategoría para el EDITOR. Es aparte del de captura porque aquel
+   escribe en `st` y este devuelve el resultado por callback. */
+function elegirCatEdit(L, listo){
+  $('sheetTit').textContent='Grupo';
+  var b=$('sheetBody');
+  b.innerHTML='<div class="grid">'+L.map(function(c,i){
+    return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
+  b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
+    var c=L[+el.dataset.i];
+    if(!c.subs || !c.subs.length){ listo({g:c.n, e:c.e, sub:c.n}); return; }
+    $('sheetTit').textContent='Subcategoría';
+    b.innerHTML='<div class="gback" id="gb2">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
+      c.subs.map(function(x){ return '<div class="sub-i" data-s="'+x.replace(/"/g,'&quot;')+'">'+
+        '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+'</div>';
+    $('gb2').onclick=function(){ elegirCatEdit(L, listo); };
+    b.querySelectorAll('.sub-i').forEach(function(y){
+      y.onclick=function(){ listo({g:c.n, e:c.e, sub:y.dataset.s}); }; });
+  }; });
+}
+
+function editarMov(id, pre){
   var m=movs().filter(function(x){return x.id===id;})[0]; if(!m) return;
   openSheet(m.ajuste?'Ajuste de saldo':'Editar movimiento');
+  var editable = !m.ajuste && !dosCuentas(m.tipo);
+  var cat = (pre&&pre.cat) || {g:m.grupo, e:m.e, sub:m.sub};
+  /* cuando el grupo no tiene subcategorías, sub == grupo: se escribe una sola vez */
+  function texto(c){ return (c.sub && c.sub!==c.g) ? (c.g+' · '+c.sub) : c.g; }
   var lab = m.ajuste ? m.cuenta
-          : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : (m.grupo+' · '+m.sub);
+          : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : texto(cat);
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="number" inputmode="decimal" step="0.01" value="'+m.amount+'"></div>'+
     '<div class="fld"><div class="k">Agente</div><input id="eAg" type="text" value="'+(m.agente||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
@@ -1839,7 +1869,11 @@ function editarMov(id){
     '<div class="fld"><div class="k">Descripción</div><input id="eDesc" type="text" value="'+(m.desc||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     '<div class="fld"><div class="k">Fecha</div><input id="eFec" type="date" value="'+m.fecha+'"></div>'+
     '<div class="fld"><div class="k">Hora</div><input id="eHor" type="time" value="'+m.hora+'"></div>'+
-    '<div class="fld"><div class="k">'+(dosCuentas(m.tipo)?'Operación':'Categoría')+'</div><div class="ro">'+m.e+'  '+lab+'</div></div>'+
+    (editable
+      ? '<button class="fld tocable" id="eCat"><div class="k">Categoría</div>'+
+        '<div class="ro">'+cat.e+'  '+lab+'</div><div class="chev">›</div></button>'
+      : '<div class="fld"><div class="k">'+(dosCuentas(m.tipo)?'Operación':'Categoría')+'</div>'+
+        '<div class="ro">'+m.e+'  '+lab+'</div></div>')+
     (m.interes?'<div class="fld"><div class="k">Interés</div><div class="ro">'+fmtM(m.interes,m.mon)+' · capital '+fmtM(m.amount-m.interes,m.mon)+'</div></div>':'')+
     (m.ajuste?'':'<div class="fld"><div class="k">Cuenta</div><div class="ro">'+m.cuenta+'</div></div>')+
     (m.mon&&m.mon!==BASE?'<div class="fld"><div class="k">Moneda</div><div class="ro">'+m.mon+' · '+fmt2(aBase(m.amount,m.mon))+' MXN</div></div>':'')+
@@ -1849,12 +1883,28 @@ function editarMov(id){
       '<b>'+m.fotoArch+'</b>, y de ahí sube sola a Drive.</div>':'')+
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
     '</div>';
+  function leer(){ return {amt:$('eAmt').value, ag:$('eAg').value,
+      amb:$('eAmb')?$('eAmb').value:null, desc:$('eDesc').value,
+      fec:$('eFec').value, hor:$('eHor').value, cat:cat}; }
+  if(pre){                                    // se vuelve del selector: repone lo escrito
+    $('eAmt').value=pre.amt; $('eAg').value=pre.ag; $('eDesc').value=pre.desc;
+    $('eFec').value=pre.fec; $('eHor').value=pre.hor;
+    if($('eAmb') && pre.amb) $('eAmb').value=pre.amb;
+  }
+  if($('eCat')) $('eCat').onclick=function(){
+    var v=leer();
+    /* qué catálogo toca: el mismo criterio que al capturar (tipo + de quién es) */
+    var cual = (m.tipo==='Ingreso') ? 'ingreso'
+             : ((v.amb||m.ambito)==='Negocio' ? 'negocio' : 'gasto');
+    elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); });
+  };
   $('eSave').onclick=function(){
     var v=parseFloat($('eAmt').value)||0;
     if(v<=0){ toast('Monto inválido',true); return; }
     var b=movs(); for(var i=0;i<b.length;i++) if(b[i].id===id){
       b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=$('eAg').value.trim()||null;
       if($('eAmb')) b[i].ambito=$('eAmb').value;
+      if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e; }
       b[i].fecha=$('eFec').value||b[i].fecha; b[i].hora=$('eHor').value||b[i].hora;
       b[i].ts=new Date(b[i].fecha+'T'+b[i].hora+':00').getTime();
       if(b[i].amount2!=null) b[i].amount2=+((v-(b[i].interes||0))*tc(b[i].mon)/tc(b[i].mon2)).toFixed(6);
