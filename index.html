@@ -273,6 +273,9 @@ button{font-family:inherit;}
 .sal.ed .del{display:block;}
 .sal .ic{width:30px;height:30px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;font-size:14px;flex:none;}
 .sal .nm{flex:1;font-size:14.5px;font-weight:550;min-width:0;}
+.sal .usomin{display:block;height:3px;border-radius:2px;background:var(--surface2);
+  margin-top:6px;max-width:120px;overflow:hidden;}
+.sal .usomin b{display:block;height:100%;border-radius:2px;transition:width .3s;}
 .sal .nm small{display:block;font-size:10.5px;color:var(--mut2);font-weight:500;margin-top:1px;}
 .sal.off{opacity:.45;}
 .sal .v{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;}
@@ -552,7 +555,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1239";
+<script>window.MM_VER="20260803-1248";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -889,6 +892,27 @@ function saveCtas(a){return sv(K_CTA,a);}
 function cta(id){return ctas().filter(function(c){return c.id===id;})[0];}
 /* los centavos son opcional: con muchos movimientos en pantalla estorban */
 function _dec(){ return (ld(K_CFG,{}).centavos===false)?0:2; }
+/* ---- color del uso de la línea ----
+   Buró de Crédito (México) lo dice con todas sus letras en su página de Mi Score:
+   "no utilizar más del 30% de tus líneas de crédito". Debajo de eso, verde.
+   Arriba, el color se va calentando hasta rojo. El rojo pleno se alcanza en 80%
+   porque ese es justo el promedio de quienes tienen el peor score: según datos de
+   Experian (Q3-2024), el uso promedio por rango de score es 7.1% en los excelentes,
+   15.2% muy buenos, 38.6% buenos, 61.4% regulares y 80.7% en los malos. */
+function colorUso(u){
+  if(u<=0)  return 'var(--mut2)';                    // sin usar
+  if(u<=30) return 'hsl(145 55% 44%)';               // dentro de lo que recomienda Buró
+  var t=Math.min(1,(u-30)/50);                       // de 30% a 80%: amarillo -> rojo
+  return 'hsl('+Math.round(55-55*t)+' 72% 48%)';
+}
+function nivelUso(u){
+  if(u<=0)  return 'sin usar';
+  if(u<10)  return 'excelente · los mejores scores andan en 7%';
+  if(u<=30) return 'sano · Buró recomienda no pasar del 30%';
+  if(u<50)  return 'ya pasa del 30% que recomienda Buró';
+  if(u<75)  return 'alto';
+  return 'muy alto · nivel de los peores scores';
+}
 function fmt(n){return '$'+Math.round(Math.abs(n)).toLocaleString('en-US');}
 function fmt2(n){var d=_dec();
   return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
@@ -1114,11 +1138,10 @@ function renderCuenta(){
   if(c.limite>0 && deuda){
     h+='<div class="ln">Saldo disponible<b class="pos">'+fmtM(c.limite-v,c.mon)+'</b></div>';
     /* % de uso: debajo del 30% se considera sano, arriba del 50% empieza a pesar */
-    var u=Math.max(0, v/c.limite*100), niv=u<30?'ok':u<50?'med':'alto';
-    h+='<div class="ln">Uso de la línea<b class="u-'+niv+'">'+u.toFixed(1)+'%</b></div>'+
-       '<div class="ubar"><i class="u-'+niv+'" style="width:'+Math.min(100,u).toFixed(1)+'%"></i></div>';
-    x+='<small>'+fmtM(v,c.mon)+' de '+fmtM(c.limite,c.mon)+' · '+
-       (niv==='ok'?'sano, por debajo del 30%':niv==='med'?'moderado':'alto, arriba del 50%')+'</small>';
+    var u=Math.max(0, v/c.limite*100), col=colorUso(u);
+    h+='<div class="ln">Uso de la línea<b style="color:'+col+'">'+u.toFixed(1)+'%</b></div>'+
+       '<div class="ubar"><i style="width:'+Math.min(100,u).toFixed(1)+'%;background:'+col+'"></i></div>';
+    x+='<small>'+fmtM(v,c.mon)+' de '+fmtM(c.limite,c.mon)+' · '+nivelUso(u)+'</small>';
   }
   /* Créditos: cuánto llevas pagado del total que te prestaron. `orig` es el monto del
      contrato; si la cuenta no lo trae, no se pinta nada (mejor eso que inventarlo). */
@@ -2134,7 +2157,13 @@ function renderSaldos(){
             /* la nota de la cuenta NO va aquí: ensucia la lista y ya se ve completa al
                entrar a la cuenta. Aquí solo lo que no está en ningún otro lado. */
             (extranjera?'<small>'+fmt2(c._mx)+' MXN · TC '+tc(c.mon)+'</small>':'')+
-            (c.oculta?'<small>oculta de la lista</small>':'')+'</div>'+
+            (c.oculta?'<small>oculta de la lista</small>':'')+
+            /* barrita del uso de la línea, sin texto: el color ya dice todo */
+            (c.limite>0 && G.deuda
+              ? (function(){ var u=Math.max(0, c._v/c.limite*100);
+                  return '<i class="usomin" title="'+u.toFixed(1)+'% de la línea"><b style="width:'+
+                    Math.min(100,u).toFixed(1)+'%;background:'+colorUso(u)+'"></b></i>'; })()
+              : '')+'</div>'+
           '<div class="v '+(cero?'cero':neg?'neg':'pos')+'">'+(neg?'−':'')+fmtM(c._v,c.mon)+'</div>'+
           (edMode&&ord==='manual'
             ? '<div class="asa" data-asa="'+c.id+'">≡</div>'
