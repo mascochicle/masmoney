@@ -459,13 +459,13 @@ button{font-family:inherit;}
    <!-- A) pantalla de la cuenta, como en Money Pro -->
    <div class="vista on" id="vCta">
      <div class="hd">
-       <button class="ctaNom" id="ctaSel"><span id="ctaNomT">Efectivo</span> ⌄</button>
+       <button class="ctaNom" id="ctaSel"><span id="ctaNomT">Efectivo</span></button>
        <button class="mas" id="btnMas" title="Nuevo movimiento">+</button>
      </div>
      <div class="ctaSaldo" id="ctaSaldo"></div>
      <div class="periodo">
        <button id="pPrev">‹</button>
-       <button class="pl" id="pLblBtn"><span id="pLbl"></span><small id="pRango"></small><i id="pCar">⌄</i></button>
+       <button class="pl" id="pLblBtn"><span id="pLbl"></span><small id="pRango"></small></button>
        <button id="pNext">›</button>
        <button id="pMas" title="Elegir periodo">···</button>
      </div>
@@ -484,7 +484,7 @@ button{font-family:inherit;}
         <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
           <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
         <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
-          <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">⌄</div></button>
+          <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">›</div></button>
         <!-- El ámbito va ANTES de la categoría a propósito: es lo que decide si se ofrecen
              las categorías personales o las del negocio. -->
         <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
@@ -539,7 +539,7 @@ button{font-family:inherit;}
       <button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key op" data-op="back">⌫</button>
       <button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key op" data-op="c">C</button>
       <button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key op" data-op="00">00</button>
-      <button class="key">.</button><button class="key">0</button><button class="key op listo" data-op="cerrar">Listo ⌄</button>
+      <button class="key">.</button><button class="key">0</button><button class="key op listo" data-op="cerrar">Listo</button>
     </div>
     <div class="barra">
       <button class="b-monto" id="abrirPad"><span>Monto</span><b id="miniMonto">$0</b></button>
@@ -589,7 +589,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1427";
+<script>window.MM_VER="20260803-1436";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1447,10 +1447,13 @@ function dividir(){
   }
   verDividir();
 }
-function verDividir(){
+/* `op` sirve para reusar esta misma hoja desde el EDITOR de un movimiento ya guardado:
+   {lista, cats, listo}. Sin `op` trabaja sobre `st.partes`, que es la captura. */
+function verDividir(op){
   openSheet('Dividir entre categorías');
   sheet.classList.add('alta');   // que no quede pegada al borde de abajo
-  var L=st.partes;
+  var L = op ? op.lista : st.partes;
+  var CT = op ? op.cats : catsActuales();
   $('sheetBody').innerHTML='<div class="partes">'+L.map(function(p,i){
     return '<div class="parte" data-i="'+i+'">'+
       '<button class="pcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
@@ -1465,27 +1468,30 @@ function verDividir(){
   '<div class="edit-acts"><button class="b-save" id="pOk">Listo</button></div>';
 
   function total(){
-    var t=st.partes.reduce(function(a,p){ return a+(parseFloat(p.amount)||0); },0);
+    var t=L.reduce(function(a,p){ return a+(parseFloat(p.amount)||0); },0);
     $('pTot').textContent=fmt2(t);
   }
   $('sheetBody').querySelectorAll('.pmonto').forEach(function(el){
-    el.oninput=function(){ st.partes[+el.dataset.m].amount=el.value; total(); };
+    el.oninput=function(){ L[+el.dataset.m].amount=el.value; total(); };
   });
   $('sheetBody').querySelectorAll('.pcat').forEach(function(el){
     el.onclick=function(){ var i=+el.dataset.cat;
-      elegirCatEdit(catsActuales(), function(c){
-        st.partes[i].g=c.g; st.partes[i].e=c.e; st.partes[i].sub=c.sub; verDividir(); });
+      elegirCatEdit(CT, function(c){
+        L[i].g=c.g; L[i].e=c.e; L[i].sub=c.sub; verDividir(op); });
     };
   });
   $('sheetBody').querySelectorAll('.pdel').forEach(function(el){
-    el.onclick=function(){ st.partes.splice(+el.dataset.del,1); verDividir(); };
+    el.onclick=function(){ L.splice(+el.dataset.del,1); verDividir(op); };
   });
   $('pAdd').onclick=function(){
-    elegirCatEdit(catsActuales(), function(c){
-      st.partes.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(); });
+    elegirCatEdit(CT, function(c){
+      L.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(op); });
   };
   $('pOk').onclick=function(){
-    st.partes=st.partes.filter(function(p){ return (parseFloat(p.amount)||0)>0; });
+    var lim=L.filter(function(p){ return (parseFloat(p.amount)||0)>0; });
+    if(op){ op.listo(lim.map(function(p){
+              return {g:p.g,e:p.e,sub:p.sub,amount:+(parseFloat(p.amount)||0)}; })); return; }
+    st.partes=lim;
     if(st.partes.length<2){                       // una sola: vuelve a ser normal
       if(st.partes.length===1){ var p=st.partes[0];
         pickCat(p.g,p.e,p.sub); st.amount=String(p.amount); }
@@ -2181,17 +2187,34 @@ function elegirCatEdit(L, listo, q){
     elegirCatEdit(L, listo, v); var n=$('qcat2'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
 
+/* opciones de un <select> de cuentas. Si la que trae el movimiento no está en la lista
+   (p.ej. quedó oculta), se agrega igual: si no, el select arrancaría en otra y al guardar
+   le cambiaría la cuenta sin avisar. */
+function opcCta(L, selId){
+  var hay=L.some(function(c){ return c.id===selId; });
+  if(!hay && selId){ var c0=cta(selId); if(c0) L=[c0].concat(L); }
+  return L.map(function(c){
+    return '<option value="'+c.id+'"'+(c.id===selId?' selected':'')+'>'+c.n+'</option>'; }).join('');
+}
+
 function editarMov(id, pre){
   var m=movs().filter(function(x){return x.id===id;})[0]; if(!m) return;
+  var T=tipoDe(m.tipo);
   openSheet(m.ajuste?'Ajuste de saldo':'Editar movimiento');
   var editable = !m.ajuste && !dosCuentas(m.tipo);
   var cat = (pre&&pre.cat) || {g:m.grupo, e:m.e, sub:m.sub};
+  /* `pre.partes` puede venir en null a propósito (quedó una sola categoría), así que no
+     sirve el `||`: hay que preguntar si el campo viene */
+  var partes = (pre && ('partes' in pre)) ? pre.partes : m.partes;
+  var dividido = !!(partes && partes.length>1);
   /* cuando el grupo no tiene subcategorías, sub == grupo: se escribe una sola vez */
   function texto(c){ return (c.sub && c.sub!==c.g) ? (c.g+' · '+c.sub) : c.g; }
   var lab = m.ajuste ? m.cuenta
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : texto(cat);
   $('sheetBody').innerHTML='<div class="edit-b">'+
-    '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="number" inputmode="decimal" step="0.01" value="'+m.amount+'"></div>'+
+    /* si va dividido el monto lo mandan las partes: se edita ahí, no aquí */
+    '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="number" inputmode="decimal" step="0.01" '+
+      (dividido?'readonly ':'')+'value="'+((pre&&pre.amt!=null)?pre.amt:m.amount)+'"></div>'+
     '<div class="fld"><div class="k">Agente</div><input id="eAg" type="text" value="'+(m.agente||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     (m.ajuste?'':'<div class="fld"><div class="k">De quién es</div><select id="eAmb">'+ambitos().map(function(A){
       return '<option value="'+A.n+'"'+(A.n===(m.ambito||'Personal')?' selected':'')+'>'+A.e+'  '+A.n+'</option>';}).join('')+'</select></div>')+
@@ -2200,22 +2223,28 @@ function editarMov(id, pre){
     '<div class="fld"><div class="k">Hora</div><input id="eHor" type="time" value="'+m.hora+'"></div>'+
     (editable
       ? '<button class="fld tocable" id="eCat"><div class="k">Categoría</div>'+
-        '<div class="ro">'+((m.partes&&m.partes.length>1)?'🧾  '+m.partes.length+' categorías':cat.e+'  '+lab)+
+        '<div class="ro">'+(dividido?'🧾  '+partes.length+' categorías':cat.e+'  '+lab)+
         '</div><div class="chev">›</div></button>'
       : '<div class="fld"><div class="k">'+(dosCuentas(m.tipo)?'Operación':'Categoría')+'</div>'+
         '<div class="ro">'+m.e+'  '+lab+'</div></div>')+
     /* una línea por parte y los montos alineados a la derecha: envueltos en un párrafo,
        Marco solo alcanzó a ver el segundo importe y creyó que faltaba el primero */
-    (m.partes&&m.partes.length>1
+    (dividido
       ? '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:4px">Dividido en</div>'+
-        '<div class="ro plist">'+m.partes.map(function(p){
+        '<div class="ro plist">'+partes.map(function(p){
           return '<div class="pline"><span>'+p.e+'  '+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span>'+
                  '<b>'+fmtM(p.amount,m.mon)+'</b></div>'; }).join('')+'</div></div>'
       : '')+
-    (m.interes?'<div class="fld"><div class="k">Interés</div><div class="ro">'+fmtM(m.interes,m.mon)+' · capital '+fmtM(m.amount-m.interes,m.mon)+'</div></div>':'')+
-    (m.ajuste?'':'<div class="fld"><div class="k">Cuenta</div><div class="ro">'+m.cuenta+'</div></div>')+
+    (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" type="number" inputmode="decimal" step="0.01" value="'+m.interes+'"></div>':'')+
+    /* Cuenta y Destino se podían ver pero no cambiar: si se equivocaba de tarjeta había
+       que borrar y recapturar (3-ago-2026) */
+    (m.ajuste?'':'<div class="fld"><div class="k">'+(T.lb||'Cuenta')+'</div><select id="eCta">'+
+      opcCta(filtro(T.o, dosCuentas(m.tipo)?m.destinoId:null), m.cuentaId)+'</select></div>')+
+    (dosCuentas(m.tipo)?'<div class="fld"><div class="k">Destino</div><select id="eDes">'+
+      opcCta(filtro(T.d, m.cuentaId), m.destinoId)+'</select></div>':'')+
     (m.mon&&m.mon!==BASE?'<div class="fld"><div class="k">Moneda</div><div class="ro">'+m.mon+' · '+fmt2(aBase(m.amount,m.mon))+' MXN</div></div>':'')+
-    (m.msi?'<div class="fld"><div class="k">MSI</div><div class="ro">'+m.meses+' meses · '+fmtM(m.amount/m.meses,m.mon)+'/mes</div></div>':'')+
+    (m.msi?'<div class="fld"><div class="k">MSI</div><div class="ro"><input id="eMes" type="number" inputmode="numeric" step="1" min="2" '+
+      'style="width:56px;text-align:right" value="'+(m.meses||0)+'"> meses</div></div>':'')+
     (m.foto?'<img class="big" src="'+m.foto+'" alt="Nota">':'')+
     (m.fotoArch?'<div class="note">La foto completa está en <b>Descargas</b> como '+
       '<b>'+m.fotoArch+'</b>, y de ahí sube sola a Drive.</div>':'')+
@@ -2223,29 +2252,68 @@ function editarMov(id, pre){
     '</div>';
   function leer(){ return {amt:$('eAmt').value, ag:$('eAg').value,
       amb:$('eAmb')?$('eAmb').value:null, desc:$('eDesc').value,
-      fec:$('eFec').value, hor:$('eHor').value, cat:cat}; }
+      fec:$('eFec').value, hor:$('eHor').value, cat:cat,
+      ctaId:$('eCta')?$('eCta').value:null, desId:$('eDes')?$('eDes').value:null,
+      inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null}; }
   if(pre){                                    // se vuelve del selector: repone lo escrito
     $('eAmt').value=pre.amt; $('eAg').value=pre.ag; $('eDesc').value=pre.desc;
     $('eFec').value=pre.fec; $('eHor').value=pre.hor;
     if($('eAmb') && pre.amb) $('eAmb').value=pre.amb;
+    if($('eCta') && pre.ctaId) $('eCta').value=pre.ctaId;
+    if($('eDes') && pre.desId) $('eDes').value=pre.desId;
+    if($('eInt') && pre.inte!=null) $('eInt').value=pre.inte;
+    if($('eMes') && pre.mes!=null) $('eMes').value=pre.mes;
   }
   if($('eCat')) $('eCat').onclick=function(){
     var v=leer();
     /* qué catálogo toca: el mismo criterio que al capturar (tipo + de quién es) */
     var cual = (m.tipo==='Ingreso') ? 'ingreso'
              : ((v.amb||m.ambito)==='Negocio' ? 'negocio' : 'gasto');
+    /* si el movimiento va dividido, abre la hoja de partes y NO el selector de una sola
+       categoría: si no, quedaba con grupo nuevo y las partes viejas adentro */
+    var pt = (pre&&pre.partes) || m.partes;
+    if(pt && pt.length>1){
+      verDividir({lista: JSON.parse(JSON.stringify(pt)), cats: lista(cual),
+        listo: function(np){
+          if(np.length>1){ v.partes=np; v.cat={g:np[0].g, e:np[0].e, sub:np[0].sub};
+                           v.amt=String(np.reduce(function(a,p){return a+p.amount;},0)); }
+          else { v.partes=null;                       // se quedó en una: vuelve a normal
+                 if(np.length===1){ v.cat={g:np[0].g,e:np[0].e,sub:np[0].sub};
+                                    v.amt=String(np[0].amount); } }
+          editarMov(id, v);
+        }});
+      return;
+    }
     elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); });
   };
   $('eSave').onclick=function(){
-    var v=parseFloat($('eAmt').value)||0;
+    var v = dividido ? partes.reduce(function(a,p){ return a+(+p.amount||0); },0)
+                     : (parseFloat($('eAmt').value)||0);
     if(v<=0){ toast('Monto inválido',true); return; }
+    var nInt = $('eInt') ? (parseFloat($('eInt').value)||0) : null;
+    if(nInt!=null && nInt>=v){ toast('El interés no puede ser todo el pago',true); return; }
+    var c1 = $('eCta') ? cta($('eCta').value) : null;
+    var c2 = $('eDes') ? cta($('eDes').value) : null;
+    if(c1 && c2 && c1.id===c2.id){ toast('La cuenta y el destino no pueden ser la misma',true); return; }
     var b=movs(); for(var i=0;i<b.length;i++) if(b[i].id===id){
       b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=$('eAg').value.trim()||null;
       if($('eAmb')) b[i].ambito=$('eAmb').value;
-      if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e; }
+      if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
+                    b[i].partes = dividido ? partes : undefined; }
+      /* la cuenta manda la moneda: si la cambia a una en otra divisa, el movimiento
+         pasa a esa divisa (el monto se queda tal cual, es lo que dice el estado de cuenta) */
+      if(c1){ b[i].cuentaId=c1.id; b[i].cuenta=c1.n; b[i].mon=c1.mon||BASE; }
+      if(c2){ b[i].destinoId=c2.id; b[i].destino=c2.n; b[i].mon2=c2.mon||BASE; }
+      if(nInt!=null) b[i].interes=nInt||null;
+      if($('eMes')) b[i].meses=Math.max(2, parseInt($('eMes').value,10)||2);
       b[i].fecha=$('eFec').value||b[i].fecha; b[i].hora=$('eHor').value||b[i].hora;
       b[i].ts=new Date(b[i].fecha+'T'+b[i].hora+':00').getTime();
-      if(b[i].amount2!=null) b[i].amount2=+((v-(b[i].interes||0))*tc(b[i].mon)/tc(b[i].mon2)).toFixed(6);
+      /* el monto que LLEGA solo se guarda si hace falta: otra moneda o hay interés.
+         Se recalcula siempre, porque cambiar de cuenta puede cambiar la moneda. */
+      if(dosCuentas(b[i].tipo)){
+        b[i].amount2 = (b[i].mon2!==b[i].mon || (b[i].interes||0)>0)
+          ? +((v-(b[i].interes||0))*tc(b[i].mon)/tc(b[i].mon2)).toFixed(6) : null;
+      }
       break; }
     if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Actualizado'); }
   };
