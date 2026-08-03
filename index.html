@@ -360,7 +360,10 @@ button{font-family:inherit;}
   background:#e0a92e;color:#241a06;flex:none;}
 .avres button.x{background:transparent;color:#c7a86b;padding:7px 4px;font-weight:550;}
 
-.bienvenida{position:fixed;inset:0;z-index:200;background:var(--bg);display:grid;place-items:center;padding:26px;}
+/* z-index 35: tapa la app y la barra de pestañas, pero queda DEBAJO del scrim (40) y de
+   la hoja (50), para que el diálogo de importar se lea encima y no revuelto. */
+.bienvenida{position:absolute;inset:0;z-index:35;background:var(--ground);
+  display:grid;place-items:center;padding:26px;}
 .bienvenida .bx{max-width:340px;text-align:center;display:flex;flex-direction:column;gap:13px;}
 .bienvenida h1{font-size:26px;font-weight:750;letter-spacing:-.5px;}
 .bienvenida p{font-size:14px;color:var(--mut);line-height:1.55;}
@@ -517,8 +520,13 @@ function pantallaInicio(){
     '<p>Carga tu último respaldo <b>masmoney-….json</b> para empezar.</p>'+
     '<button id="bImp">Importar mi respaldo</button>'+
     '<small>Lo encuentras en Descargas, o en Drive › SamsungS25ultra › Descargas.</small></div>';
-  document.body.appendChild(d);
+  /* DENTRO del marco del teléfono, no en el <body>: ahí viven las variables de color y el
+     recorte. Colgado del body salía transparente y se encimaba todo (2-ago-2026). */
+  $('app').appendChild(d);
   $('bImp').onclick=function(){ $('impIn').click(); };
+  /* al terminar de importar, la app se recarga: el arranque se cortó antes de armarse */
+  var _imp=aplicarImport;
+  aplicarImport=function(a,b,c){ _imp(a,b,c); if(!primeraVez()) location.reload(); };
 }
 
 /* ================= almacenamiento ================= */
