@@ -53,6 +53,12 @@ button{font-family:inherit;}
 .row .lb .t{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .lb .s{font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .chev{color:var(--mut2);font-size:17px;}
+/* segmentado sube/baja del cambio de valor */
+.seg{display:flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:none;}
+.seg button{border:0;background:var(--surface2);color:var(--mut);font-family:inherit;font-size:12.5px;
+  font-weight:650;padding:7px 12px;cursor:pointer;}
+.seg button+button{border-left:1px solid var(--line);}
+.seg button.on{background:var(--accent-soft);color:var(--accent-ink);}
 .amount{padding:16px 18px 6px;text-align:center;}
 /* la moneda va PEGADA al monto, no debajo: se lee de un golpe cuánto y en qué */
 .amount .montoln{display:flex;align-items:baseline;justify-content:center;gap:7px;}
@@ -503,6 +509,15 @@ button{font-family:inherit;}
           <div class="lb"><div class="t">Interés incluido</div><div class="s">El resto es capital y es lo que baja la deuda</div></div>
           <input class="intIn" id="interes" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
       </div>
+      <!-- para qué lado va el cambio de valor. El teclado no tiene signo, así que el
+           sentido se elige aquí y no tecleando un negativo. -->
+      <div class="rows" id="dirBox" style="display:none">
+        <div class="row" style="cursor:default"><div class="ic">±</div>
+          <div class="lb"><div class="t">¿Sube o baja?</div><div class="s" id="dirLb">Cuánto vale ahora de más o de menos</div></div>
+          <div class="seg" id="dirSeg">
+            <button data-d="1">Sube</button><button data-d="-1" class="on">Baja</button>
+          </div></div>
+      </div>
     </div>
 
     <div class="amount">
@@ -593,7 +608,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1546";
+<script>window.MM_VER="20260803-1557";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -658,7 +673,20 @@ var TIPOS=[
  {t:'Adquisición de pasivo', e:'📄', o:'deuda',  d:'pago',   lb:'Crédito que tomas', sinAg:true,
   amb:'¿De quién es esta deuda?'},
  {t:'Descarga de pasivo',    e:'✅', o:'pago',   d:'deuda',  lb:'Con qué lo pagas', interes:true, sinAg:true,
-  amb:'¿De quién es la deuda que pagas?'}
+  amb:'¿De quién es la deuda que pagas?'},
+ /* Ni gasto ni ingreso: no se movió dinero, solo cambió cuánto vale la cosa (la camioneta
+    se deprecia, la casa se revalúa, el Afore rinde). Mueve el saldo con su fecha real y
+    queda en el historial, que es lo que el "ajuste de saldo" no dejaba (3-ago-2026). */
+ {t:'Cambio de valor',       e:'📊', o:'valor',  d:null,     cat:'valor', dir:true, sinAg:true,
+  lb:'Cuenta que cambia de valor', amb:'¿De quién es este activo?'}
+];
+/* catálogo FIJO: no se edita desde Ajustes como los otros, son solo los motivos por los
+   que el valor de algo se mueve. `d` es el sentido que se propone al elegirlo. */
+var VAL_CATS=[
+ {n:'Depreciación',   e:'📉', d:-1, subs:[]},
+ {n:'Apreciación',    e:'📈', d: 1, subs:[]},
+ {n:'Rendimiento',    e:'🪙', d: 1, subs:[]},
+ {n:'Ajuste de avalúo', e:'🏷️', d:0, subs:[]}
 ];
 function tipoDe(t){ for(var i=0;i<TIPOS.length;i++) if(TIPOS[i].t===t) return TIPOS[i]; return TIPOS[0]; }
 function dosCuentas(t){ var x=tipoDe(t); return !!x.d; }
@@ -668,6 +696,9 @@ function filtro(f,excluirId){
     if(f==='pago')   return c.g==='corriente'||c.g==='tarjeta';
     if(f==='activo') return c.g==='activo';
     if(f==='deuda')  return c.g==='tarjeta'||c.g==='credito';
+    /* lo que puede cambiar de valor: activos (casa, camioneta, Afore) y cuentas de
+       inversión, que son 'corriente' (Binance, Cetes, Yotepresto) */
+    if(f==='valor')  return c.g==='activo'||c.g==='corriente';
     return true;
   });
 }
@@ -1392,6 +1423,8 @@ function setTipo(t){
   $('msiCard').style.display = (t==='Gasto')?'block':'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
+  $('dirBox').style.display  = T.dir?'block':'none';
+  if(!T.dir) st.dir=null; else if(!st.dir) setDir(-1);
   $('rowAg').style.display  = T.sinAg?'none':'flex';
   /* dividir solo tiene sentido en gasto e ingreso: los demás no llevan categoría */
   var parte=(t==='Gasto'||t==='Ingreso');
@@ -1420,10 +1453,12 @@ function setTipo(t){
    personales: son contabilidades distintas y mezclarlas es justo lo que hay que evitar. */
 /* qué lista se está usando: sirve para saber dónde guardar al reordenar */
 function cualLista(){
+  if(tipoDe(st.tipo).cat==='valor') return 'valor';
   if(st.tipo==='Ingreso') return 'ingreso';
   return st.ambito==='Negocio' ? 'negocio' : 'gasto';
 }
 function catsActuales(){
+  if(tipoDe(st.tipo).cat==='valor') return VAL_CATS;
   if(st.tipo==='Ingreso') return ings();
   return st.ambito==='Negocio' ? negs() : cats();
 }
@@ -1703,6 +1738,8 @@ $('rowCat').onclick=function(){
     listaCuentas(st.cuenta2Id,function(c){ st.cuenta2Id=c.id;
       $('catNm').textContent=c.n; $('catIc').textContent=c.e; renderAmt(); },
       filtro(T.d,st.cuentaId)); return; }
+  /* un cambio de valor no se divide entre categorías: es el motivo y ya */
+  if(T.cat==='valor'){ openSheet('Motivo'); showCatGrid(); return; }
   /* Abre SIEMPRE las líneas. Marco no quiso que llevara a la rejilla: desde aquí una
      línea es una categoría, y agregar otra es agregar otra línea. */
   dividir();
@@ -1910,7 +1947,7 @@ document.addEventListener('pointercancel', soltarRejilla);
 function llano(s){ return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
 function showCatGrid(q){
-  $('sheetTit').textContent='Grupo';
+  $('sheetTit').textContent = (cualLista()==='valor') ? 'Motivo' : 'Grupo';
   var L=catsActuales(), b=$('sheetBody');
   q=q||'';
   var caja='<div class="busca"><span>🔍</span><input id="qcat" placeholder="Buscar categoría" '+
@@ -1957,7 +1994,22 @@ function showSubs(c){
   $('gback').onclick=showCatGrid;
   b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){ pickCat(c.n,c.e,el.dataset.s); closeSheet(); }; });
 }
+/* sentido del cambio de valor. Se puede cambiar a mano después de elegir el motivo. */
+function setDir(d){
+  st.dir=d;
+  $('dirSeg').querySelectorAll('button').forEach(function(b){
+    b.classList.toggle('on', +b.dataset.d===d); });
+}
+$('dirSeg').querySelectorAll('button').forEach(function(b){
+  b.onclick=function(){ setDir(+b.dataset.d); renderAmt(); };
+});
 function pickCat(g,e,sub){ st.cat={g:g,e:e,sub:sub};
+  /* el motivo propone el sentido: Depreciación baja, Apreciación y Rendimiento suben.
+     "Ajuste de avalúo" trae 0 y no lo toca, porque puede ir para cualquier lado. */
+  if(tipoDe(st.tipo).dir){
+    var V=VAL_CATS.filter(function(x){return x.n===g;})[0];
+    if(V && V.d) setDir(V.d);
+  }
   if(st.partes&&st.partes.length<2) st.partes=null;
   $('catNm').textContent=sub; $('catSub').textContent=g; $('catIc').textContent=e; }
 
@@ -1985,6 +2037,7 @@ $('guardar').onclick=function(){
             ? st.partes.map(function(p){ return {g:p.g,e:p.e,sub:p.sub,amount:+(parseFloat(p.amount)||0)}; })
             : undefined,
     e: dos?T.e:st.cat.e,
+    dir: T.dir?(st.dir||-1):null,          // solo el cambio de valor lleva sentido
     amount:num(), msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente, ambito:(T.sinAmb?null:st.ambito), desc:$('desc').value.trim(), foto:st.foto,
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
@@ -2036,8 +2089,12 @@ function filaMov(m,cid){
   } else if(cid && dosCuentas(m.tipo)){               // sale de esta cuenta
     sig='−'; cls='';
   } else {
-    sig = m.ajuste ? (m.dir>0?'+':'−') : m.tipo==='Ingreso'?'+':m.tipo==='Gasto'?'−':'';
-    cls = m.ajuste?' t':m.tipo==='Ingreso'?' i':dosCuentas(m.tipo)?' t':'';
+    /* el cambio de valor lleva su propio signo, igual que el ajuste */
+    sig = (m.ajuste||m.tipo==='Cambio de valor') ? (m.dir>0?'+':'−')
+        : m.tipo==='Ingreso'?'+':m.tipo==='Gasto'?'−':'';
+    cls = m.ajuste?' t'
+        : m.tipo==='Cambio de valor' ? (m.dir>0?' i':'')
+        : m.tipo==='Ingreso'?' i':dosCuentas(m.tipo)?' t':'';
   }
   return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+(m.foto?'<span class="pin">📎</span>':'')+'</div>'+
     '<div class="info"><div class="c">'+lab+(m.msi?'<span class="msi-b">'+m.meses+' MSI</span>':'')+extra+'</div>'+
@@ -2207,6 +2264,7 @@ function editarMov(id, pre){
   /* las cuentas ya no son <select>: viven en variables y se eligen en su propia hoja */
   var cta1 = cta((pre&&pre.ctaId) || m.cuentaId);
   var cta2 = cta((pre&&pre.desId) || m.destinoId);
+  var dirM = (pre&&pre.dir) || m.dir || -1;
   var ambN = (pre&&pre.amb) || m.ambito || 'Personal';
   var amb  = ambitos().filter(function(x){return x.n===ambN;})[0] || ambitos()[0];
   /* cuando el grupo no tiene subcategorías, sub == grupo: se escribe una sola vez */
@@ -2237,6 +2295,9 @@ function editarMov(id, pre){
           return '<div class="pline"><span>'+p.e+'  '+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span>'+
                  '<b>'+fmtM(p.amount,m.mon)+'</b></div>'; }).join('')+'</div></div>'
       : '')+
+    (T.dir?'<div class="fld"><div class="k">¿Sube o baja?</div><div class="seg" id="eDir">'+
+      '<button data-d="1"'+(dirM>0?' class="on"':'')+'>Sube</button>'+
+      '<button data-d="-1"'+(dirM<0?' class="on"':'')+'>Baja</button></div></div>':'')+
     (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" type="number" inputmode="decimal" step="0.01" value="'+m.interes+'"></div>':'')+
     /* Cuenta y Destino se podían ver pero no cambiar: si se equivocaba de tarjeta había
        que borrar y recapturar (3-ago-2026) */
@@ -2257,8 +2318,13 @@ function editarMov(id, pre){
   function leer(){ return {amt:$('eAmt').value, ag:$('eAg').value,
       amb:$('eAmb')?amb.n:null, desc:$('eDesc').value,
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
-      ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null,
+      ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null, dir:dirM,
       inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null}; }
+  if($('eDir')) $('eDir').querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){ dirM=+b.dataset.d;
+      $('eDir').querySelectorAll('button').forEach(function(x){
+        x.classList.toggle('on', +x.dataset.d===dirM); }); };
+  });
   if(pre){                                    // se vuelve del selector: repone lo escrito
     $('eAmt').value=pre.amt; $('eAg').value=pre.ag; $('eDesc').value=pre.desc;
     $('eFec').value=pre.fec; $('eHor').value=pre.hor;
@@ -2291,7 +2357,8 @@ function editarMov(id, pre){
   if($('eCat')) $('eCat').onclick=function(){
     var v=leer();
     /* qué catálogo toca: el mismo criterio que al capturar (tipo + de quién es) */
-    var cual = (m.tipo==='Ingreso') ? 'ingreso'
+    var cual = (T.cat==='valor') ? 'valor'
+             : (m.tipo==='Ingreso') ? 'ingreso'
              : ((v.amb||m.ambito)==='Negocio' ? 'negocio' : 'gasto');
     /* si el movimiento va dividido, abre la hoja de partes y NO el selector de una sola
        categoría: si no, quedaba con grupo nuevo y las partes viejas adentro */
@@ -2327,6 +2394,7 @@ function editarMov(id, pre){
          pasa a esa divisa (el monto se queda tal cual, es lo que dice el estado de cuenta) */
       if(c1){ b[i].cuentaId=c1.id; b[i].cuenta=c1.n; b[i].mon=c1.mon||BASE; }
       if(c2){ b[i].destinoId=c2.id; b[i].destino=c2.n; b[i].mon2=c2.mon||BASE; }
+      if(T.dir) b[i].dir=dirM;
       if(nInt!=null) b[i].interes=nInt||null;
       if($('eMes')) b[i].meses=Math.max(2, parseInt($('eMes').value,10)||2);
       b[i].fecha=$('eFec').value||b[i].fecha; b[i].hora=$('eHor').value||b[i].hora;
@@ -2368,8 +2436,12 @@ function saldoDe(c,a){
     var ts=m.ts||0;
     if(esAncla ? (m.origen && ts<=t0) : (ts<=t0)) return;
     if(m.cuentaId===c.id){
-      var d=(m.tipo==='Ingreso')?m.amount:-m.amount;   // gasto y transferencia salen
-      s += esDeuda ? -d : d;                            // en deuda, gastar SUBE lo que debes
+      /* el cambio de valor no entra ni sale: suma o resta según su propio sentido */
+      if(m.tipo==='Cambio de valor'){ s += (m.dir||-1)*m.amount; }
+      else {
+        var d=(m.tipo==='Ingreso')?m.amount:-m.amount; // gasto y transferencia salen
+        s += esDeuda ? -d : d;                          // en deuda, gastar SUBE lo que debes
+      }
     }
     if(dosCuentas(m.tipo)&&m.destinoId===c.id){
       var r=(m.amount2!=null)?m.amount2:m.amount;       // en una descarga, amount2 = capital
@@ -2936,8 +3008,10 @@ function usoDeGrupo(g,sub){
   return movs().filter(function(m){ return m.grupo===g && (!sub||m.sub===sub); }).length;
 }
 /* Las tres listas de categorías se editan con la misma pantalla; `cual` dice cuál. */
-function lista(cual){ return cual==='ingreso'?ings():cual==='negocio'?negs():cats(); }
-function guardaLista(cual,L){ return cual==='ingreso'?saveIngs(L):cual==='negocio'?saveNegs(L):saveCats(L); }
+function lista(cual){ return cual==='valor'?VAL_CATS:cual==='ingreso'?ings():cual==='negocio'?negs():cats(); }
+/* 'valor' es catálogo fijo: no se reordena ni se guarda */
+function guardaLista(cual,L){ if(cual==='valor') return true;
+  return cual==='ingreso'?saveIngs(L):cual==='negocio'?saveNegs(L):saveCats(L); }
 function tituloLista(cual){ return cual==='ingreso'?'Categorías de ingreso':
   cual==='negocio'?'Categorías del negocio':'Categorías de gasto'; }
 function verCategorias(cual){
