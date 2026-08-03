@@ -580,7 +580,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1342";
+<script>window.MM_VER="20260803-1353";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2164,9 +2164,19 @@ function editarMov(id, pre){
    y una transferencia entre monedas distintas guarda además el monto recibido. */
 function saldoDe(c,a){
   var s=c.base||0, t0=c.baseTs||0, esDeuda=(c.g==='tarjeta'||c.g==='credito');
+  /* ¿el saldo es la FOTO inicial del 1-ago, o uno que Marco corrigió a mano después? */
+  var esAncla = (t0===ANCLA);
   a.forEach(function(m){
     if(m.ajuste) return;                       // el ajuste ya está dentro de base
-    if((m.ts||0)<=t0) return;
+    /* Sobre la foto inicial, lo único que ya está dentro es el HISTÓRICO importado
+       (todo trae `origen`). Un movimiento que Marco captura hoy con fecha de julio NO
+       estaba en esa foto — se le había pasado — así que sí debe mover el saldo. Antes
+       se excluía por fecha y no lo movía: "capturo una del 21 de julio y no la modifica
+       en mi total" (3-ago-2026).
+       En cambio, si él corrigió el saldo a mano, ese saldo ya refleja todo lo anterior
+       y ahí sí manda la fecha. */
+    var ts=m.ts||0;
+    if(esAncla ? (m.origen && ts<=t0) : (ts<=t0)) return;
     if(m.cuentaId===c.id){
       var d=(m.tipo==='Ingreso')?m.amount:-m.amount;   // gasto y transferencia salen
       s += esDeuda ? -d : d;                            // en deuda, gastar SUBE lo que debes
