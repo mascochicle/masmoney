@@ -544,7 +544,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1036";
+<script>window.MM_VER="20260803-1047";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -700,7 +700,7 @@ var ING_CATS=[
  /* Era "Ultramarinos", el nombre de la tienda. Marco lo tenía como "Negocio" en sus
     frecuentes de Money Pro, y ahí caben las dos formas en que le entra dinero de ahí:
     lo que retira, y lo que el negocio le repone de gastos que él pagó. */
- {n:"Negocio",e:"🏪",subs:["Retiro del negocio","Pago de gastos","Ultramarinos"]},
+ {n:"Negocio",e:"🏪",subs:["Retiro del negocio","Pago de gastos","Compra de mercancías","Ultramarinos"]},
  {n:"Otros",e:"🗄️",subs:["Otros"]}
 ];
 
@@ -718,7 +718,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=2;
+var MIG_V=3;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -739,6 +739,19 @@ function migrar(){
     var C=ld(K_CTA,null);
     if(C){ C.forEach(function(c){ if(c.id==='d3' && Math.round(c.orig)===240000) c.orig=260000; });
            sv(K_CTA,C); }
+  }
+
+  if(hecho<3){
+    /* 3) "Compra de mercancías" como subcategoría de ingreso del Negocio. Cuando la tienda
+          paga una tarjeta de Marco, una parte es reponerle gastos suyos ("Retiro del
+          negocio") y otra es mercancía que él adelantó con su tarjeta — y eso, dijo él,
+          "es diferente". Ya no llega solo porque desde la migración 1 la lista vive en
+          su teléfono y dejó de leer el catálogo. */
+    var G=ld(K_ING,null);
+    if(G){ G.forEach(function(g){
+             if(g.n==='Negocio' && g.subs.indexOf('Compra de mercancías')<0)
+               g.subs.splice(2,0,'Compra de mercancías'); });
+           sv(K_ING,G); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
