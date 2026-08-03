@@ -593,7 +593,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1451";
+<script>window.MM_VER="20260803-1519";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2705,8 +2705,44 @@ var TEMAS=[
    '--avres-bg':'#fff4dc', '--avres-line':'#e6c98a', '--avres-ink':'#7a5410',
    '--scrim':'rgba(23,26,31,.38)'}}
 ];
+/* "Sistema" no es un tema más: es un índice aparte que se resuelve al vuelo contra el modo
+   oscuro del teléfono. En oscuro usa OSCURO (el gris azulado), no Nocturno — lo pidió así
+   Marco el 3-ago-2026. */
+var T_SIS=99, T_OSC=1, T_DIA=2;
+function sisOscuro(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function temaIdx(){
+  var i=ld(K_CFG,{}).tema||0;
+  return (i===T_SIS) ? (sisOscuro()?T_OSC:T_DIA) : i;
+}
+function temaNom(){
+  var i=ld(K_CFG,{}).tema||0;
+  return (i===T_SIS)
+    ? {n:'Sistema', d:'sigue al teléfono · ahora '+TEMAS[temaIdx()].n.toLowerCase()}
+    : (TEMAS[i]||TEMAS[0]);
+}
+/* si está en Sistema, el tema cambia solo cuando el teléfono cambia (o al anochecer).
+   Dos caminos a propósito: el evento de la media query, y otra revisada al volver a la app
+   — si Android cambia a oscuro con MasMoney en segundo plano, el evento puede no llegar. */
+var temaVisto=null;
+function revisaTemaSistema(){
+  if((ld(K_CFG,{}).tema||0)!==T_SIS) return;
+  var osc=sisOscuro();
+  if(osc===temaVisto) return;              // no cambió: no repintar de gratis
+  temaVisto=osc; aplicaTema(); renderCfg();
+}
+if(window.matchMedia){
+  var mqOsc=window.matchMedia('(prefers-color-scheme: dark)');
+  if(mqOsc.addEventListener) mqOsc.addEventListener('change', revisaTemaSistema);
+  else if(mqOsc.addListener) mqOsc.addListener(revisaTemaSistema);
+}
+document.addEventListener('visibilitychange', function(){
+  if(!document.hidden) revisaTemaSistema();
+});
+window.addEventListener('focus', revisaTemaSistema);
 function aplicaTema(){
-  var i=ld(K_CFG,{}).tema||0, T=TEMAS[i]||TEMAS[0], e=document.documentElement;
+  var i=temaIdx(), T=TEMAS[i]||TEMAS[0], e=document.documentElement;
   /* se limpian las del tema anterior antes de poner las nuevas: si no, un tema con
      menos variables heredaría las del otro */
   TEMAS.forEach(function(X){ Object.keys(X.v).forEach(function(k){ e.style.removeProperty(k); }); });
@@ -2717,15 +2753,22 @@ function aplicaTema(){
 function elegirTema(){
   var act=cfg().tema||0;
   openSheet('Tema');
-  $('sheetBody').innerHTML=TEMAS.map(function(T,i){
+  /* los 3 temas y, al final, Sistema; su muestra pinta el que le tocaría ahora mismo */
+  var L=TEMAS.map(function(T,i){ return {T:T, i:i, n:T.n, d:T.d}; });
+  L.push({T:TEMAS[sisOscuro()?T_OSC:T_DIA], i:T_SIS, n:'Sistema',
+          d:'sigue al teléfono · ahora '+TEMAS[sisOscuro()?T_OSC:T_DIA].n.toLowerCase()});
+  $('sheetBody').innerHTML=L.map(function(x){
+    var T=x.T;
     var g=T.v['--ground']||'#0d0e10', su=T.v['--surface2']||'#22252a', tk=T.v['--ink']||'#eef0f3';
-    return '<div class="acct'+(i===act?' sel':'')+'" data-i="'+i+'">'+
-      '<div class="ic" style="background:'+g+';border:1px solid '+(T.v['--line']||'#2c3036')+';color:'+tk+'">Aa</div>'+
-      '<div class="nm">'+T.n+'<small>'+T.d+'</small></div>'+
+    return '<div class="acct'+(x.i===act?' sel':'')+'" data-i="'+x.i+'">'+
+      '<div class="ic" style="background:'+g+';border:1px solid '+(T.v['--line']||'#2c3036')+';color:'+tk+'">'+
+        (x.i===T_SIS?'⚙️':'Aa')+'</div>'+
+      '<div class="nm">'+x.n+'<small>'+x.d+'</small></div>'+
       '<div style="width:34px;height:20px;border-radius:6px;background:'+su+';border:1px solid '+(T.v['--line']||'#2c3036')+'"></div></div>';
   }).join('');
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
-    el.onclick=function(){ setCfg('tema',+el.dataset.i); aplicaTema(); closeSheet(); renderCfg(); };
+    el.onclick=function(){ setCfg('tema',+el.dataset.i); temaVisto=sisOscuro();
+                           aplicaTema(); closeSheet(); renderCfg(); };
   });
 }
 
@@ -2836,7 +2879,7 @@ function renderCfg(){
          'siguen contando, no se listan')+
 
     '<div class="secttl">Formato</div>'+
-    fila('tema','🎨','Tema', TEMAS[c.tema||0].n, TEMAS[c.tema||0].d)+
+    fila('tema','🎨','Tema', temaNom().n, temaNom().d)+
     fila('letra','Aa','Tamaño de letra', LETRAS[c.letra||0].n, 'agranda toda la app')+
     '<div class="cfg-i" data-a="centavos"><div class="ic">🔢</div>'+
       '<div class="nm">Mostrar centavos<small>'+(c.centavos===false?'$1,250':'$1,250.00')+'</small></div>'+
