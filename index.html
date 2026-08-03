@@ -266,15 +266,19 @@ button{font-family:inherit;}
 .acct .asa{margin-left:auto;}
 .sal.asentando{transition:transform .22s cubic-bezier(.2,.9,.3,1);}
 .sal.deslizando{transition:transform .18s ease;}
-.sal{display:flex;align-items:center;gap:11px;padding:11px 16px;border-top:1px solid var(--surface);}
+.sal{display:flex;align-items:center;gap:11px;row-gap:0;flex-wrap:wrap;
+  padding:11px 16px;border-top:1px solid var(--surface);}
 .sal.ed{cursor:pointer;} .sal.ed:active{background:var(--surface);}
 .sal .del{width:22px;height:22px;border-radius:50%;background:#ff5449;color:#fff;border:0;font-size:15px;
   line-height:1;flex:none;cursor:pointer;display:none;}
 .sal.ed .del{display:block;}
 .sal .ic{width:30px;height:30px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;font-size:14px;flex:none;}
 .sal .nm{flex:1;font-size:14.5px;font-weight:550;min-width:0;}
-.sal .usomin{display:block;height:3px;border-radius:2px;background:var(--surface2);
-  margin-top:6px;max-width:120px;overflow:hidden;}
+/* renglón propio: arranca alineada con el nombre (icono 30 + hueco 11) y llega hasta el
+   final del número. En modo Editar el botón − corre todo 33px a la derecha. */
+.sal .usomin{flex-basis:100%;height:3px;border-radius:2px;background:var(--surface2);
+  margin:6px 0 0 41px;overflow:hidden;}
+.sal.ed .usomin{margin-left:74px;}
 .sal .usomin b{display:block;height:100%;border-radius:2px;transition:width .3s;}
 .sal .nm small{display:block;font-size:10.5px;color:var(--mut2);font-weight:500;margin-top:1px;}
 .sal.off{opacity:.45;}
@@ -589,7 +593,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1436";
+<script>window.MM_VER="20260803-1441";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2511,23 +2515,25 @@ function renderSaldos(){
                entrar a la cuenta. Aquí solo lo que no está en ningún otro lado. */
             /* solo el equivalente en pesos; el tipo de cambio vive en Ajustes */
             (extranjera?'<small>'+fmt2(c._mx)+' MXN</small>':'')+
-            (c.oculta?'<small>oculta de la lista</small>':'')+
-            /* barritas sin texto: el color ya dice todo.
-               En TARJETA la barra crece con lo que debes (uso de la línea).
-               En CRÉDITO la barra es lo que FALTA por pagar: encoge conforme abonas. */
-            (c.limite>0 && c.g==='tarjeta'
-              ? (function(){ var u=Math.max(0, c._v/c.limite*100);
-                  return '<i class="usomin" title="'+u.toFixed(1)+'% de la línea"><b style="width:'+
-                    Math.min(100,u).toFixed(1)+'%;background:'+colorUso(u)+'"></b></i>'; })()
-              : (c.orig>0 && c.g==='credito'
-              ? (function(){ var pd=Math.max(0, Math.min(100, c._v/c.orig*100));
-                  return '<i class="usomin" title="falta el '+pd.toFixed(1)+'%"><b style="width:'+
-                    pd.toFixed(1)+'%;background:'+colorDeuda(pd)+'"></b></i>'; })()
-              : ''))+'</div>'+
+            (c.oculta?'<small>oculta de la lista</small>':'')+'</div>'+
           '<div class="v '+(cero?'cero':neg?'neg':'pos')+'">'+(neg?'−':'')+fmtM(c._v,c.mon)+'</div>'+
           (edMode&&ord==='manual'
             ? '<div class="asa" data-asa="'+c.id+'">≡</div>'
-            : '<div class="chev">›</div>')+'</div>';
+            : '<div class="chev">›</div>')+
+          /* barritas sin texto: el color ya dice todo.
+             En TARJETA la barra crece con lo que debes (uso de la línea).
+             En CRÉDITO la barra es lo que FALTA por pagar: encoge conforme abonas.
+             Va FUERA del nombre y en su propio renglón: dentro se cortaba a la mitad de
+             la fila, y Marco la quiere hasta donde termina el número (3-ago-2026). */
+          (c.limite>0 && c.g==='tarjeta'
+            ? (function(){ var u=Math.max(0, c._v/c.limite*100);
+                return '<i class="usomin" title="'+u.toFixed(1)+'% de la línea"><b style="width:'+
+                  Math.min(100,u).toFixed(1)+'%;background:'+colorUso(u)+'"></b></i>'; })()
+            : (c.orig>0 && c.g==='credito'
+            ? (function(){ var pd=Math.max(0, Math.min(100, c._v/c.orig*100));
+                return '<i class="usomin" title="falta el '+pd.toFixed(1)+'%"><b style="width:'+
+                  pd.toFixed(1)+'%;background:'+colorDeuda(pd)+'"></b></i>'; })()
+            : ''))+'</div>';
       }).join('')+
       '<div class="addrow" data-add="'+G.g+'"><div class="plus">+</div>Agregar en '+G.t.toLowerCase()+'</div>';
   }).join('');
