@@ -580,7 +580,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1353";
+<script>window.MM_VER="20260803-1358";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1052,6 +1052,7 @@ function rango(){
 var PERIODOS=[
   {n:'Hoy',             f:function(){per={t:'dia',f:hoyISO()};}},
   {n:'Últimos 5 días',  f:function(){per={t:'dias',n:5};}},
+  {n:'Últimos 30 días', f:function(){per={t:'dias',n:30};}},
   /* 30 y 90 días se quitaron el 3-ago-2026: con "este mes", "el mes pasado" y el
      calendario ya se cubren, y la lista se leía más larga de lo que servía. */
   {n:'Este mes',        f:function(){var d=new Date(); per={t:'mes',y:d.getFullYear(),m:d.getMonth()+1};}},
@@ -2581,10 +2582,13 @@ function ajustaTeclado(){
   var sh=$('sheet'); if(!sh) return;
   var z=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z'))||1;
   var kb=altoTeclado()/z;
-  if(!kb){ sh.style.bottom=''; sh.style.maxHeight=''; return; }
+  if(!kb){ sh.style.bottom=''; sh.style.maxHeight=''; sh.style.minHeight=''; return; }
   var alto=document.querySelector('.phone').offsetHeight;
   sh.style.bottom=Math.round(kb)+'px';
   sh.style.maxHeight=Math.max(180, Math.round(alto-kb-20))+'px';
+  /* con el teclado abierto la hoja se pega a su contenido: si conserva el alto mínimo
+     queda flotando muy arriba, con un hueco entre el botón y el teclado (3-ago-2026) */
+  sh.style.minHeight='0';
 }
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize', ajustaTeclado);
