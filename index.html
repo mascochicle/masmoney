@@ -364,6 +364,13 @@ button{font-family:inherit;}
 .pcat .n small{display:block;font-size:10.5px;color:var(--mut2);}
 .pmonto{width:96px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;
   color:var(--ink);font:inherit;font-size:15px;padding:11px 10px;text-align:right;font-variant-numeric:tabular-nums;}
+.padd{display:flex;align-items:center;gap:9px;width:100%;background:var(--surface);
+  border:1px dashed var(--line);border-radius:12px;padding:10px 11px;color:var(--accent-ink);
+  font:inherit;font-size:14px;text-align:left;cursor:pointer;min-height:55px;}   /* el mismo alto que una linea */
+.padd:active{background:var(--surface2);}
+.padd .e{font-size:17px;flex:none;width:20px;text-align:center;}
+/* la hoja de dividir se levanta: con una o dos líneas se quedaba pegada abajo */
+.sheet.alta{min-height:56%;}
 .pdel{flex:none;width:28px;height:28px;border-radius:50%;background:transparent;border:0;color:var(--gasto);
   font-size:15px;cursor:pointer;}
 .ptot{display:flex;align-items:baseline;margin-top:16px;padding:12px 2px 0;border-top:1px solid var(--line);font-size:11px;color:var(--mut2);
@@ -569,7 +576,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1320";
+<script>window.MM_VER="20260803-1327";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1393,6 +1400,7 @@ function dividir(){
 }
 function verDividir(){
   openSheet('Dividir entre categorías');
+  sheet.classList.add('alta');   // que no quede pegada al borde de abajo
   var L=st.partes;
   $('sheetBody').innerHTML='<div class="partes">'+L.map(function(p,i){
     return '<div class="parte" data-i="'+i+'">'+
@@ -1402,7 +1410,7 @@ function verDividir(){
         'placeholder="0.00" value="'+(p.amount===''?'':p.amount)+'">'+
       (L.length>1?'<button class="pdel" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+'</div>'+
-  '<button class="acct nuevo" id="pAdd"><div class="ic">＋</div><div class="nm">Agregar categoría</div></button>'+
+  '<button class="padd" id="pAdd"><span class="e">＋</span><span class="n">Agregar categoría</span></button>'+
   '<div class="ptot">TOTAL<b id="pTot">'+fmt2(L.reduce(function(a,p){return a+(parseFloat(p.amount)||0);},0))+'</b></div>'+
   '<div class="note">Sigue siendo UN movimiento: el total es lo que cuadra contra el banco.</div>'+
   '<div class="edit-acts"><button class="b-save" id="pOk">Listo</button></div>';
@@ -1562,7 +1570,7 @@ window.addEventListener('popstate', function(){
 });
 
 var scrim=$('scrim'), sheet=$('sheet');
-function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show');
+function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show'); sheet.classList.remove('alta');
   sheet.style.bottom=''; sheet.style.maxHeight=''; }   // deshace el ajuste del teclado
 function openSheet(t){
   $('sheetTit').textContent=t;
@@ -1634,9 +1642,9 @@ $('rowCat').onclick=function(){
     listaCuentas(st.cuenta2Id,function(c){ st.cuenta2Id=c.id;
       $('catNm').textContent=c.n; $('catIc').textContent=c.e; renderAmt(); },
       filtro(T.d,st.cuentaId)); return; }
-  /* si ya está dividido, el mismo renglón abre las líneas */
-  if(st.partes && st.partes.length>1){ verDividir(); return; }
-  openSheet('Grupo'); showCatGrid();
+  /* Abre SIEMPRE las líneas. Marco no quiso que llevara a la rejilla: desde aquí una
+     línea es una categoría, y agregar otra es agregar otra línea. */
+  dividir();
 };
 /* ---- ámbito: de quién es el gasto. Es el identificador que hoy Marco resuelve a mano
    con "Gastos no relacionados" en Ultramart y con el Agente (Casa Sol / Marco / cada
@@ -1838,19 +1846,13 @@ function showCatGrid(){
   var L=catsActuales(), b=$('sheetBody');
   b.innerHTML='<div class="grid">'+L.map(function(c,i){
     return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
-    '</div>'+
-    ((st.tipo==='Gasto'||st.tipo==='Ingreso')
-      ? '<button class="acct nuevo" id="gDiv"><div class="ic">🧾</div>'+
-        '<div class="nm">Dividir entre varias<small>un cargo con más de una categoría</small></div></button>'
-      : '')+
-    '<div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
+    '</div><div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
   b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
     var c=L[+el.dataset.i];
     /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
     if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
     showSubs(c);
   }; });
-  if($('gDiv')) $('gDiv').onclick=dividir;
   arrastrarRejilla(b.querySelector('.grid'), cualLista());
 }
 function showSubs(c){
