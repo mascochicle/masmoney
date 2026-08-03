@@ -608,7 +608,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1557";
+<script>window.MM_VER="20260803-1614";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -833,7 +833,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=11;
+var MIG_V=12;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -982,6 +982,42 @@ function migrar(){
                if(m.partes) m.partes.forEach(function(p){
                  if(reCat(p)) k11++; else reIco(p, p.g); }); });
              if(k11) sv(K_MOV,m11); }
+  }
+
+  if(hecho<12){
+    /* 12) las dos reglas de revaluación automática, con los números de Marco.
+
+       CAMIONETA — su hoja "Depreciacion Kia Seltos 2026 ExPack", pestaña Reventa: cuota
+       TRIMESTRAL = saldo al inicio del año × tasa del año ÷ 4, con la tasa bajando
+       20→15→12→10→8→7→6→5%. Verificado renglón por renglón contra su hoja: cierra en
+       $198,421.48 al 31-dic-2035. Arranca en Q3-2026 porque Q1 (13-may) y Q2 (30-jun)
+       ya los aplicó a mano y ya están dentro del saldo de $480,870.
+
+       CASA LOMAS — su última valuación es de abr-2023 ($5,436,791) y no la ha movido en
+       39 meses. Se revalúa MENSUAL con el INPC real del INEGI (ver INFL). */
+    /* ctas() y no ld(): en una instalación nueva las cuentas todavía no están guardadas,
+       vienen del catálogo del código, y ld() daría null */
+    var C12=ctas();
+    if(C12){
+      var t12=0;
+      C12.forEach(function(c){
+        if(c.auto) return;                       // ya tiene regla: no se pisa
+        if(/kia/i.test(c.n)){
+          c.auto={modo:'trim', motivo:'Depreciación', dir:-1, ambito:'Personal',
+                  valor0:534300, arranca:'2026', desde:'2026-06-30',
+                  nota:'Depreciación trimestral (modelo de reventa)',
+                  tasas:{2026:.20,2027:.15,2028:.12,2029:.10,2030:.08,
+                         2031:.07,2032:.06,2033:.05,2034:.05,2035:.05}};
+          t12++;
+        } else if(/casa lomas/i.test(c.n)){
+          c.auto={modo:'mes', motivo:'Apreciación', dir:1, ambito:'Propiedades',
+                  valor0:5436791, desde:'2023-04-30',
+                  nota:'Revaluación por INPC'};
+          t12++;
+        }
+      });
+      if(t12) saveCtas(C12);
+    }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
@@ -2411,6 +2447,7 @@ function editarMov(id, pre){
   $('eDel').onclick=function(){
     ask('¿Borrar este movimiento?<br><b>'+lab+'</b> · '+fmtM(m.amount,m.mon),'Borrar',function(){
       var b=movs().filter(function(x){return x.id!==id;});
+      olvidaAuto(id);        // si era automático, que no lo vuelva a poner al abrir
       if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Borrado'); }
     });
   };
@@ -2449,6 +2486,99 @@ function saldoDe(c,a){
     }
   });
   return s;
+}
+/* ================= revaluación automática =================
+   Una cuenta puede traer `auto`: una regla que postea Cambios de valor por cada periodo
+   ya vencido. El id es DETERMINISTA (auto-<cuenta>-<periodo>), así que esto puede correr
+   mil veces sin duplicar nada, y si Marco borra o edita uno a mano, no vuelve.
+
+   El valor se encadena SIEMPRE desde `valor0` en `desde`, no desde el saldo de hoy: así
+   el monto de un periodo no cambia porque después haya movido el saldo a mano.
+
+   INFL = inflación real del INPC (INEGI), por tramos, ya convertida a tasa MENSUAL
+   geométrica. El último tramo es el vigente y se actualiza en cada versión de la app,
+   igual que el tipo de cambio — la app no tiene cómo consultar el INPC sola. */
+var INFL=[
+ /* abr-2023 → dic-2023: 3.12% en 8 meses */
+ {h:'2023-12', m:Math.pow(1.0312,1/8)-1},
+ /* dic-2023 → dic-2024: 4.21% */
+ {h:'2024-12', m:Math.pow(1.0421,1/12)-1},
+ /* dic-2024 → dic-2025: 3.69% */
+ {h:'2025-12', m:Math.pow(1.0369,1/12)-1},
+ /* dic-2025 → jun-2026: 1.46% */
+ {h:'2099-12', m:Math.pow(1.0146,1/6)-1}
+];
+/* ÚLTIMO MES CON INPC PUBLICADO. El INEGI lo saca ~el día 9 del mes siguiente, así que
+   esto se actualiza en CADA versión de la app junto con INFL y el tipo de cambio. Sin
+   este tope se estaría inventando la inflación de los meses que aún no salen. */
+var INPC_HASTA='2026-06';
+function tasaInfl(ym){
+  for(var i=0;i<INFL.length;i++) if(ym<=INFL[i].h) return INFL[i].m;
+  return INFL[INFL.length-1].m;
+}
+/* último día del mes, en fecha local */
+function finMes(y,m){ return dISO(new Date(y, m, 0)); }
+
+/* si borra a mano un automático, queda anotado para que no vuelva a aparecer solo */
+var K_AUTOX='appcaptura_autoborrados_v1';
+function olvidaAuto(id){
+  if(String(id).slice(0,5)!=='auto-') return;
+  var x=ld(K_AUTOX,{}); x[id]=1; sv(K_AUTOX,x);
+}
+
+/* la lista completa de periodos de una regla, del primero después de `desde` hasta hoy */
+function periodosAuto(c){
+  var R=c.auto, out=[], hoy=hoyISO(), val=R.valor0, desde=R.desde;
+  if(R.modo==='trim'){
+    var y0=+R.arranca.slice(0,4), ys=Object.keys(R.tasas).map(Number).sort();
+    for(var k=0;k<ys.length;k++){
+      var y=ys[k], cuota=Math.round(val*R.tasas[y]/4*100)/100;
+      [[3,30],[6,30],[9,30],[12,30]].forEach(function(q){
+        var f=y+'-'+String(q[0]).padStart(2,'0')+'-'+q[1];
+        if(y>=y0 && f>desde && f<=hoy)
+          out.push({f:f, monto:cuota, per:y+'T'+(q[0]/3)});
+      });
+      val=Math.round((val-4*cuota)*100)/100;
+    }
+  } else {                                   // mensual con INPC
+    /* se avanza con año/mes a mano y NO con setMonth(): partiendo de un día 30, al pasar
+       a febrero la fecha se desborda a marzo y ese mes se pierde (se comió uno) */
+    var y=+desde.slice(0,4), mo=+desde.slice(5,7);
+    for(var i=0;i<600;i++){
+      mo++; if(mo>12){ mo=1; y++; }
+      var ym=y+'-'+String(mo).padStart(2,'0');
+      var f=finMes(y,mo);
+      if(f>hoy) break;
+      /* solo meses con INPC ya publicado: el INEGI lo saca ~el día 9 del mes siguiente.
+         Si no, se estaría inventando la inflación del mes en curso. */
+      if(ym>INPC_HASTA) break;
+      var inc=Math.round(val*tasaInfl(ym)*100)/100;
+      val=Math.round((val+inc)*100)/100;
+      out.push({f:f, monto:inc, per:ym});
+    }
+  }
+  return out;
+}
+/* postea lo que falte. Devuelve cuántos metió. */
+function corridaAuto(){
+  var A=movs(), hay={};
+  A.forEach(function(m){ if(m.id) hay[m.id]=1; });
+  var borrados=ld(K_AUTOX,{}), nuevos=[];
+  ctas().forEach(function(c){
+    if(!c.auto || c.auto.off) return;
+    periodosAuto(c).forEach(function(p){
+      var id='auto-'+c.id+'-'+p.per;
+      if(hay[id] || borrados[id] || p.monto<=0) return;
+      nuevos.push({id:id, auto:true, tipo:'Cambio de valor', dir:c.auto.dir,
+        cuentaId:c.id, cuenta:c.n, mon:c.mon||BASE,
+        grupo:c.auto.motivo, sub:c.auto.motivo, e:c.auto.dir>0?'📈':'📉',
+        amount:p.monto, ambito:c.auto.ambito||'Personal', agente:null,
+        desc:c.auto.nota||'', fecha:p.f, hora:'23:59',
+        ts:new Date(p.f+'T23:59:00').getTime()});
+    });
+  });
+  if(nuevos.length && !saveMovs(nuevos.concat(A))) return 0;
+  return nuevos.length;
 }
 var edMode=false;
 $('edBtn').onclick=function(){ edMode=!edMode; this.textContent=edMode?'Terminado':'Editar'; renderSaldos(); };
@@ -3314,6 +3444,7 @@ function exportarTodo(){
 /* ================= init ================= */
 (function(){
   migrar(); aplicaTema(); aplicaLetra();
+  var autoN=corridaAuto();          // deprecia / revalúa lo que se haya vencido
   if(primeraVez()){ pantallaInicio(); return; }
   var c=cta(st.cuentaId)||ctas()[0]; st.cuentaId=c.id;
   $('cuentaNm').textContent=c.n; $('cuentaIc').textContent=c.e;
@@ -3321,6 +3452,7 @@ function exportarTodo(){
   setTipo('Gasto'); pintaFecha(); renderSaldos();
   ctaVer=c.id; renderCuenta();
   irA(cfg().inicio);                 // la pestaña que Marco eligió en Ajustes
+  if(autoN) toast(autoN+' ajuste'+(autoN>1?'s':'')+' de valor aplicado'+(autoN>1?'s':''));
   avisoRespaldo();
 })();
 </script>
