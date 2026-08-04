@@ -563,10 +563,10 @@ button{font-family:inherit;}
     <!-- La columna de operadores es como la de Money Pro: sirve para sumar la cuenta sin
          salirse de la app ("35+35"). Al dar Listo se resuelve lo que quede pendiente. -->
     <div class="pad off" id="pad">
-      <button class="key calc" data-op="+">+</button><button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key op" data-op="back">⌫</button>
-      <button class="key calc" data-op="-">−</button><button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key op" data-op="c">C</button>
-      <button class="key calc" data-op="*">×</button><button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key op" data-op="=">=</button>
-      <button class="key calc" data-op="/">÷</button><button class="key">.</button><button class="key">0</button><button class="key op" data-op="00">00</button><button class="key op listo" data-op="cerrar">Listo</button>
+      <button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key op" data-op="back">⌫</button><button class="key calc" data-op="+">+</button>
+      <button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key op" data-op="c">C</button><button class="key calc" data-op="-">−</button>
+      <button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key op" data-op="=">=</button><button class="key calc" data-op="*">×</button>
+      <button class="key">.</button><button class="key">0</button><button class="key op" data-op="00">00</button><button class="key op listo" data-op="cerrar">Listo</button><button class="key calc" data-op="/">÷</button>
     </div>
     <div class="barra">
       <button class="b-monto" id="abrirPad"><span>Monto</span><b id="miniMonto">$0</b></button>
@@ -616,7 +616,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1950";
+<script>window.MM_VER="20260803-2012";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2424,8 +2424,10 @@ function editarMov(id, pre){
   var lab = m.ajuste ? m.cuenta
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : texto(cat);
   $('sheetBody').innerHTML='<div class="edit-b">'+
-    /* si va dividido el monto lo mandan las partes: se edita ahí, no aquí */
-    '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="number" inputmode="decimal" step="0.01" '+
+    /* si va dividido el monto lo mandan las partes: se edita ahí, no aquí.
+       type text para que acepte la cuenta escrita ("35+35"): aquí sale el teclado de
+       Android, que no trae operadores, y el de la app no cabe dentro de la hoja. */
+    '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="text" inputmode="text" '+
       (dividido?'readonly ':'')+'value="'+((pre&&pre.amt!=null)?pre.amt:m.amount)+'"></div>'+
     '<div class="fld"><div class="k">Agente</div><input id="eAg" type="text" value="'+(m.agente||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     (m.ajuste?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
@@ -2450,7 +2452,9 @@ function editarMov(id, pre){
     (T.dir?'<div class="fld"><div class="k">¿Sube o baja?</div><div class="seg" id="eDir">'+
       '<button data-d="1"'+(dirM>0?' class="on"':'')+'>Sube</button>'+
       '<button data-d="-1"'+(dirM<0?' class="on"':'')+'>Baja</button></div></div>':'')+
-    (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" type="number" inputmode="decimal" step="0.01" value="'+m.interes+'"></div>':'')+
+    /* text y no number: en un input numérico el navegador tira cualquier valor con
+       operadores, así que "800+250" llegaba vacío y el interés se guardaba en null */
+    (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" type="text" inputmode="text" value="'+m.interes+'"></div>':'')+
     /* Cuenta y Destino se podían ver pero no cambiar: si se equivocaba de tarjeta había
        que borrar y recapturar (3-ago-2026) */
     /* con <select> Android abre su lista a pantalla completa, con renglones enormes que
@@ -2472,6 +2476,12 @@ function editarMov(id, pre){
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
       ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null, dir:dirM,
       inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null}; }
+  /* la cuenta escrita se resuelve al salir del campo, igual que en Dividir */
+  ['eAmt','eInt'].forEach(function(id){
+    var el=$(id); if(!el || el.readOnly) return;
+    el.onblur=function(){ var v=evalua(el.value);
+      if(v!==null && String(v)!==el.value) el.value=String(v); };
+  });
   if($('eDir')) $('eDir').querySelectorAll('button').forEach(function(b){
     b.onclick=function(){ dirM=+b.dataset.d;
       $('eDir').querySelectorAll('button').forEach(function(x){
@@ -2531,9 +2541,9 @@ function editarMov(id, pre){
   };
   $('eSave').onclick=function(){
     var v = dividido ? partes.reduce(function(a,p){ return a+(+p.amount||0); },0)
-                     : (parseFloat($('eAmt').value)||0);
+                     : (evalua($('eAmt').value)||0);
     if(v<=0){ toast('Monto inválido',true); return; }
-    var nInt = $('eInt') ? (parseFloat($('eInt').value)||0) : null;
+    var nInt = $('eInt') ? (evalua($('eInt').value)||0) : null;
     if(nInt!=null && nInt>=v){ toast('El interés no puede ser todo el pago',true); return; }
     var c1=cta1, c2=dosCuentas(m.tipo)?cta2:null;
     if(c1 && c2 && c1.id===c2.id){ toast('La cuenta y el destino no pueden ser la misma',true); return; }
