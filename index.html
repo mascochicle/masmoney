@@ -359,6 +359,13 @@ button{font-family:inherit;}
 .gcell.moviendo{z-index:5;pointer-events:none;background:var(--surface2);
   border-color:var(--accent);box-shadow:0 8px 20px rgba(0,0,0,.4);}
 .gcell.acomoda{transition:transform .16s ease;}
+/* al dejar pulsado, TODOS los mosaicos se menean: así se ve que ya se pueden mover.
+   Se usa la propiedad `rotate` y no `transform` a propósito — el arrastre y el acomodo de
+   las vecinas ya usan transform, y se pelearían. */
+@keyframes menea{0%,100%{rotate:-1.2deg;} 50%{rotate:1.2deg;}}
+.grid.ordenando .gcell{animation:menea .28s ease-in-out infinite;}
+.grid.ordenando .gcell.moviendo{animation:none;rotate:0deg;}
+@media(prefers-reduced-motion:reduce){.grid.ordenando .gcell{animation:none;}}
 .gcell .e{font-size:20px;line-height:1;} .gcell .n{font-size:10px;color:var(--ink);line-height:1.15;}
 .gback{display:flex;align-items:center;gap:8px;padding:5px 4px 11px;color:var(--mut);font-size:13px;cursor:pointer;}
 /* buscador del selector de grupo: con 26 grupos, encontrar algo que vive DENTRO de otro
@@ -631,7 +638,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1528";
+<script>window.MM_VER="20260804-1531";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2099,7 +2106,9 @@ function arrastrarRejilla(cont, cual){
       rejT=setTimeout(function(){
         rejT=null; rej={el:el, x:x0, y:y0, cual:cual, movio:false};
         el.classList.add('moviendo');
-        if(navigator.vibrate) try{ navigator.vibrate(12); }catch(_){}
+        cont.classList.add('ordenando');       // que se meneen: ya se pueden mover
+        /* 12ms casi no se sentía; con un golpe doble sí se nota que entró el modo */
+        if(navigator.vibrate) try{ navigator.vibrate([18,40,18]); }catch(_){}
       }, 450);
     });
   });
@@ -2137,6 +2146,7 @@ function soltarRejilla(){
   if(!rej) return;
   var g=rej; rej=null;
   g.el.classList.remove('moviendo'); g.el.style.transform='';
+  if(g.el.parentNode) g.el.parentNode.classList.remove('ordenando');   // dejan de menearse
   if(!g.movio) return;
   var por={}; lista(g.cual).forEach(function(c){ por[c.n]=c; });
   var nuevo=[];
