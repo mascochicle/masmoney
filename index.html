@@ -155,6 +155,12 @@ button{font-family:inherit;}
 .key.op{color:var(--op);font-size:19px;}
 .pad.off{display:none;}
 .key.listo{grid-column:span 2;font-size:14px;font-weight:650;color:var(--mut);}
+/* el mismo teclado, chico, dentro de una hoja */
+.pad.mini{margin:10px -14px -12px;border-radius:0;}
+.pad.mini .key{font-size:19px;padding:12px 0;}
+.pad.mini .key.listo{font-size:13px;}
+/* el renglón al que le está escribiendo el teclado */
+.parte.act .pmonto{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-soft);}
 /* barra fija: el monto abre el teclado, Guardar siempre a la mano */
 .barra{display:flex;gap:1px;background:var(--line);border-top:1px solid var(--line);flex:none;}
 .barra button{border:0;cursor:pointer;font-family:inherit;padding:14px 16px;}
@@ -618,7 +624,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-2033";
+<script>window.MM_VER="20260803-2117";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1639,36 +1645,71 @@ function dividir(){
 }
 /* `op` sirve para reusar esta misma hoja desde el EDITOR de un movimiento ya guardado:
    {lista, cats, listo}. Sin `op` trabaja sobre `st.partes`, que es la captura. */
+/* Teclado propio para las hojas. El de Android no trae operadores y el teclado grande de
+   la app vive en la pantalla de captura, debajo de la hoja: aquí se dibuja uno chico
+   adentro. Los campos van readonly para que Android no abra el suyo encima. */
+function padHojaHTML(){
+  return '<div class="pad mini" id="padHoja">'+
+    '<button class="key" data-t="1">1</button><button class="key" data-t="2">2</button><button class="key" data-t="3">3</button><button class="key op" data-t="back">⌫</button><button class="key calc" data-t="+">+</button>'+
+    '<button class="key" data-t="4">4</button><button class="key" data-t="5">5</button><button class="key" data-t="6">6</button><button class="key op" data-t="c">C</button><button class="key calc" data-t="-">−</button>'+
+    '<button class="key" data-t="7">7</button><button class="key" data-t="8">8</button><button class="key" data-t="9">9</button><button class="key op" data-t="=">=</button><button class="key calc" data-t="*">×</button>'+
+    '<button class="key" data-t=".">.</button><button class="key" data-t="0">0</button><button class="key op listo" data-t="ok">Listo</button><button class="key calc" data-t="/">÷</button>'+
+    '</div>';
+}
+/* `lee`/`escribe` trabajan sobre el renglón activo; `alListo` cierra. */
+function conectaPadHoja(lee, escribe, alListo){
+  $('padHoja').addEventListener('click', function(e){
+    var k=e.target.closest('.key'); if(!k) return;
+    var t=k.dataset.t, s=String(lee()||'');
+    if(t==='ok'){ alListo(); return; }
+    if(t==='c') s='';
+    else if(t==='back') s=s.slice(0,-1);
+    else if(t==='='){ var v=evalua(s); s=(v===null?'':String(v)); }
+    else if(t==='.'){ if(!/[.][0-9]*$/.test(s)) s+='.'; }   // un punto por número
+    else s+=t;
+    escribe(s);
+  });
+}
+
 function verDividir(op){
   openSheet('Dividir entre categorías');
   sheet.classList.add('alta');   // que no quede pegada al borde de abajo
   var L = op ? op.lista : st.partes;
   var CT = op ? op.cats : catsActuales();
+  var foco = (typeof verDividir._f==='number' && verDividir._f<L.length) ? verDividir._f : L.length-1;
   $('sheetBody').innerHTML='<div class="partes">'+L.map(function(p,i){
-    return '<div class="parte" data-i="'+i+'">'+
+    return '<div class="parte'+(i===foco?' act':'')+'" data-i="'+i+'">'+
       '<button class="pcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
         '<span class="n">'+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'<small>'+p.g+'</small></span></button>'+
-      /* type text y no number: así acepta "35+35" y se resuelve al salir del campo.
-         El teclado de Android no trae operadores y aquí no cabe el de la app. */
-      '<input class="pmonto" data-m="'+i+'" type="text" inputmode="text" '+
-        'placeholder="0.00" value="'+(p.amount===''?'':p.amount)+'">'+
+      /* readonly: el monto se teclea con el pad de abajo, no con el de Android */
+      '<input class="pmonto" data-m="'+i+'" type="text" readonly '+
+        'placeholder="0.00" value="'+String(p.amount===''?'':p.amount).replace(/"/g,'&quot;')+'">'+
       (L.length>1?'<button class="pdel" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+'</div>'+
   '<button class="padd" id="pAdd"><span class="e">＋</span><span class="n">Agregar categoría</span></button>'+
   '<div class="ptot">TOTAL<b id="pTot">'+fmt2(L.reduce(function(a,p){return a+(evalua(p.amount)||0);},0))+'</b></div>'+
   '<div class="note">Sigue siendo UN movimiento: el total es lo que cuadra contra el banco.</div>'+
-  '<div class="edit-acts"><button class="b-save" id="pOk">Listo</button></div>';
+  padHojaHTML();
 
   function total(){
     var t=L.reduce(function(a,p){ return a+(evalua(p.amount)||0); },0);
     $('pTot').textContent=fmt2(t);
   }
+  function pintaFoco(){
+    $('sheetBody').querySelectorAll('.parte').forEach(function(el){
+      el.classList.toggle('act', +el.dataset.i===foco); });
+  }
+  /* tocar un renglón lo vuelve el activo; el pad escribe siempre en ese */
   $('sheetBody').querySelectorAll('.pmonto').forEach(function(el){
-    el.oninput=function(){ L[+el.dataset.m].amount=el.value; total(); };
-    /* al salir del campo se resuelve la cuenta y queda el número */
-    el.onblur=function(){ var v=evalua(el.value);
-      if(v!==null && String(v)!==el.value){ el.value=String(v); L[+el.dataset.m].amount=el.value; total(); } };
+    el.onfocus=el.onclick=function(){ foco=+el.dataset.m; verDividir._f=foco; pintaFoco(); };
   });
+  conectaPadHoja(
+    function(){ return L[foco] ? L[foco].amount : ''; },
+    function(s){ if(!L[foco]) return; L[foco].amount=s;
+      var el=$('sheetBody').querySelector('.pmonto[data-m="'+foco+'"]');
+      if(el) el.value=s; total(); },
+    function(){ terminar(); }        // la tecla Listo del pad cierra la hoja
+  );
   $('sheetBody').querySelectorAll('.pcat').forEach(function(el){
     el.onclick=function(){ var i=+el.dataset.cat;
       elegirCatEdit(CT, function(c){
@@ -1682,10 +1723,12 @@ function verDividir(op){
     elegirCatEdit(CT, function(c){
       L.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(op); });
   };
-  $('pOk').onclick=function(){
-    var lim=L.filter(function(p){ return (evalua(p.amount)||0)>0; });
+  function terminar(){
+    verDividir._f=null;                           // el foco no se hereda a la próxima vez
+    var lim=L.filter(function(p){ return (evalua(p.amount)||0)>0; })
+             .map(function(p){ p.amount=+(evalua(p.amount)||0); return p; });
     if(op){ op.listo(lim.map(function(p){
-              return {g:p.g,e:p.e,sub:p.sub,amount:+(evalua(p.amount)||0)}; })); return; }
+              return {g:p.g,e:p.e,sub:p.sub,amount:p.amount}; })); return; }
     st.partes=lim;
     if(st.partes.length<2){                       // una sola: vuelve a ser normal
       if(st.partes.length===1){ var p=st.partes[0];
@@ -1695,7 +1738,8 @@ function verDividir(op){
       var p0=st.partes[0]; pickCat(p0.g,p0.e,p0.sub);   // la ficha muestra la primera
     }
     closeSheet(); pintaPartes();
-  };
+  }
+  verDividir._ok=terminar;
 }
 
 
