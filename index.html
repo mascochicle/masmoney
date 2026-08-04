@@ -655,7 +655,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1607";
+<script>window.MM_VER="20260804-1622";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2132,7 +2132,10 @@ function arrastrarRejilla(cont, cual, repintar){
     el.addEventListener('pointerdown', function(e){
       if(!modoOrdenar) return;              // fuera del modo, el mosaico solo se toca
       e.preventDefault(); e.stopPropagation();
-      rej={el:el, x:e.clientX, y:e.clientY, cual:cual, movio:false, repintar:repintar};
+      rej={el:el, cual:cual, movio:false, repintar:repintar, ultimo:0};
+      var r0=el.getBoundingClientRect();
+      rej.gx=e.clientX-r0.left; rej.gy=e.clientY-r0.top;   // dónde lo agarró dentro
+      rej.bx=r0.left; rej.by=r0.top;                        // su hueco natural
       el.classList.add('moviendo');
       try{ el.setPointerCapture(e.pointerId); }catch(_){}
       if(navigator.vibrate) try{ navigator.vibrate(12); }catch(_){}
@@ -2145,26 +2148,43 @@ document.addEventListener('pointermove', function(e){
   }
   if(!rej) return;
   rej.movio=true;
-  rej.el.style.transform='translate('+(e.clientX-rej.x)+'px,'+(e.clientY-rej.y)+'px)';
-  var bajo=document.elementFromPoint(e.clientX, e.clientY);
-  var dest=bajo && bajo.closest && bajo.closest('.gcell');
-  if(!dest || dest.parentNode!==rej.el.parentNode){
-    /* el dedo cayó en el hueco entre celdas: se toma la más cercana, si no el arrastre
-       se siente muerto justo en los bordes */
-    var mejor=null, min=1e9;
-    rej.el.parentNode.querySelectorAll('.gcell').forEach(function(x){
-      if(x===rej.el) return;
-      var r=x.getBoundingClientRect();
-      var dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2), d=dx*dx+dy*dy;
-      if(d<min){ min=d; mejor=x; }
-    });
-    dest = (min < 90*90) ? mejor : null;
-  }
-  if(!dest || dest===rej.el) return;
+  /* El mosaico se pega al dedo SIEMPRE: la posición se calcula contra su hueco natural
+     (rej.bx/rej.by), no acumulando deltas. Antes, en cada intercambio se hacía
+     transform='' y se reanclaba al dedo, así que el mosaico se teletransportaba —
+     "ve cómo se mueve, no es estable" (4-ago-2026). */
+  pegaAlDedo(e);
+  /* Solo se intercambia cuando el dedo entra DE VERDAD en otro mosaico (no "el más
+     cercano") y con un respiro entre intercambios: si no, cerca de un borde oscila. */
+  var ahora=Date.now();
+  if(ahora - (rej.ultimo||0) < 140) return;
+  var dest=null;
+  rej.el.parentNode.querySelectorAll('.gcell').forEach(function(x){
+    if(x===rej.el || dest) return;
+    var r=x.getBoundingClientRect();
+    if(e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom) dest=x;
+  });
+  if(!dest) return;
   var r=dest.getBoundingClientRect();
-  rej.el.parentNode.insertBefore(rej.el, (e.clientX > r.left+r.width/2) ? dest.nextSibling : dest);
-  rej.x=e.clientX; rej.y=e.clientY; rej.el.style.transform='';   // ya quedó en su hueco
+  var despues = (e.clientY > r.bottom - 2) ? true          // renglón de abajo
+              : (e.clientX > r.left + r.width/2);
+  rej.el.parentNode.insertBefore(rej.el, despues ? dest.nextSibling : dest);
+  rej.ultimo=ahora;
+  rebasa();                       // el hueco natural cambió: se remide y se repega
+  pegaAlDedo(e);
 }, {passive:false});
+/* dónde quedaría el mosaico si no tuviera transform */
+function rebasa(){
+  if(!rej) return;
+  var t=rej.el.style.transform; rej.el.style.transform='';
+  var r=rej.el.getBoundingClientRect();
+  rej.bx=r.left; rej.by=r.top;
+  rej.el.style.transform=t;
+}
+function pegaAlDedo(e){
+  if(!rej) return;
+  rej.el.style.transform='translate('+((e.clientX-rej.gx)-rej.bx)+'px,'+
+                                      ((e.clientY-rej.gy)-rej.by)+'px)';
+}
 /* mientras se arrastra, el dedo no debe scrollear la hoja */
 document.addEventListener('touchmove', function(e){ if(rej) e.preventDefault(); }, {passive:false});
 function soltarRejilla(){
