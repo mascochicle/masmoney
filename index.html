@@ -352,7 +352,13 @@ button{font-family:inherit;}
   font-size:15px;line-height:1;flex:none;cursor:pointer;}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
 .gcell{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 4px 9px;
-  display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:center;}
+  display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:center;
+  /* sin esto, al dejar pulsado Android SELECCIONA EL TEXTO y saca su menú de "Buscar en
+     Google" antes de que llegue el arrastre — por eso nunca se pudo reordenar en el
+     teléfono (4-ago-2026). pan-y para que el dedo siga pudiendo desplazar la lista. */
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:pan-y;}
+/* ya en modo mover, el dedo es del arrastre y no de la pantalla */
+.grid.ordenando,.grid.ordenando .gcell{touch-action:none;}
 .gcell:active{background:var(--surface2);}
 /* arrastre en la rejilla: la celda levantada no debe recibir el puntero, si no
    elementFromPoint la devuelve a ella misma y nunca detecta sobre cuál va */
@@ -638,7 +644,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1531";
+<script>window.MM_VER="20260804-1536";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2100,7 +2106,10 @@ function setAgente(n){ st.agente=n||null;
    porque es donde Marco lo pidió: "pensé que lo habías hecho ordenable al dejar pulsado". */
 var rej=null, rejT=null;
 function arrastrarRejilla(cont, cual){
+  /* el menú de Android sale por el evento contextmenu; el CSS solo no basta */
+  cont.oncontextmenu=function(e){ e.preventDefault(); return false; };
   cont.querySelectorAll('.gcell').forEach(function(el){
+    el.oncontextmenu=function(e){ e.preventDefault(); return false; };
     el.addEventListener('pointerdown', function(e){
       var x0=e.clientX, y0=e.clientY;
       rejT=setTimeout(function(){
