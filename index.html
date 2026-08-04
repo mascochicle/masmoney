@@ -359,7 +359,12 @@ button{font-family:inherit;}
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:pan-y;}
 /* ya en modo mover, el dedo es del arrastre y no de la pantalla */
 .grid.ordenando,.grid.ordenando .gcell{touch-action:none;}
+.gcell{position:relative;}
 .gcell:active{background:var(--surface2);}
+/* asa de arrastre del mosaico: arranca el reorden de inmediato */
+.gcell .asa{position:absolute;top:2px;right:4px;font-size:13px;line-height:1;color:var(--mut2);
+  padding:3px 4px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;}
+.gcell .asa:active{color:var(--accent-ink);}
 /* arrastre en la rejilla: la celda levantada no debe recibir el puntero, si no
    elementFromPoint la devuelve a ella misma y nunca detecta sobre cuál va */
 .gcell.moviendo{z-index:5;pointer-events:none;background:var(--surface2);
@@ -648,7 +653,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1549";
+<script>window.MM_VER="20260804-1559";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2111,19 +2116,21 @@ function setAgente(n){ st.agente=n||null;
    porque es donde Marco lo pidió: "pensé que lo habías hecho ordenable al dejar pulsado". */
 var rej=null, rejT=null;
 function arrastrarRejilla(cont, cual, repintar){
-  /* el menú de Android sale por el evento contextmenu; el CSS solo no basta */
+  /* Se arrastra desde el ASA, no dejando pulsado. El pulsado largo se lo peleaba Android
+     (sacaba "Seleccionar / Buscar en Google") y nunca llegaba a correr; con el asa el
+     arranque es inmediato y no hay ambigüedad. Marco: "mejor pon la asa de 3 rayas a
+     todos" (4-ago-2026). */
   cont.oncontextmenu=function(e){ e.preventDefault(); return false; };
   cont.querySelectorAll('.gcell').forEach(function(el){
     el.oncontextmenu=function(e){ e.preventDefault(); return false; };
-    el.addEventListener('pointerdown', function(e){
-      var x0=e.clientX, y0=e.clientY;
-      rejT=setTimeout(function(){
-        rejT=null; rej={el:el, x:x0, y:y0, cual:cual, movio:false, repintar:repintar};
-        el.classList.add('moviendo');
-        cont.classList.add('ordenando');       // que se meneen: ya se pueden mover
-        /* 12ms casi no se sentía; con un golpe doble sí se nota que entró el modo */
-        if(navigator.vibrate) try{ navigator.vibrate([18,40,18]); }catch(_){}
-      }, 450);
+    var asa=el.querySelector('.asa'); if(!asa) return;
+    asa.addEventListener('pointerdown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      rej={el:el, x:e.clientX, y:e.clientY, cual:cual, movio:false, repintar:repintar};
+      el.classList.add('moviendo');
+      cont.classList.add('ordenando');
+      try{ asa.setPointerCapture(e.pointerId); }catch(_){}
+      if(navigator.vibrate) try{ navigator.vibrate(15); }catch(_){}
     });
   });
 }
@@ -2204,11 +2211,13 @@ function showCatGrid(q){
   } else {
     /* la pista va ARRIBA: abajo queda después de todos los mosaicos, fuera de pantalla, y
        Marco no se enteró de que se podían reordenar (4-ago-2026) */
-    b.innerHTML=caja+'<div class="note" style="margin:-4px 0 8px">Deja pulsado un grupo para moverlo de lugar.</div>'+
+    b.innerHTML=caja+'<div class="note" style="margin:-4px 0 8px">Arrastra el ≡ de un grupo para moverlo de lugar.</div>'+
       '<div class="grid">'+L.map(function(c,i){
-      return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
+      return '<div class="gcell" data-i="'+i+'"><span class="asa" title="Arrastra para mover">≡</span>'+
+             '<div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
       '</div>';
     b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
+      if(rej) return;
       var c=L[+el.dataset.i];
       /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
       if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
@@ -2472,14 +2481,16 @@ function elegirCatEdit(L, listo, q, cual){
       var h=hits[+el.dataset.i]; listo({g:h.c.n, e:h.c.e, sub:h.s}); }; });
   } else {
     b.innerHTML=caja+
-      (cual?'<div class="note" style="margin:-4px 0 8px">Deja pulsado un grupo para moverlo de lugar.</div>':'')+
+      (cual?'<div class="note" style="margin:-4px 0 8px">Arrastra el ≡ de un grupo para moverlo de lugar.</div>':'')+
       '<div class="grid">'+L.map(function(c,i){
-      return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
+      return '<div class="gcell" data-i="'+i+'"><span class="asa" title="Arrastra para mover">≡</span>'+
+             '<div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
     /* el reorden solo si sabemos en qué catálogo guardarlo */
     if(cual && cual!=='valor')
       arrastrarRejilla(b.querySelector('.grid'), cual,
                        function(){ elegirCatEdit(lista(cual), listo, '', cual); });
     b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
+      if(rej) return;                       // venía de un arrastre, no de un toque
       var c=L[+el.dataset.i];
       if(!c.subs || !c.subs.length){ listo({g:c.n, e:c.e, sub:c.n}); return; }
       $('sheetTit').textContent='Subcategoría';
