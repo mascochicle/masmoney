@@ -384,6 +384,10 @@ button{font-family:inherit;}
 .emojis button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
   font-size:17px;cursor:pointer;}
 .emojis button.on{border-color:var(--accent-ink);background:var(--accent-soft);}
+/* escribir cualquier emoji: la rejilla siempre se queda corta */
+.emoin{width:56px;height:36px;border-radius:10px;border:1px dashed var(--line);
+  background:var(--surface);color:var(--ink);font-size:15px;text-align:center;font-family:inherit;outline:none;}
+.emoin:focus{border-color:var(--accent-ink);border-style:solid;}
 .fld.tocable{width:100%;text-align:left;cursor:pointer;font:inherit;color:var(--ink);}
 .fld.tocable:active{background:var(--surface2);}
 .fld .chev{color:var(--mut2);font-size:16px;margin-left:auto;}
@@ -506,12 +510,13 @@ button{font-family:inherit;}
              puesta, y es lo primero que Marco revisa. -->
         <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
           <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
-        <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
-          <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">›</div></button>
-        <!-- El ámbito va ANTES de la categoría a propósito: es lo que decide si se ofrecen
-             las categorías personales o las del negocio. -->
+        <!-- El ámbito va antes del TIPO y de la categoría: es lo que decide si se ofrecen
+             las categorías personales o las del negocio, y Marco lo elige mentalmente antes
+             que nada ("suben campo Negocio arriba de gasto", 4-ago-2026). -->
         <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
           <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
+        <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
+          <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
@@ -626,7 +631,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-2120";
+<script>window.MM_VER="20260804-1521";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3013,7 +3018,8 @@ function editarCuenta(id,grupoNuevo){
     '<div class="fld" id="aOrigRow"><div class="k">Te prestaron</div><input id="aOrig" type="number" inputmode="decimal" step="100" placeholder="opcional" value="'+(c.orig||'')+'"></div>'+
     '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
       '<div class="emojis" id="aE">'+EMOJIS.map(function(x){
-        return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+'</div></div>'+
+        return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+
+        campoOtroIco('aEotro')+'</div></div>'+
     '<div class="fld"><div class="k">Ocultar</div><div class="ro">No aparece en la lista, pero sigue contando y conserva sus movimientos</div>'+
       '<button class="sw'+(c.oculta?' on':'')+'" id="aO" style="margin-left:auto"></button></div>'+
     '<div class="note">En tarjetas y créditos el saldo es <b>lo que debes</b> (en positivo). Cuando liquides uno, <b>ocúltalo</b> en vez de borrarlo: así no se descuadra nada.</div>'+
@@ -3034,7 +3040,9 @@ function editarCuenta(id,grupoNuevo){
   $('aG').onchange=pintaLim; pintaLim();
   $('aE').querySelectorAll('button').forEach(function(b){ b.onclick=function(){
     $('aE').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
-    b.classList.add('on'); pick=b.dataset.e; }; });
+    b.classList.add('on'); pick=b.dataset.e; $('aEotro').value=''; }; });
+  conectaOtroIco('aE','aEotro',function(v){ pick=v; });
+  if(EMOJIS.indexOf(c.e)<0 && c.e) $('aEotro').value=c.e;
   $('aSave').onclick=function(){
     var nombre=$('aN').value.trim(); if(!nombre){ toast('Ponle nombre',true); return; }
     var nuevo=parseFloat($('aS').value); if(isNaN(nuevo)) nuevo=0;
@@ -3332,7 +3340,26 @@ function renderCfg(){
 }
 /* ---- categorías: grupos y sus subcategorías ---- */
 var EMOJIS_CAT=['🧺','❤️','👶','🧹','🍽️','🚗','👕','🔧','📱','🏛️','💳','🏢','💡','🪙','🤲','📈','🗄️',
-                '🎓','🐶','✈️','🎁','🍺','⚽','🎬','💊','🧴','🛠️','🌱','🎨','📦'];
+                '🎓','🐶','✈️','🎁','🍺','⚽','🎬','💊','🧴','🛠️','🌱','🎨','📦',
+                /* segunda tanda (4-ago-2026) */
+                '🐱','🍕','☕','🏖️','🎧','📚','💻','🖨️','🧸','🚲','⛽','🏥','🦷','👓','💇','🧾',
+                '🔑','🪑','🧯','🌊','🎣','🏋️','🧘','🎸','🎂','🍼','🩺','🧳','🛒','💐'];
+
+/* Campo para escribir CUALQUIER emoji: la rejilla siempre se va a quedar corta, y con el
+   teclado del teléfono él tiene todos. Marco: "¿cómo se pueden agregar más iconos?" */
+function campoOtroIco(id){
+  return '<input class="emoin" id="'+id+'" maxlength="8" placeholder="otro…" '+
+         'autocomplete="off" title="Escribe o pega cualquier emoji">';
+}
+function conectaOtroIco(idGrid, idInput, alElegir){
+  var inp=$(idInput); if(!inp) return;
+  inp.oninput=function(){
+    var v=(inp.value||'').trim();
+    if(!v) return;
+    $(idGrid).querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+    alElegir(v);
+  };
+}
 function usoDeGrupo(g,sub){
   return movs().filter(function(m){ return m.grupo===g && (!sub||m.sub===sub); }).length;
 }
@@ -3385,7 +3412,8 @@ function editarGrupo(cual,i){
     '<div class="fld"><div class="k">Nombre</div><input id="gN" type="text" value="'+c.n.replace(/"/g,'&quot;')+'" placeholder="Mascotas"></div>'+
     '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
       '<div class="emojis" id="gE">'+EMOJIS_CAT.map(function(x){
-        return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+'</div></div>'+
+        return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+
+        campoOtroIco('gEotro')+'</div></div>'+
     '<div class="note">Subcategorías (opcional; es el segundo nivel, tu Agente 2). '+
       'Si no le pones ninguna, al capturar se elige el grupo directo.</div>'+
     '<div class="sublist" id="gSubs">'+c.subs.map(function(s,k){
@@ -3397,7 +3425,10 @@ function editarGrupo(cual,i){
   var pick=c.e, subs=c.subs.slice();
   $('gE').querySelectorAll('button').forEach(function(b){ b.onclick=function(){
     $('gE').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
-    b.classList.add('on'); pick=b.dataset.e; }; });
+    b.classList.add('on'); pick=b.dataset.e; $('gEotro').value=''; }; });
+  conectaOtroIco('gE','gEotro',function(v){ pick=v; });
+  /* si el ícono que ya tenía no está en la rejilla, se muestra en el campo libre */
+  if(EMOJIS_CAT.indexOf(c.e)<0 && c.e) $('gEotro').value=c.e;
   $('gSubs').querySelectorAll('.sub-i').forEach(function(el){
     el.onclick=function(){
       if(el.dataset.add){ editarSub(cual,i,c,subs,-1,pick); return; }
@@ -3474,13 +3505,14 @@ function editarAmbito(i){
     '<div class="fld"><div class="k">Nota</div><input id="amD" type="text" value="'+(A.d||'').replace(/"/g,'&quot;')+'" placeholder="para acordarte de qué es"></div>'+
     '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
       '<div class="emojis" id="amE">'+['🙋','🏡','🏢','🏪','👨‍👩‍👦','🐶','🎓','💼','🌴','📦'].map(function(x){
-        return '<button data-e="'+x+'"'+(x===A.e?' class="on"':'')+'>'+x+'</button>';}).join('')+'</div></div>'+
+        return '<button data-e="'+x+'"'+(x===A.e?' class="on"':'')+'>'+x+'</button>';}).join('')+campoOtroIco('amEotro')+'</div></div>'+
     '<div class="edit-acts">'+(nuevo?'':'<button class="b-del" id="amDel">Borrar</button>')+
       '<button class="b-save" id="amOk">Guardar</button></div></div>';
   var pick=A.e;
   $('amE').querySelectorAll('button').forEach(function(b){ b.onclick=function(){
     $('amE').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
-    b.classList.add('on'); pick=b.dataset.e; }; });
+    b.classList.add('on'); pick=b.dataset.e; $('amEotro').value=''; }; });
+  conectaOtroIco('amE','amEotro',function(v){ pick=v; });
   $('amOk').onclick=function(){
     var nom=$('amN').value.trim(); if(!nom){ toast('Ponle nombre',true); return; }
     var B=ambitos(), viejo=nuevo?null:B[i].n;
