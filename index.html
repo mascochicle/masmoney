@@ -631,7 +631,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1521";
+<script>window.MM_VER="20260804-1528";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2177,9 +2177,12 @@ function showCatGrid(q){
     b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){
       var h=hits[+el.dataset.i]; pickCat(h.c.n,h.c.e,h.s); closeSheet(); }; });
   } else {
-    b.innerHTML=caja+'<div class="grid">'+L.map(function(c,i){
+    /* la pista va ARRIBA: abajo queda después de todos los mosaicos, fuera de pantalla, y
+       Marco no se enteró de que se podían reordenar (4-ago-2026) */
+    b.innerHTML=caja+'<div class="note" style="margin:-4px 0 8px">Deja pulsado un grupo para moverlo de lugar.</div>'+
+      '<div class="grid">'+L.map(function(c,i){
       return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
-      '</div><div class="note">Deja pulsado un grupo para moverlo de lugar.</div>';
+      '</div>';
     b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
       var c=L[+el.dataset.i];
       /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
