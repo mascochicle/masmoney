@@ -159,8 +159,10 @@ button{font-family:inherit;}
 .pad.mini{margin:10px -14px -12px;border-radius:0;}
 .pad.mini .key{font-size:19px;padding:12px 0;}
 .pad.mini .key.listo{font-size:13px;}
-/* el renglón al que le está escribiendo el teclado */
-.parte.act .pmonto{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-soft);}
+.pad.mini.oculto{display:none;}
+/* el campo o renglón al que le está escribiendo el teclado */
+.parte.act .pmonto,
+.calcin.act{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-soft);}
 /* barra fija: el monto abre el teclado, Guardar siempre a la mano */
 .barra{display:flex;gap:1px;background:var(--line);border-top:1px solid var(--line);flex:none;}
 .barra button{border:0;cursor:pointer;font-family:inherit;padding:14px 16px;}
@@ -624,7 +626,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-2117";
+<script>window.MM_VER="20260803-2120";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2475,10 +2477,10 @@ function editarMov(id, pre){
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : texto(cat);
   $('sheetBody').innerHTML='<div class="edit-b">'+
     /* si va dividido el monto lo mandan las partes: se edita ahí, no aquí.
-       type text para que acepte la cuenta escrita ("35+35"): aquí sale el teclado de
-       Android, que no trae operadores, y el de la app no cabe dentro de la hoja. */
-    '<div class="fld"><div class="k">Monto</div><input id="eAmt" type="text" inputmode="text" '+
-      (dividido?'readonly ':'')+'value="'+((pre&&pre.amt!=null)?pre.amt:m.amount)+'"></div>'+
+       readonly siempre: se teclea con el pad de la app, que sí trae operadores; con un
+       input normal Android abre el suyo, que no los tiene. */
+    '<div class="fld"><div class="k">Monto</div><input id="eAmt"'+(dividido?'':' class="calcin"')+
+      ' type="text" readonly value="'+((pre&&pre.amt!=null)?pre.amt:m.amount)+'"></div>'+
     '<div class="fld"><div class="k">Agente</div><input id="eAg" type="text" value="'+(m.agente||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     (m.ajuste?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
       '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
@@ -2504,7 +2506,7 @@ function editarMov(id, pre){
       '<button data-d="-1"'+(dirM<0?' class="on"':'')+'>Baja</button></div></div>':'')+
     /* text y no number: en un input numérico el navegador tira cualquier valor con
        operadores, así que "800+250" llegaba vacío y el interés se guardaba en null */
-    (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" type="text" inputmode="text" value="'+m.interes+'"></div>':'')+
+    (m.interes!=null?'<div class="fld"><div class="k">Interés</div><input id="eInt" class="calcin" type="text" readonly value="'+m.interes+'"></div>':'')+
     /* Cuenta y Destino se podían ver pero no cambiar: si se equivocaba de tarjeta había
        que borrar y recapturar (3-ago-2026) */
     /* con <select> Android abre su lista a pantalla completa, con renglones enormes que
@@ -2520,18 +2522,34 @@ function editarMov(id, pre){
     (m.fotoArch?'<div class="note">La foto completa está en <b>Descargas</b> como '+
       '<b>'+m.fotoArch+'</b>, y de ahí sube sola a Drive.</div>':'')+
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
-    '</div>';
+    '</div>'+
+    padHojaHTML().replace('class="pad mini"','class="pad mini oculto"');
   function leer(){ return {amt:$('eAmt').value, ag:$('eAg').value,
       amb:$('eAmb')?amb.n:null, desc:$('eDesc').value,
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
       ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null, dir:dirM,
       inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null}; }
-  /* la cuenta escrita se resuelve al salir del campo, igual que en Dividir */
-  ['eAmt','eInt'].forEach(function(id){
-    var el=$(id); if(!el || el.readOnly) return;
-    el.onblur=function(){ var v=evalua(el.value);
-      if(v!==null && String(v)!==el.value) el.value=String(v); };
+  /* el pad de la app en vez del de Android: aparece al tocar Monto o Interés y escribe
+     en el que se haya tocado */
+  var campo=null;
+  function enfoca(el){
+    campo=el;
+    $('sheetBody').querySelectorAll('.calcin').forEach(function(x){ x.classList.toggle('act', x===el); });
+    $('padHoja').classList.remove('oculto');
+    $('padHoja').scrollIntoView({block:'end', behavior:'smooth'});
+  }
+  $('sheetBody').querySelectorAll('.calcin').forEach(function(el){
+    el.onclick=el.onfocus=function(){ enfoca(el); };
   });
+  conectaPadHoja(
+    function(){ return campo?campo.value:''; },
+    function(s){ if(campo) campo.value=s; },
+    function(){ if(campo){ var v=evalua(campo.value);       // Listo resuelve y guarda el pad
+                           if(v!==null) campo.value=String(v); }
+                $('padHoja').classList.add('oculto');
+                $('sheetBody').querySelectorAll('.calcin').forEach(function(x){ x.classList.remove('act'); });
+                campo=null; }
+  );
   if($('eDir')) $('eDir').querySelectorAll('button').forEach(function(b){
     b.onclick=function(){ dirM=+b.dataset.d;
       $('eDir').querySelectorAll('button').forEach(function(x){
