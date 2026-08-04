@@ -566,7 +566,9 @@ button{font-family:inherit;}
       <button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key op" data-op="back">⌫</button><button class="key calc" data-op="+">+</button>
       <button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key op" data-op="c">C</button><button class="key calc" data-op="-">−</button>
       <button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key op" data-op="=">=</button><button class="key calc" data-op="*">×</button>
-      <button class="key">.</button><button class="key">0</button><button class="key op" data-op="00">00</button><button class="key op listo" data-op="cerrar">Listo</button><button class="key calc" data-op="/">÷</button>
+      <!-- sin la tecla 00: Marco no la usa y "Listo" ocupa dos columnas, así que la fila
+           pedía 6 lugares de 5 y el ÷ se caía a un quinto renglón (3-ago-2026) -->
+      <button class="key">.</button><button class="key">0</button><button class="key op listo" data-op="cerrar">Listo</button><button class="key calc" data-op="/">÷</button>
     </div>
     <div class="barra">
       <button class="b-monto" id="abrirPad"><span>Monto</span><b id="miniMonto">$0</b></button>
@@ -616,7 +618,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-2012";
+<script>window.MM_VER="20260803-2033";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1459,8 +1461,12 @@ function verPad(v){
   var sc=document.querySelector('#vForm .capscroll'), am=document.querySelector('#vForm .amount');
   if(!sc||!am) return;
   requestAnimationFrame(function(){ requestAnimationFrame(function(){
-    /* al final del área están monto, descripción y MSI: es lo que quieres ver al teclear */
-    sc.scrollTo({top:sc.scrollHeight, behavior:'smooth'});
+    /* se deja el MONTO pegado arriba, no el final del área. Deslizar hasta el fondo
+       empujaba el monto fuera de la pantalla cuando lo de abajo (descripción + MSI) no
+       cabía: "me sale comido el 200" (3-ago-2026). */
+    var y = sc.scrollTop + (am.getBoundingClientRect().top - sc.getBoundingClientRect().top);
+    var max = Math.max(0, sc.scrollHeight - sc.clientHeight);
+    sc.scrollTo({top:Math.max(0, Math.min(y, max)), behavior:'smooth'});
   });});
 }
 $('abrirPad').onclick=function(){ verPad($('pad').classList.contains('off')); };
