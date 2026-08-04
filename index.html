@@ -359,12 +359,14 @@ button{font-family:inherit;}
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:pan-y;}
 /* ya en modo mover, el dedo es del arrastre y no de la pantalla */
 .grid.ordenando,.grid.ordenando .gcell{touch-action:none;}
+/* botón único para prender el modo ordenar */
+.ordbtn{border:1px solid var(--line);background:var(--surface);color:var(--mut);border-radius:14px;
+  padding:5px 13px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;margin:0 0 9px;}
+.ordbtn.on{background:var(--accent-ink);color:#fff;border-color:var(--accent-ink);}
+.grid.ordenando .gcell{cursor:grab;}
 .gcell{position:relative;}
 .gcell:active{background:var(--surface2);}
 /* asa de arrastre del mosaico: arranca el reorden de inmediato */
-.gcell .asa{position:absolute;top:2px;right:4px;font-size:13px;line-height:1;color:var(--mut2);
-  padding:3px 4px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;}
-.gcell .asa:active{color:var(--accent-ink);}
 /* arrastre en la rejilla: la celda levantada no debe recibir el puntero, si no
    elementFromPoint la devuelve a ella misma y nunca detecta sobre cuál va */
 .gcell.moviendo{z-index:5;pointer-events:none;background:var(--surface2);
@@ -653,7 +655,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1559";
+<script>window.MM_VER="20260804-1607";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1903,7 +1905,10 @@ function openSheet(t){
   /* por si el teclado ya estaba abierto cuando se abrió la hoja */
   if(typeof ajustaTeclado==='function') setTimeout(ajustaTeclado,60);
 }
-function closeSheet(){ if(sheet.classList.contains('show')) cerrarCapa(); }
+function closeSheet(){
+  modoOrdenar=false;      /* el modo ordenar no se hereda a la próxima hoja */
+  if(sheet.classList.contains('show')) cerrarCapa();
+}
 scrim.onclick=closeSheet; $('sheetX').onclick=closeSheet; $('sheetBack').onclick=closeSheet;
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') cerrarCapa(); });
 
@@ -2115,22 +2120,22 @@ function setAgente(n){ st.agente=n||null;
    sin soltar levanta la celda y la sigue el dedo. Se hace aquí, en la pantalla de captura,
    porque es donde Marco lo pidió: "pensé que lo habías hecho ordenable al dejar pulsado". */
 var rej=null, rejT=null;
+/* modo ordenar de las rejillas: lo prende un botón y sobrevive al repintado */
+var modoOrdenar=false;
 function arrastrarRejilla(cont, cual, repintar){
-  /* Se arrastra desde el ASA, no dejando pulsado. El pulsado largo se lo peleaba Android
-     (sacaba "Seleccionar / Buscar en Google") y nunca llegaba a correr; con el asa el
-     arranque es inmediato y no hay ambigüedad. Marco: "mejor pon la asa de 3 rayas a
-     todos" (4-ago-2026). */
+  /* El reorden vive detrás de un MODO que se prende con un botón, no con el pulsado
+     largo (se lo peleaba Android) ni con un asa por mosaico (ensuciaba los 27). Marco:
+     "mejor uno general para activar o desactivar" (4-ago-2026). */
   cont.oncontextmenu=function(e){ e.preventDefault(); return false; };
   cont.querySelectorAll('.gcell').forEach(function(el){
     el.oncontextmenu=function(e){ e.preventDefault(); return false; };
-    var asa=el.querySelector('.asa'); if(!asa) return;
-    asa.addEventListener('pointerdown', function(e){
+    el.addEventListener('pointerdown', function(e){
+      if(!modoOrdenar) return;              // fuera del modo, el mosaico solo se toca
       e.preventDefault(); e.stopPropagation();
       rej={el:el, x:e.clientX, y:e.clientY, cual:cual, movio:false, repintar:repintar};
       el.classList.add('moviendo');
-      cont.classList.add('ordenando');
-      try{ asa.setPointerCapture(e.pointerId); }catch(_){}
-      if(navigator.vibrate) try{ navigator.vibrate(15); }catch(_){}
+      try{ el.setPointerCapture(e.pointerId); }catch(_){}
+      if(navigator.vibrate) try{ navigator.vibrate(12); }catch(_){}
     });
   });
 }
@@ -2167,7 +2172,6 @@ function soltarRejilla(){
   if(!rej) return;
   var g=rej; rej=null;
   g.el.classList.remove('moviendo'); g.el.style.transform='';
-  if(g.el.parentNode) g.el.parentNode.classList.remove('ordenando');   // dejan de menearse
   if(!g.movio) return;
   var por={}; lista(g.cual).forEach(function(c){ por[c.n]=c; });
   var nuevo=[];
@@ -2185,6 +2189,16 @@ document.addEventListener('pointercancel', soltarRejilla);
    "Cafetería" */
 function llano(s){ return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
+/* Un solo botón para prender/apagar el modo ordenar, en vez de un asa por mosaico. */
+function btnOrdenar(){
+  return '<button class="ordbtn'+(modoOrdenar?' on':'')+'" id="ordBtn">'+
+         (modoOrdenar?'✓ Listo':'⇅ Ordenar')+'</button>'+
+         (modoOrdenar?'<div class="note" style="margin:2px 0 8px">Arrastra los grupos a su lugar. Al terminar, dale <b>Listo</b>.</div>':'');
+}
+function conectaBtnOrdenar(repintar){
+  var b=$('ordBtn'); if(!b) return;
+  b.onclick=function(){ modoOrdenar=!modoOrdenar; repintar(); };
+}
 function showCatGrid(q){
   $('sheetTit').textContent = (cualLista()==='valor') ? 'Motivo' : 'Grupo';
   var L=catsActuales(), b=$('sheetBody');
@@ -2211,13 +2225,13 @@ function showCatGrid(q){
   } else {
     /* la pista va ARRIBA: abajo queda después de todos los mosaicos, fuera de pantalla, y
        Marco no se enteró de que se podían reordenar (4-ago-2026) */
-    b.innerHTML=caja+'<div class="note" style="margin:-4px 0 8px">Arrastra el ≡ de un grupo para moverlo de lugar.</div>'+
-      '<div class="grid">'+L.map(function(c,i){
-      return '<div class="gcell" data-i="'+i+'"><span class="asa" title="Arrastra para mover">≡</span>'+
-             '<div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
+    b.innerHTML=caja+btnOrdenar()+
+      '<div class="grid'+(modoOrdenar?' ordenando':'')+'">'+L.map(function(c,i){
+      return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+
       '</div>';
+    conectaBtnOrdenar(function(){ showCatGrid(q); });
     b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
-      if(rej) return;
+      if(modoOrdenar || rej) return;         // en modo ordenar el toque no elige
       var c=L[+el.dataset.i];
       /* la subcategoría es OPCIONAL: si el grupo no tiene, se elige el grupo y ya */
       if(!c.subs || !c.subs.length){ pickCat(c.n,c.e,c.n); closeSheet(); return; }
@@ -2480,17 +2494,17 @@ function elegirCatEdit(L, listo, q, cual){
     b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){
       var h=hits[+el.dataset.i]; listo({g:h.c.n, e:h.c.e, sub:h.s}); }; });
   } else {
-    b.innerHTML=caja+
-      (cual?'<div class="note" style="margin:-4px 0 8px">Arrastra el ≡ de un grupo para moverlo de lugar.</div>':'')+
-      '<div class="grid">'+L.map(function(c,i){
-      return '<div class="gcell" data-i="'+i+'"><span class="asa" title="Arrastra para mover">≡</span>'+
-             '<div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
+    b.innerHTML=caja+(cual?btnOrdenar():'')+
+      '<div class="grid'+(modoOrdenar&&cual?' ordenando':'')+'">'+L.map(function(c,i){
+      return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
     /* el reorden solo si sabemos en qué catálogo guardarlo */
-    if(cual && cual!=='valor')
-      arrastrarRejilla(b.querySelector('.grid'), cual,
-                       function(){ elegirCatEdit(lista(cual), listo, '', cual); });
+    if(cual && cual!=='valor'){
+      var repinta=function(){ elegirCatEdit(lista(cual), listo, '', cual); };
+      arrastrarRejilla(b.querySelector('.grid'), cual, repinta);
+      conectaBtnOrdenar(repinta);
+    }
     b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
-      if(rej) return;                       // venía de un arrastre, no de un toque
+      if(modoOrdenar || rej) return;        // en modo ordenar el toque no elige
       var c=L[+el.dataset.i];
       if(!c.subs || !c.subs.length){ listo({g:c.n, e:c.e, sub:c.n}); return; }
       $('sheetTit').textContent='Subcategoría';
