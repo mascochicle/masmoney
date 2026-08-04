@@ -385,6 +385,10 @@ button{font-family:inherit;}
 .sub-i .via{margin-left:auto;color:var(--mut);font-size:11.5px;text-align:right;}
 .sublist .sub-i{display:flex;align-items:center;gap:11px;padding:12px 9px;border-bottom:1px solid var(--surface);cursor:pointer;font-size:14.5px;}
 .sublist .sub-i:active{background:var(--surface);}
+.sublist .sub-i .asa{margin-left:10px;color:var(--mut2);font-size:16px;cursor:grab;
+  touch-action:none;user-select:none;-webkit-user-select:none;flex:none;}
+.sub-i.arrastrando{position:relative;z-index:30;background:var(--surface2);border-radius:10px;}
+.sub-i.deslizando,.sub-i.asentando{transition:transform .2s cubic-bezier(.3,.9,.4,1);}
 .edit-b{display:flex;flex-direction:column;gap:9px;padding:2px 4px;}
 .fld{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:11px;}
 .fld .k{font-size:12px;color:var(--mut);width:78px;flex:none;}
@@ -644,7 +648,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1536";
+<script>window.MM_VER="20260804-1549";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1696,6 +1700,7 @@ function verDividir(op){
   sheet.classList.add('alta');   // que no quede pegada al borde de abajo
   var L = op ? op.lista : st.partes;
   var CT = op ? op.cats : catsActuales();
+  var CUAL = op ? (op.cual || 'gasto') : cualLista();   // para poder guardar el reorden
   var foco = (typeof verDividir._f==='number' && verDividir._f<L.length) ? verDividir._f : L.length-1;
   $('sheetBody').innerHTML='<div class="partes">'+L.map(function(p,i){
     return '<div class="parte'+(i===foco?' act':'')+'" data-i="'+i+'">'+
@@ -1733,7 +1738,7 @@ function verDividir(op){
   $('sheetBody').querySelectorAll('.pcat').forEach(function(el){
     el.onclick=function(){ var i=+el.dataset.cat;
       elegirCatEdit(CT, function(c){
-        L[i].g=c.g; L[i].e=c.e; L[i].sub=c.sub; verDividir(op); });
+        L[i].g=c.g; L[i].e=c.e; L[i].sub=c.sub; verDividir(op); }, '', CUAL);
     };
   });
   $('sheetBody').querySelectorAll('.pdel').forEach(function(el){
@@ -1741,7 +1746,7 @@ function verDividir(op){
   });
   $('pAdd').onclick=function(){
     elegirCatEdit(CT, function(c){
-      L.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(op); });
+      L.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(op); }, '', CUAL);
   };
   function terminar(){
     verDividir._f=null;                           // el foco no se hereda a la próxima vez
@@ -2105,7 +2110,7 @@ function setAgente(n){ st.agente=n||null;
    sin soltar levanta la celda y la sigue el dedo. Se hace aquí, en la pantalla de captura,
    porque es donde Marco lo pidió: "pensé que lo habías hecho ordenable al dejar pulsado". */
 var rej=null, rejT=null;
-function arrastrarRejilla(cont, cual){
+function arrastrarRejilla(cont, cual, repintar){
   /* el menú de Android sale por el evento contextmenu; el CSS solo no basta */
   cont.oncontextmenu=function(e){ e.preventDefault(); return false; };
   cont.querySelectorAll('.gcell').forEach(function(el){
@@ -2113,7 +2118,7 @@ function arrastrarRejilla(cont, cual){
     el.addEventListener('pointerdown', function(e){
       var x0=e.clientX, y0=e.clientY;
       rejT=setTimeout(function(){
-        rejT=null; rej={el:el, x:x0, y:y0, cual:cual, movio:false};
+        rejT=null; rej={el:el, x:x0, y:y0, cual:cual, movio:false, repintar:repintar};
         el.classList.add('moviendo');
         cont.classList.add('ordenando');       // que se meneen: ya se pueden mover
         /* 12ms casi no se sentía; con un golpe doble sí se nota que entró el modo */
@@ -2163,7 +2168,8 @@ function soltarRejilla(){
     var n=x.querySelector('.n').textContent; if(por[n]) nuevo.push(por[n]);
   });
   if(nuevo.length===lista(g.cual).length){ guardaLista(g.cual,nuevo); toast('Orden guardado'); }
-  showCatGrid();
+  /* cada rejilla se repinta a su manera: showCatGrid y elegirCatEdit son pantallas distintas */
+  (g.repintar || showCatGrid)();
 }
 document.addEventListener('pointerup', soltarRejilla);
 document.addEventListener('pointercancel', soltarRejilla);
@@ -2440,7 +2446,10 @@ function renderCal(dir){
    cambiar después de guardar: había que borrar el movimiento y capturarlo otra vez). */
 /* Selector de grupo y subcategoría para el EDITOR. Es aparte del de captura porque aquel
    escribe en `st` y este devuelve el resultado por callback. */
-function elegirCatEdit(L, listo, q){
+/* `cual` dice a qué catálogo pertenece L, para poder GUARDAR el reorden. Sin él esta
+   rejilla no se podía reordenar — y es la que Marco usa al capturar, no showCatGrid()
+   (4-ago-2026: "nada, sigue igual"). */
+function elegirCatEdit(L, listo, q, cual){
   $('sheetTit').textContent='Grupo';
   var b=$('sheetBody');
   q=q||'';
@@ -2462,8 +2471,14 @@ function elegirCatEdit(L, listo, q){
     b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){
       var h=hits[+el.dataset.i]; listo({g:h.c.n, e:h.c.e, sub:h.s}); }; });
   } else {
-    b.innerHTML=caja+'<div class="grid">'+L.map(function(c,i){
+    b.innerHTML=caja+
+      (cual?'<div class="note" style="margin:-4px 0 8px">Deja pulsado un grupo para moverlo de lugar.</div>':'')+
+      '<div class="grid">'+L.map(function(c,i){
       return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div><div class="n">'+c.n+'</div></div>';}).join('')+'</div>';
+    /* el reorden solo si sabemos en qué catálogo guardarlo */
+    if(cual && cual!=='valor')
+      arrastrarRejilla(b.querySelector('.grid'), cual,
+                       function(){ elegirCatEdit(lista(cual), listo, '', cual); });
     b.querySelectorAll('.gcell').forEach(function(el){ el.onclick=function(){
       var c=L[+el.dataset.i];
       if(!c.subs || !c.subs.length){ listo({g:c.n, e:c.e, sub:c.n}); return; }
@@ -2471,7 +2486,7 @@ function elegirCatEdit(L, listo, q){
       b.innerHTML='<div class="gback" id="gb2">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
         c.subs.map(function(x){ return '<div class="sub-i" data-s="'+x.replace(/"/g,'&quot;')+'">'+
           '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+'</div>';
-      $('gb2').onclick=function(){ elegirCatEdit(L, listo); };
+      $('gb2').onclick=function(){ elegirCatEdit(L, listo, '', cual); };
       b.querySelectorAll('.sub-i').forEach(function(y){
         y.onclick=function(){ listo({g:c.n, e:c.e, sub:y.dataset.s}); }; });
     }; });
@@ -2479,7 +2494,7 @@ function elegirCatEdit(L, listo, q){
 
   var q2=$('qcat2');
   q2.oninput=function(){ var v=this.value, pos=this.selectionStart;
-    elegirCatEdit(L, listo, v); var n=$('qcat2'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
+    elegirCatEdit(L, listo, v, cual); var n=$('qcat2'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
 
 function editarMov(id, pre){
@@ -2621,7 +2636,7 @@ function editarMov(id, pre){
        categoría: si no, quedaba con grupo nuevo y las partes viejas adentro */
     var pt = (pre&&pre.partes) || m.partes;
     if(pt && pt.length>1){
-      verDividir({lista: JSON.parse(JSON.stringify(pt)), cats: lista(cual),
+      verDividir({lista: JSON.parse(JSON.stringify(pt)), cats: lista(cual), cual: cual,
         listo: function(np){
           if(np.length>1){ v.partes=np; v.cat={g:np[0].g, e:np[0].e, sub:np[0].sub};
                            v.amt=String(np.reduce(function(a,p){return a+p.amount;},0)); }
@@ -2632,7 +2647,7 @@ function editarMov(id, pre){
         }});
       return;
     }
-    elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); });
+    elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); }, '', cual);
   };
   $('eSave').onclick=function(){
     var v = dividido ? partes.reduce(function(a,p){ return a+(+p.amount||0); },0)
@@ -3437,10 +3452,13 @@ function editarGrupo(cual,i){
         return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+
         campoOtroIco('gEotro')+'</div></div>'+
     '<div class="note">Subcategorías (opcional; es el segundo nivel, tu Agente 2). '+
-      'Si no le pones ninguna, al capturar se elige el grupo directo.</div>'+
+      'Si no le pones ninguna, al capturar se elige el grupo directo. '+
+      'Arrastra el ≡ para cambiar el orden en que aparecen.</div>'+
     '<div class="sublist" id="gSubs">'+c.subs.map(function(s,k){
-      return '<div class="sub-i" data-k="'+k+'"><span class="e">'+c.e+'</span>'+s+
-             '<span class="tag" style="margin-left:auto">editar</span></div>';}).join('')+
+      return '<div class="sub-i subrow" data-k="'+k+'" data-n="'+s.replace(/"/g,'&quot;')+'">'+
+             '<span class="e">'+c.e+'</span>'+s+
+             '<span class="tag" style="margin-left:auto">editar</span>'+
+             '<span class="asa" title="Arrastra para cambiar el orden">≡</span></div>';}).join('')+
       '<div class="sub-i nuevo" data-add="1"><span class="e">＋</span>Agregar subcategoría</div></div>'+
     '<div class="edit-acts">'+(nuevo?'':'<button class="b-del" id="gDel">Borrar grupo</button>')+
       '<button class="b-save" id="gOk">Guardar</button></div></div>';
@@ -3453,9 +3471,22 @@ function editarGrupo(cual,i){
   if(EMOJIS_CAT.indexOf(c.e)<0 && c.e) $('gEotro').value=c.e;
   $('gSubs').querySelectorAll('.sub-i').forEach(function(el){
     el.onclick=function(){
+      if(arr) return;                     // venía de un arrastre, no de un toque
       if(el.dataset.add){ editarSub(cual,i,c,subs,-1,pick); return; }
       editarSub(cual,i,c,subs,+el.dataset.k,pick);
     };
+  });
+  /* reordenar subcategorías: el orden es el que ve al capturar */
+  $('gSubs').querySelectorAll('.subrow .asa').forEach(function(h){
+    arrastrable(h,'subrow',function(){
+      var nuevoOrden=[];
+      $('gSubs').querySelectorAll('.subrow').forEach(function(x){ nuevoOrden.push(x.dataset.n); });
+      if(nuevoOrden.length===subs.length){
+        subs.length=0; nuevoOrden.forEach(function(n){ subs.push(n); });
+        c.subs=subs.slice();
+        setTimeout(function(){ editarGrupo(cual,i); },240);
+      }
+    });
   });
   $('gOk').onclick=function(){
     var nom=$('gN').value.trim(); if(!nom){ toast('Ponle nombre',true); return; }
