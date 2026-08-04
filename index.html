@@ -144,8 +144,13 @@ button{font-family:inherit;}
   letter-spacing:.03em;text-transform:uppercase;font-weight:700;}
 .periodo .pl small{display:block;font-size:10.5px;color:var(--mut2);margin-top:1px;}
 .capscroll{overflow-y:auto;flex:1;min-height:0;padding-bottom:8px;}
-.pad{flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);}
-.key{background:var(--surface);border:0;color:var(--ink);font-size:22px;font-weight:600;padding:15px 0;cursor:pointer;font-variant-numeric:tabular-nums;}
+.pad{flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);}
+.key{background:var(--surface);border:0;color:var(--ink);font-size:21px;font-weight:600;padding:15px 0;cursor:pointer;font-variant-numeric:tabular-nums;}
+.key.calc{background:var(--surface2);color:var(--accent-ink);}
+.key.calc.on{background:var(--accent-ink);color:#fff;}
+/* la operación pendiente, arriba del monto: "70 +" */
+.calcln{font-size:13px;color:var(--accent-ink);font-weight:650;min-height:16px;
+  font-variant-numeric:tabular-nums;}
 .key:active{background:var(--surface2);}
 .key.op{color:var(--op);font-size:19px;}
 .pad.off{display:none;}
@@ -521,6 +526,7 @@ button{font-family:inherit;}
     </div>
 
     <div class="amount">
+      <div class="calcln" id="calcLn"></div>
       <div class="montoln"><div class="big zero" id="disp">0</div><span class="moneda" id="monLbl">MXN</span></div>
       <div class="equiv" id="equiv"></div>
       <button class="cur" id="fechaBtn"><u id="fechaLbl">hoy</u></button>
@@ -554,11 +560,13 @@ button{font-family:inherit;}
     </div>
    </div>
 
+    <!-- La columna de operadores es como la de Money Pro: sirve para sumar la cuenta sin
+         salirse de la app ("35+35"). Al dar Listo se resuelve lo que quede pendiente. -->
     <div class="pad off" id="pad">
-      <button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key op" data-op="back">⌫</button>
-      <button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key op" data-op="c">C</button>
-      <button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key op" data-op="00">00</button>
-      <button class="key">.</button><button class="key">0</button><button class="key op listo" data-op="cerrar">Listo</button>
+      <button class="key calc" data-op="+">+</button><button class="key">1</button><button class="key">2</button><button class="key">3</button><button class="key op" data-op="back">⌫</button>
+      <button class="key calc" data-op="-">−</button><button class="key">4</button><button class="key">5</button><button class="key">6</button><button class="key op" data-op="c">C</button>
+      <button class="key calc" data-op="*">×</button><button class="key">7</button><button class="key">8</button><button class="key">9</button><button class="key op" data-op="=">=</button>
+      <button class="key calc" data-op="/">÷</button><button class="key">.</button><button class="key">0</button><button class="key op" data-op="00">00</button><button class="key op listo" data-op="cerrar">Listo</button>
     </div>
     <div class="barra">
       <button class="b-monto" id="abrirPad"><span>Monto</span><b id="miniMonto">$0</b></button>
@@ -608,7 +616,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260803-1651";
+<script>window.MM_VER="20260803-1950";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1440,6 +1448,7 @@ function renderAmt(){
   }
   $('equiv').textContent=txt;
   var mm=$('miniMonto'); mm.textContent=d.textContent; mm.classList.toggle('zero',n===0);
+  pintaCalc();
   renderMsiPrev();
 }
 /* el teclado numérico solo aparece cuando lo pides. Al abrirlo el área de arriba se
@@ -1461,9 +1470,20 @@ $('desc').addEventListener('focus',function(){ verPad(false); });   // deja luga
    Money Pro deja partirlo por categorías dentro de la misma ficha y aquí igual: el
    movimiento sigue siendo UNO (por eso el monto cuadra contra el banco) y por dentro
    guarda sus partes. Si hay partes, el monto es su suma y el teclado se apaga. */
+/* resuelve una cuenta escrita a mano ("35+35", "120/3"). Solo dígitos, punto, coma y los
+   cuatro operadores: cualquier otra cosa devuelve null y no se evalúa nada. */
+function evalua(s){
+  s=String(s==null?'':s).replace(/,/g,'.').replace(/\s+/g,'').replace(/[×x]/g,'*').replace(/[÷]/g,'/');
+  if(s==='') return null;
+  if(!/^[0-9.+\-*/()]+$/.test(s)) return null;
+  if(/[+\-*/]$/.test(s)) s=s.slice(0,-1);          // se quedó a medias: se ignora la cola
+  try{ var v=Function('"use strict";return ('+s+')')();
+       return (typeof v==='number' && isFinite(v)) ? Math.round(v*1e6)/1e6 : null; }
+  catch(e){ return null; }
+}
 function sumaPartes(){
   if(!st.partes || st.partes.length<2) return null;
-  return st.partes.reduce(function(a,p){ return a+(parseFloat(p.amount)||0); },0);
+  return st.partes.reduce(function(a,p){ return a+(evalua(p.amount)||0); },0);
 }
 function num(){ var s=sumaPartes(); return (s!==null)?s:(parseFloat(st.amount)||0); }
 function renderMsiPrev(){
@@ -1473,15 +1493,47 @@ function renderMsiPrev(){
     ? 'Total <b>'+fmt(t)+'</b> → el tablero lo verá como <b>'+fmt(t/m)+'/mes</b> durante <b>'+m+' meses</b>.'
     : 'Captura el total; el tablero lo reparte en '+m+' meses.';
 }
+/* ---- calculadora del teclado ----
+   `calAc` es lo que se lleva acumulado y `calOp` la operación pendiente. Al teclear un
+   operador se resuelve lo anterior, así que 2+3+4 va dando resultados parciales, como
+   cualquier calculadora. */
+var calAc=null, calOp=null, calNuevo=false;
+var SIGNO={'+':'+','-':'−','*':'×','/':'÷'};
+function calcResuelve(){
+  if(calOp===null) return;
+  var b=parseFloat(st.amount)||0, r=calAc;
+  if(calOp==='+') r=calAc+b; else if(calOp==='-') r=calAc-b;
+  else if(calOp==='*') r=calAc*b; else if(calOp==='/') r=(b===0?calAc:calAc/b);
+  st.amount=String(Math.round(r*1e6)/1e6);
+  calAc=null; calOp=null; calNuevo=true;
+}
+function calcLimpia(){ calAc=null; calOp=null; calNuevo=false; }
+function pintaCalc(){
+  $('calcLn').textContent = (calOp!==null)
+    ? (fmt2(calAc)+'  '+SIGNO[calOp]) : '';
+  $('pad').querySelectorAll('.key.calc').forEach(function(b){
+    b.classList.toggle('on', b.dataset.op===calOp); });
+}
 $('pad').addEventListener('click',function(e){
   var k=e.target.closest('.key'); if(!k||k.id==='guardar') return;
   var op=k.dataset.op, t=k.textContent;
-  if(op==='cerrar'){ verPad(false); return; }
-  if(op==='c') st.amount="0";
-  else if(op==='back') st.amount=st.amount.length>1?st.amount.slice(0,-1):"0";
-  else if(op==='00'){ if(st.amount!=="0") st.amount+="00"; }
-  else if(t==='.'){ if(st.amount.indexOf('.')<0) st.amount+="."; }
-  else st.amount = st.amount==="0"?t:st.amount+t;
+  if(op==='cerrar'){ calcResuelve(); verPad(false); renderAmt(); return; }
+  if(SIGNO[op]){                            // + − × ÷
+    calcResuelve();                          // encadena: resuelve lo que hubiera
+    /* la pantalla NO se va a cero: sigue mostrando el acumulado hasta que teclee el
+       siguiente número. Poner 0 ahí se siente como si se hubiera borrado. */
+    calAc=parseFloat(st.amount)||0; calOp=op; calNuevo=true;
+  }
+  else if(op==='='){ calcResuelve(); }
+  else if(op==='c'){ st.amount="0"; calcLimpia(); }
+  else if(op==='back'){ if(calNuevo){ st.amount="0"; calNuevo=false; }
+                        else st.amount=st.amount.length>1?st.amount.slice(0,-1):"0"; }
+  else if(op==='00'){ if(calNuevo){ st.amount="0"; calNuevo=false; }
+                      else if(st.amount!=="0") st.amount+="00"; }
+  else if(t==='.'){ if(calNuevo){ st.amount="0."; calNuevo=false; }
+                    else if(st.amount.indexOf('.')<0) st.amount+="."; }
+  else { if(calNuevo){ st.amount=t; calNuevo=false; }
+         else st.amount = st.amount==="0"?t:st.amount+t; }
   renderAmt();
 });
 function pintaFecha(){
@@ -1590,21 +1642,26 @@ function verDividir(op){
     return '<div class="parte" data-i="'+i+'">'+
       '<button class="pcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
         '<span class="n">'+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'<small>'+p.g+'</small></span></button>'+
-      '<input class="pmonto" data-m="'+i+'" type="number" inputmode="decimal" step="0.01" '+
+      /* type text y no number: así acepta "35+35" y se resuelve al salir del campo.
+         El teclado de Android no trae operadores y aquí no cabe el de la app. */
+      '<input class="pmonto" data-m="'+i+'" type="text" inputmode="text" '+
         'placeholder="0.00" value="'+(p.amount===''?'':p.amount)+'">'+
       (L.length>1?'<button class="pdel" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+'</div>'+
   '<button class="padd" id="pAdd"><span class="e">＋</span><span class="n">Agregar categoría</span></button>'+
-  '<div class="ptot">TOTAL<b id="pTot">'+fmt2(L.reduce(function(a,p){return a+(parseFloat(p.amount)||0);},0))+'</b></div>'+
+  '<div class="ptot">TOTAL<b id="pTot">'+fmt2(L.reduce(function(a,p){return a+(evalua(p.amount)||0);},0))+'</b></div>'+
   '<div class="note">Sigue siendo UN movimiento: el total es lo que cuadra contra el banco.</div>'+
   '<div class="edit-acts"><button class="b-save" id="pOk">Listo</button></div>';
 
   function total(){
-    var t=L.reduce(function(a,p){ return a+(parseFloat(p.amount)||0); },0);
+    var t=L.reduce(function(a,p){ return a+(evalua(p.amount)||0); },0);
     $('pTot').textContent=fmt2(t);
   }
   $('sheetBody').querySelectorAll('.pmonto').forEach(function(el){
     el.oninput=function(){ L[+el.dataset.m].amount=el.value; total(); };
+    /* al salir del campo se resuelve la cuenta y queda el número */
+    el.onblur=function(){ var v=evalua(el.value);
+      if(v!==null && String(v)!==el.value){ el.value=String(v); L[+el.dataset.m].amount=el.value; total(); } };
   });
   $('sheetBody').querySelectorAll('.pcat').forEach(function(el){
     el.onclick=function(){ var i=+el.dataset.cat;
@@ -1620,9 +1677,9 @@ function verDividir(op){
       L.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(op); });
   };
   $('pOk').onclick=function(){
-    var lim=L.filter(function(p){ return (parseFloat(p.amount)||0)>0; });
+    var lim=L.filter(function(p){ return (evalua(p.amount)||0)>0; });
     if(op){ op.listo(lim.map(function(p){
-              return {g:p.g,e:p.e,sub:p.sub,amount:+(parseFloat(p.amount)||0)}; })); return; }
+              return {g:p.g,e:p.e,sub:p.sub,amount:+(evalua(p.amount)||0)}; })); return; }
     st.partes=lim;
     if(st.partes.length<2){                       // una sola: vuelve a ser normal
       if(st.partes.length===1){ var p=st.partes[0];
@@ -2108,6 +2165,7 @@ function pickCat(g,e,sub){ st.cat={g:g,e:e,sub:sub};
 
 /* ================= guardar movimiento ================= */
 $('guardar').onclick=function(){
+  calcResuelve(); renderAmt();     // si dejó una operación a medias, se cierra
   if(num()<=0){ toast('Escribe un monto',true); return; }
   var T=tipoDe(st.tipo), dos=!!T.d;
   var c=cta(st.cuentaId), c2=cta(st.cuenta2Id);
@@ -2127,7 +2185,7 @@ $('guardar').onclick=function(){
     /* si va dividido, las partes viajan dentro; el monto del movimiento es su suma,
        que es lo que tiene que cuadrar contra el estado de cuenta */
     partes: (st.partes&&st.partes.length>1)
-            ? st.partes.map(function(p){ return {g:p.g,e:p.e,sub:p.sub,amount:+(parseFloat(p.amount)||0)}; })
+            ? st.partes.map(function(p){ return {g:p.g,e:p.e,sub:p.sub,amount:+(evalua(p.amount)||0)}; })
             : undefined,
     e: dos?T.e:st.cat.e,
     dir: T.dir?(st.dir||-1):null,          // solo el cambio de valor lleva sentido
@@ -2150,7 +2208,8 @@ $('guardar').onclick=function(){
   limpiarForm(); verForm(false); renderCuenta(); renderSaldos(); toast('Guardado');
 };
 function limpiarForm(){
-  st.amount="0"; st.partes=null; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
+  st.amount="0"; calcLimpia();
+  st.partes=null; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
   $('interes').value=''; setAgente(null); verPad(false); $('fotoImg').style.display='';
   pintaPartes();
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
