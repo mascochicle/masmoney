@@ -698,7 +698,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1410";
+<script>window.MM_VER="20260805-1415";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3581,10 +3581,21 @@ function aplicaLetra(){
      Dos detalles que costaron encontrarlo: el `stretch` del body le ganaba a la altura
      (de ahí el align-self del CSS), y una variable heredada de <html> se RE-ESCALA al
      cruzar el zoom, así que la altura va inline en el propio marco. */
+  /* Con el TECLADO abierto no se recalcula. El teclado dispara `visualViewport.resize`,
+     pero el marco no debe cambiar de alto por eso: recalcular ahí es medir en un momento
+     raro y de ahí salía el marco más alto que la pantalla (5-ago-2026). */
+  if(typeof altoTeclado==='function' && altoTeclado()) return;
   e.style.setProperty('--z', 1); ph.style.height='';
   var base=ph.getBoundingClientRect().height;
   e.style.setProperty('--z', z);
   ph.style.height=(base/z).toFixed(2)+'px';
+  /* RED DE SEGURIDAD: si aun así el marco quedó más alto que la pantalla, la barra de
+     pestañas se sale por abajo y simplemente DESAPARECE — no hay manera de cambiar de
+     pantalla y parece que la app se rompió. Se mide lo que sobra y se recorta. El sobrante
+     va dividido entre el zoom porque el alto es CSS y `getBoundingClientRect` viene ya
+     ampliado. */
+  var sobra=ph.getBoundingClientRect().bottom - window.innerHeight;
+  if(sobra>1) ph.style.height=((base-sobra)/z).toFixed(2)+'px';
 }
 window.addEventListener('resize', aplicaLetra);
 if(window.visualViewport) window.visualViewport.addEventListener('resize', aplicaLetra);
