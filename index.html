@@ -679,7 +679,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1132";
+<script>window.MM_VER="20260805-1137";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3913,6 +3913,15 @@ function revisarImport(d,nombre){
     '<div class="fld"><div class="k">Nuevos</div><div class="ro">'+nuevos.length+' que aún no tienes'+
       (nuevos.length!==d.movimientos.length?' · '+(d.movimientos.length-nuevos.length)+' ya están':'')+'</div></div>'+
     '<div class="fld"><div class="k">Cuentas</div><div class="ro">'+ctasN+'</div></div>'+
+    /* los catálogos existen desde la v13; en un respaldo viejo se avisa que no vienen */
+    (d.catalogos
+      ? '<div class="fld"><div class="k">Catálogos</div><div class="ro">'+
+        [(d.catalogos.agentes||[]).length+' agentes',
+         ((d.catalogos.cats_gasto||[]).length+(d.catalogos.cats_ingreso||[]).length+
+          (d.catalogos.cats_negocio||[]).length)+' grupos de categorías',
+         (d.catalogos.ambitos||[]).length+' ámbitos'].join(' · ')+'</div></div>'
+      : '<div class="fld"><div class="k">Catálogos</div><div class="ro" style="color:var(--mut)">'+
+        'no vienen (respaldo anterior) · los tuyos se quedan como están</div></div>')+
     (conFoto?'<div class="fld"><div class="k">Con foto</div><div class="ro">'+conFoto+'</div></div>':'')+
     '<div class="note">Tienes lo que tienes hoy: <b>'+mios.length+' movimientos</b>.</div>'+
     '<div class="edit-acts"><button class="b-save" id="impSuma">Agregar lo que falte</button></div>'+
@@ -3951,14 +3960,44 @@ function aplicarImport(d,reemplazar,cuantos){
   if(d.tipos_de_cambio){ var t=ld(K_TC,{});
     Object.keys(d.tipos_de_cambio).forEach(function(k){ if(t[k]==null) t[k]=d.tipos_de_cambio[k]; });
     sv(K_TC,t); }
+  /* CATÁLOGOS (respaldos v13+). En "Reemplazar" se ponen tal cual; al AGREGAR solo se
+     suma lo que falte, para no pisar lo que él haya cambiado en este teléfono. */
+  if(d.catalogos){
+    var K=d.catalogos;
+    var junta=function(actual, delArchivo, clave){
+      if(!delArchivo || !delArchivo.length) return actual;
+      if(reemplazar) return delArchivo.slice();
+      var hay={}; actual.forEach(function(x){ hay[clave?x[clave]:x]=1; });
+      var out=actual.slice();
+      delArchivo.forEach(function(x){ if(!hay[clave?x[clave]:x]) out.push(x); });
+      return out;
+    };
+    if(K.agentes)      guardaAgentes(junta(agentes(), K.agentes, null));
+    if(K.ambitos)      sv(K_AMB,    junta(ambitos(),  K.ambitos, 'n'));
+    if(K.cats_gasto)   saveCats(    junta(cats(),     K.cats_gasto, 'n'));
+    if(K.cats_ingreso) saveIngs(    junta(ings(),     K.cats_ingreso, 'n'));
+    if(K.cats_negocio) saveNegs(    junta(negs(),     K.cats_negocio, 'n'));
+    if(K.agentes_iconos){
+      var ic=reemplazar?{}:agIcos();
+      Object.keys(K.agentes_iconos).forEach(function(k){
+        if(reemplazar || ic[k]==null) ic[k]=K.agentes_iconos[k]; });
+      sv(K_AGICO, ic);
+    }
+  }
   closeSheet(); renderSaldos(); renderCuenta();
   toast(reemplazar?('Reemplazado · '+cuantos+' movimientos'):('Agregados '+cuantos+' movimientos'));
 }
 
 function exportarTodo(){
   var a=ordenados(); if(!a.length){ toast('Nada que exportar',true); return; }
-  var data=JSON.stringify({app:"MasMoney", v:12, generado:new Date().toISOString(),
-    base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a},null,2);
+  /* Desde la v13 el respaldo lleva TAMBIÉN los catálogos: agentes, las tres listas de
+     categorías, los ámbitos y las caras de los agentes. Antes solo iban cuentas y
+     movimientos, así que si perdía el teléfono se le iban 248 agentes y sus categorías
+     hechas a mano (5-ago-2026). */
+  var data=JSON.stringify({app:"MasMoney", v:13, generado:new Date().toISOString(),
+    base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a,
+    catalogos:{agentes:agentes(), agentes_iconos:agIcos(), ambitos:ambitos(),
+               cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs()}},null,2);
   /* con la fecha en el nombre: se acumulan en Descargas y así se sabe cuál es el bueno */
   var nom='masmoney-backup-'+hoyISO()+'.json';   // va a la carpeta "Masmoney Backup"
   if(window.claude&&window.claude.downloads){
