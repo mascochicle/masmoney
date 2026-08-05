@@ -679,7 +679,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1156";
+<script>window.MM_VER="20260805-1201";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3600,7 +3600,12 @@ function renderCfg(){
     '<div class="hint" style="text-align:left;padding:0 16px 14px">Se descarga '+
       '<b>masmoney-backup-'+hoyISO()+'.json</b> a <b>Descargas</b> del teléfono, y de ahí '+
       'DriveSync lo sube solo a <b>Drive › SamsungS25ultra › Descargas</b>. '+
-      'Lo único que tienes que hacer es tocar Exportar; lo demás va solo.</div>'+
+      'Lo único que tienes que hacer es tocar Exportar; lo demás va solo.'+
+      /* Marco tocó Importar, salió el selector de archivos de Android, se regresó y creyó
+         que la app no se había actualizado: las opciones nuevas viven en la pantalla de
+         revisión, que solo aparece DESPUÉS de escoger el archivo (5-ago-2026). */
+      '<br><br><b>Importar</b> te pide el archivo primero. Ya que lo escoges, ahí eliges '+
+      '<b>qué cuentas</b> traer y te avisa si algo <b>ya lo tenías capturado</b>.</div>'+
 
     '<div class="secttl">Datos<span>'+kb+' KB</span></div>'+
     '<div class="cfg-d">'+a.length.toLocaleString('en-US')+' movimientos · '+L.length+' cuentas'+
@@ -3611,8 +3616,32 @@ function renderCfg(){
     '<div class="secttl">Acerca de</div>'+
     '<div class="cfg-d">MasMoney · hecho para Marco'+
       (window.MM_VER?'<br><b>versión '+window.MM_VER+'</b>':'')+
-      '<br><small>'+(window.MM_VER?'Si esta versión no es la última, cierra la app por completo y vuelve a abrirla. ':'')+
-      'Cuando pase al servidor, los datos se respaldan solos y esta pantalla crece.</small></div>';
+      '<br><small>'+(window.MM_VER?'Cerrar la app y volver a abrirla casi siempre la actualiza sola. Si no, usa el botón de aquí abajo. ':'')+
+      'Cuando pase al servidor, los datos se respaldan solos y esta pantalla crece.</small></div>'+
+    /* Cuando el service worker se queda pegado a una copia vieja, cerrar la app no basta y
+       lo que se antoja es borrarla y reinstalarla — y ahí se van los datos, porque viven en
+       este teléfono. Este botón tira la caché y recarga: sin tocar movimientos ni cuentas,
+       que están en localStorage y no en la caché (5-ago-2026). */
+    (('serviceWorker' in navigator)
+      ? '<div class="export"><button class="btn-imp" id="buscarAct" style="flex:1">Buscar actualización</button></div>'+
+        '<div class="hint" style="text-align:left;padding:0 16px 14px">Baja la última versión y recarga. '+
+        '<b>No borra nada</b>: tus movimientos y cuentas no viven en la caché.</div>'
+      : '');
+
+  if($('buscarAct')) $('buscarAct').onclick=function(){
+    var b=$('buscarAct'); b.textContent='Buscando…'; b.disabled=true;
+    var tareas=[];
+    /* 1) tira TODA la caché del service worker (ahí vive el index.html viejo) */
+    if(window.caches) tareas.push(caches.keys().then(function(ks){
+      return Promise.all(ks.map(function(k){ return caches.delete(k); })); }));
+    /* 2) desregistra el service worker pegado, para que el nuevo se instale de cero */
+    tareas.push(navigator.serviceWorker.getRegistrations().then(function(rs){
+      return Promise.all(rs.map(function(r){ return r.unregister(); })); }));
+    Promise.all(tareas)['catch'](function(){}).then(function(){
+      /* el parámetro obliga al navegador a pedirle el archivo al servidor, no a su caché */
+      location.replace(location.pathname+'?act='+Date.now());
+    });
+  };
 
   $('cfgBody').querySelectorAll('.cfg-i').forEach(function(el){
     el.onclick=function(){
