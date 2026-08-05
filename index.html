@@ -655,7 +655,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1622";
+<script>window.MM_VER="20260804-1914";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -842,6 +842,9 @@ var ING_CATS=[
     ganancias para usarlo como quiera y no hago eso, tengo deudas que pagar primero". */
  {n:"Negocio",e:"🏪",subs:["Pago de tarjetas","Retiro del negocio","Pago de gastos","Compra de mercancías"]},
  {n:"Arrendamiento",e:"🏢",subs:["Casa Lomas","Casa San Antonio","Depto Valle Sol","Casa Colosio","Local Spa","Ultramart Portillo","Otras"]},
+ /* Lo que su mamá aporta a la familia cuando entra a las cuentas PERSONALES de Marco;
+    si entra a la caja de la tienda se registra en Ultramart como "Pago Gastos N.R." */
+ {n:"Aportación familiar",e:"🧓",subs:["Pensión mamá","Renta Ultramart Portillo"]},
  /* Las que faltaban del catálogo de Money Pro (3-ago-2026). Van al final del bloque de
     inversión/otros y Marco las reacomoda dejando pulsado. */
  {n:"Stock Trading",e:"📈",subs:["Stock Trading"]},
@@ -880,7 +883,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=14;
+var MIG_V=15;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1121,6 +1124,20 @@ function migrar(){
       var fuera={}; fuera['auto-'+k14.id+'-2026T1']=1; fuera['auto-'+k14.id+'-2026T2']=1;
       var m14=movs().filter(function(m){ return !fuera[m.id]; });
       saveMovs(m14);
+    }
+  }
+
+  if(hecho<15){
+    /* 15) "Aportación familiar" como categoría de INGRESO: la pensión de su mamá o la
+           renta del Portillo cuando entran a las cuentas personales de Marco. Antes no
+           había dónde ponerlas sin mentir ("Regalos"). El tablero la cuenta como
+           ingreso familiar (4-ago-2026). */
+    var I15=ld(K_ING,null);
+    if(I15 && !I15.some(function(g){return g.n==='Aportación familiar';})){
+      var i15=I15.map(function(g){return g.n;}).indexOf('Arrendamiento');
+      I15.splice(i15>=0?i15+1:I15.length, 0,
+        {n:'Aportación familiar', e:'🧓', subs:['Pensión mamá','Renta Ultramart Portillo']});
+      sv(K_ING,I15);
     }
   }
 
