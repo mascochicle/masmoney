@@ -407,6 +407,14 @@ button{font-family:inherit;}
   padding:10px 0;font-family:inherit;}
 .busca input::placeholder{color:var(--mut);}
 .sub-i .via{margin-left:auto;color:var(--mut);font-size:11.5px;text-align:right;}
+/* Total / Parcial de la pantalla de Importar: dos mitades, la activa se pinta con el acento */
+.segbtn{display:flex;gap:8px;margin:12px 0 4px;}
+.segbtn button{flex:1;border:1.5px solid var(--surface2);background:transparent;color:var(--mut);
+  border-radius:12px;padding:11px 8px;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;
+  display:flex;flex-direction:column;gap:2px;line-height:1.25;}
+.segbtn button small{font-size:10.5px;font-weight:500;color:var(--mut2);}
+.segbtn button.on{border-color:var(--accent-ink);background:var(--accent-soft);color:var(--accent-ink);}
+.segbtn button.on small{color:var(--accent-ink);opacity:.72;}
 .sublist .sub-i{display:flex;align-items:center;gap:11px;padding:12px 9px;border-bottom:1px solid var(--surface);cursor:pointer;font-size:14.5px;}
 .sublist .sub-i:active{background:var(--surface);}
 .sublist .sub-i .asa{margin-left:10px;color:var(--mut2);font-size:16px;cursor:grab;
@@ -685,7 +693,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1222";
+<script>window.MM_VER="20260805-1230";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3613,8 +3621,9 @@ function renderCfg(){
          va escrito aquí. */
       '<br><br><b>Importar</b> te pide el archivo primero, y el selector abre donde estuviste '+
       'la última vez. El respaldo está en <b>☰ › Almacenamiento interno › Download</b> '+
-      '(ojo: en <b>OneDrive no está</b>). Ya que lo escoges, ahí eliges <b>qué cuentas</b> '+
-      'traer y te avisa si algo <b>ya lo tenías capturado</b>.</div>'+
+      '(ojo: en <b>OneDrive no está</b>). Ya que lo escoges viene la pantalla de revisión, '+
+      'y ahí eliges <b>total</b> (todo el archivo) o <b>parcial</b> (solo unas cuentas). '+
+      'En las dos te avisa si algo <b>ya lo tenías capturado</b>.</div>'+
 
     '<div class="secttl">Datos<span>'+kb+' KB</span></div>'+
     '<div class="cfg-d">'+a.length.toLocaleString('en-US')+' movimientos · '+L.length+' cuentas'+
@@ -3997,8 +4006,11 @@ function revisarImport(d,nombre){
   });
   var traer={};                                 // qué repetidos SÍ quiere importar
   var nuevos=d.movimientos.filter(function(m){ return !ids[m.id]; });
+  var modo='total';                             // total = todo el archivo; parcial = elegir cuentas
 
   function pintaImp(){
+    $('impCtasBox').style.display = (modo==='parcial') ? 'block' : 'none';
+    if(modo==='total') lista.forEach(function(c){ sel[c.id]=true; });
     var D=filtrado();
     var enSel=D.movimientos.filter(function(m){ return !ids[m.id]; });
     var limpios=enSel.filter(function(m){ return !repes[m.id]; }).length;
@@ -4054,9 +4066,17 @@ function revisarImport(d,nombre){
       : '<div class="fld"><div class="k">Catálogos</div><div class="ro" style="color:var(--mut)">'+
         'no vienen (respaldo anterior) · los tuyos se quedan como están</div></div>')+
     (conFoto?'<div class="fld"><div class="k">Con foto</div><div class="ro">'+conFoto+'</div></div>':'')+
-    '<div class="note" style="margin-top:12px"><b>¿Qué cuentas traes?</b> Toca para dejar fuera '+
-      'las que capturas a mano.</div>'+
-    '<div class="sublist" id="impCtas"></div>'+
+    /* Marco pidió "un botón, total o parcial". Yo lo había puesto solo como la lista de
+       cuentas y no lo reconoció: "no veo nada de eso que me dijiste". Va explícito, y la
+       lista de cuentas solo se despliega en Parcial — con 28 cuentas, enseñarlas siempre
+       estorba cuando lo que quiere es restaurar el respaldo completo (5-ago-2026). */
+    '<div class="segbtn" id="impModo">'+
+      '<button data-m="total" class="on">Importación total<small>todo el archivo</small></button>'+
+      '<button data-m="parcial">Importación parcial<small>solo unas cuentas</small></button>'+
+    '</div>'+
+    '<div id="impCtasBox" style="display:none">'+
+      '<div class="note"><b>¿Qué cuentas traes?</b> Toca para dejar fuera las que capturas a mano.</div>'+
+      '<div class="sublist" id="impCtas"></div></div>'+
     '<div id="impRepBox" style="display:none">'+
       '<div class="note" style="margin-top:14px"><b>Posibles repetidos</b> — mismo monto y misma '+
       'cuenta, con pocos días de diferencia: parece que ya lo habías capturado a mano. Vienen '+
@@ -4068,6 +4088,13 @@ function revisarImport(d,nombre){
     '<div class="note">«Agregar» respeta lo que ya capturaste y solo mete lo que elegiste arriba. '+
     '«Reemplazar» borra lo tuyo y deja exactamente lo del archivo — úsalo para restaurar un respaldo; '+
     'ese se lleva el archivo completo sin importar lo que hayas seleccionado.</div></div>';
+  $('impModo').querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){
+      modo=b.dataset.m;
+      $('impModo').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
+      pintaImp();
+    };
+  });
   pintaImp();
   $('impSuma').onclick=function(){
     var D=paraAgregar();
