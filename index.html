@@ -261,9 +261,9 @@ button{font-family:inherit;}
 .leyenda .li .pc{font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums;min-width:42px;text-align:right;}
 .leyenda .li .mo{font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;min-width:92px;text-align:right;}
 .netline{display:flex;align-items:baseline;gap:9px;padding:2px 16px 10px;}
-.netline .k{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);font-weight:700;}
+.netline .k{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);font-weight:700;}
 .netline .v{font-size:22px;font-weight:780;letter-spacing:-.5px;font-variant-numeric:tabular-nums;margin-left:auto;}
-.secttl{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);font-weight:700;
+.secttl{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);font-weight:700;
   padding:13px 16px 7px;display:flex;background:var(--surface);border-top:1px solid var(--line);}
 .secttl span{margin-left:auto;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0;font-size:12px;}
 .secttl .ord{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0;text-align:left;
@@ -271,7 +271,7 @@ button{font-family:inherit;}
 /* el subtotal del grupo con más presencia y su color: verde activo, rojo deuda
    ("la letra debería ser más grande y del color que corresponda", 4-ago-2026) */
 .secttl .ord.der{margin-left:auto;font-variant-numeric:tabular-nums;letter-spacing:0;
-  font-size:14px;font-weight:800;text-transform:none;}
+  font-size:16px;font-weight:800;text-transform:none;}
 .secttl .ord.der.pos{color:var(--ingreso);} .secttl .ord.der.neg{color:var(--gasto);}
 .secttl .ord.der.cero{color:var(--ink);}
 .secttl .ord:active{opacity:.6;}
@@ -659,7 +659,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-2021";
+<script>window.MM_VER="20260804-2028";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
