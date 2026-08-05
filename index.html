@@ -679,7 +679,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1149";
+<script>window.MM_VER="20260805-1156";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1989,6 +1989,16 @@ function cerrarCapa(){                       // cierre desde un botón de la app
 }
 window.addEventListener('popstate', function(){
   if(_saltar>0){ _saltar--; return; }        // fue un cierre nuestro, ya está hecho
+  /* El gesto de retroceder del teléfono ahora hace lo MISMO que la flecha ‹: si la hoja
+     registró a dónde volver, regresa UN nivel en vez de cerrar todo. Antes el gesto se
+     saltaba ese nivel y te aventaba hasta Ajustes (5-ago-2026). Como el navegador ya se
+     comió la entrada de historial, hay que reponerla para que el siguiente gesto vuelva
+     a caer aquí y no se salga de la app. */
+  if(typeof volverHoja!=='undefined' && volverHoja && _pila.length && sheet.classList.contains('show')){
+    try{ history.pushState({mm:_pila.length},''); }catch(e){}
+    var v=volverHoja; volverHoja=null; v();
+    return;
+  }
   var f=_pila.pop(); if(f) f();              // hay algo abierto: ciérralo. Si no, se sale.
 });
 
