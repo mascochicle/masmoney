@@ -656,7 +656,13 @@ button{font-family:inherit;}
   <section class="pane" id="p-cfg">
     <div class="hd"><div class="t">Ajustes<span class="brand">MasMoney</span></div></div>
     <div class="scrollable" id="cfgBody"></div>
-    <input type="file" id="impIn" accept=".json,application/json" style="display:none">
+    <!-- SIN filtro de tipo a propósito. Con accept=".json,application/json" el selector de
+         Android escondía el respaldo: los proveedores en la nube (OneDrive, Drive) reportan
+         los archivos como application/octet-stream, así que el filtro los tachaba y Marco
+         no podía escogerlo por más que llegara a la carpeta correcta (5-ago-2026, video).
+         No hace falta filtrar: revisarImport ya valida el contenido y avisa si no es un
+         respaldo de MasMoney. -->
+    <input type="file" id="impIn" style="display:none">
   </section>
 
   <div class="avres" id="avRes" style="display:none"></div>
@@ -679,7 +685,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1201";
+<script>window.MM_VER="20260805-1222";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3601,11 +3607,14 @@ function renderCfg(){
       '<b>masmoney-backup-'+hoyISO()+'.json</b> a <b>Descargas</b> del teléfono, y de ahí '+
       'DriveSync lo sube solo a <b>Drive › SamsungS25ultra › Descargas</b>. '+
       'Lo único que tienes que hacer es tocar Exportar; lo demás va solo.'+
-      /* Marco tocó Importar, salió el selector de archivos de Android, se regresó y creyó
-         que la app no se había actualizado: las opciones nuevas viven en la pantalla de
-         revisión, que solo aparece DESPUÉS de escoger el archivo (5-ago-2026). */
-      '<br><br><b>Importar</b> te pide el archivo primero. Ya que lo escoges, ahí eliges '+
-      '<b>qué cuentas</b> traer y te avisa si algo <b>ya lo tenías capturado</b>.</div>'+
+      /* El selector de Android abre donde estuviste la última vez. A Marco se le abría en
+         OneDrive › Pictures › Capturas de pantalla, que es OTRA nube: el respaldo nunca
+         estuvo ahí y se pasó el video entero dando vueltas (5-ago-2026). Por eso el camino
+         va escrito aquí. */
+      '<br><br><b>Importar</b> te pide el archivo primero, y el selector abre donde estuviste '+
+      'la última vez. El respaldo está en <b>☰ › Almacenamiento interno › Download</b> '+
+      '(ojo: en <b>OneDrive no está</b>). Ya que lo escoges, ahí eliges <b>qué cuentas</b> '+
+      'traer y te avisa si algo <b>ya lo tenías capturado</b>.</div>'+
 
     '<div class="secttl">Datos<span>'+kb+' KB</span></div>'+
     '<div class="cfg-d">'+a.length.toLocaleString('en-US')+' movimientos · '+L.length+' cuentas'+
