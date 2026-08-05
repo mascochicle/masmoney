@@ -679,7 +679,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1125";
+<script>window.MM_VER="20260805-1132";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2204,7 +2204,10 @@ function guardaAgentes(L){ return sv(K_AG,L); }
 var _AC=new RegExp('[\\u0300-\\u036f]','g');
 function sinAc(s){ return String(s).normalize('NFD').replace(_AC,'').toLowerCase(); }
 $('rowAg').onclick=function(){ agEdit=false; abrirAgentes(); };
-function abrirAgentes(){
+/* `cb` la usa el EDITOR de un movimiento: en vez de escribir en `st` y cerrar, devuelve
+   el agente elegido y repinta el movimiento (5-ago-2026: en editar solo se podía teclear
+   el nombre a mano, sin ver la lista ni las caras). */
+function abrirAgentes(cb){
   openSheet('Agente');
   $('sheetBody').innerHTML='<input class="buscar" id="agQ" type="text" placeholder="Buscar o escribir uno nuevo…" autocomplete="off">'+
     '<div class="agbar"><span id="agN"></span><button id="agEd"></button></div><div id="agL"></div>';
@@ -2220,7 +2223,7 @@ function abrirAgentes(){
       (t&&!exacto&&!agEdit?'<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Usar «'+q.value.trim()+'»</div></div>':'')+
       (agEdit?'':'<div class="acct" data-n=""><div class="ic">—</div><div class="nm">Sin agente</div></div>')+
       f.slice(0,80).map(function(n){
-        return '<div class="acct'+(n===st.agente?' sel':'')+'" data-n="'+n.replace(/"/g,'&quot;')+'">'+
+        return '<div class="acct'+(n===(cb?abrirAgentes._act:st.agente)?' sel':'')+'" data-n="'+n.replace(/"/g,'&quot;')+'">'+
                (agEdit?'<button class="del" data-del="'+n.replace(/"/g,'&quot;')+'">−</button>':'')+
                htmlCaraAg(n)+'<div class="nm">'+n+'</div>'+
                (agEdit?'<div class="tag">editar ›</div>':'')+'</div>';}).join('')+
@@ -2229,11 +2232,12 @@ function abrirAgentes(){
       el.onclick=function(ev){
         if(ev.target.dataset.del){ borrarAgente(ev.target.dataset.del); return; }
         if(agEdit){ renombrarAgente(el.dataset.n); return; }
-        if(el.dataset.nuevo){ var nv=q.value.trim();
-          var L2=agentes(); if(L2.indexOf(nv)<0){ L2.unshift(nv); guardaAgentes(L2); }
-          setAgente(nv);
-        } else setAgente(el.dataset.n);
-        closeSheet(); };
+        var eleg;
+        if(el.dataset.nuevo){ eleg=q.value.trim();
+          var L2=agentes(); if(L2.indexOf(eleg)<0){ L2.unshift(eleg); guardaAgentes(L2); }
+        } else eleg=el.dataset.n;
+        if(cb){ cb(eleg); return; }      // el editor repinta el movimiento, no cierra
+        setAgente(eleg); closeSheet(); };
     });
   }
   $('agEd').onclick=function(){ agEdit=!agEdit; pinta(); };
@@ -2735,6 +2739,7 @@ function editarMov(id, pre){
   /* las cuentas ya no son <select>: viven en variables y se eligen en su propia hoja */
   var cta1 = cta((pre&&pre.ctaId) || m.cuentaId);
   var cta2 = cta((pre&&pre.desId) || m.destinoId);
+  var agN = (pre && ('ag' in pre)) ? pre.ag : (m.agente||'');
   var dirM = (pre&&pre.dir) || m.dir || -1;
   var ambN = (pre&&pre.amb) || m.ambito || 'Personal';
   var amb  = ambitos().filter(function(x){return x.n===ambN;})[0] || ambitos()[0];
@@ -2748,7 +2753,11 @@ function editarMov(id, pre){
        input normal Android abre el suyo, que no los tiene. */
     '<div class="fld"><div class="k">Monto</div><input id="eAmt"'+(dividido?'':' class="calcin"')+
       ' type="text" readonly value="'+((pre&&pre.amt!=null)?pre.amt:m.amount)+'"></div>'+
-    '<div class="fld"><div class="k">Agente</div><input id="eAg" type="text" value="'+(m.agente||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
+    /* el agente se ELIGE de la lista (con su cara), no se teclea a ciegas */
+    '<button class="fld tocable" id="eAg" data-n="'+(agN||'').replace(/"/g,'&quot;')+'"><div class="k">Agente</div>'+
+      '<div class="ro" style="display:flex;align-items:center;gap:9px">'+
+      (agN?htmlCaraAg(agN)+'<span>'+agN+'</span>':'<span style="color:var(--mut)">Sin agente</span>')+
+      '</div><div class="chev">›</div></button>'+
     (m.ajuste?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
       '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
     '<div class="fld"><div class="k">Descripción</div><input id="eDesc" type="text" value="'+(m.desc||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
@@ -2791,7 +2800,7 @@ function editarMov(id, pre){
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
     '</div>'+
     padHojaHTML().replace('class="pad mini"','class="pad mini oculto"');
-  function leer(){ return {amt:$('eAmt').value, ag:$('eAg').value,
+  function leer(){ return {amt:$('eAmt').value, ag:agN,
       amb:$('eAmb')?amb.n:null, desc:$('eDesc').value,
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
       ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null, dir:dirM,
@@ -2823,11 +2832,17 @@ function editarMov(id, pre){
         x.classList.toggle('on', +x.dataset.d===dirM); }); };
   });
   if(pre){                                    // se vuelve del selector: repone lo escrito
-    $('eAmt').value=pre.amt; $('eAg').value=pre.ag; $('eDesc').value=pre.desc;
+    $('eAmt').value=pre.amt; $('eDesc').value=pre.desc;
     $('eFec').value=pre.fec; $('eHor').value=pre.hor;
     if($('eInt') && pre.inte!=null) $('eInt').value=pre.inte;
     if($('eMes') && pre.mes!=null) $('eMes').value=pre.mes;
   }
+  if($('eAg')) $('eAg').onclick=function(){
+    var v=leer();
+    abrirAgentes._act=agN;
+    abrirAgentes(function(n){ v.ag=n; editarMov(id,v); });
+    volverHoja=function(){ editarMov(id, v); };
+  };
   if($('eAmb')) $('eAmb').onclick=function(){
     var v=leer();
     openSheet('De quién es');
@@ -2888,7 +2903,7 @@ function editarMov(id, pre){
     var c1=cta1, c2=dosCuentas(m.tipo)?cta2:null;
     if(c1 && c2 && c1.id===c2.id){ toast('La cuenta y el destino no pueden ser la misma',true); return; }
     var b=movs(); for(var i=0;i<b.length;i++) if(b[i].id===id){
-      b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=$('eAg').value.trim()||null;
+      b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=(agN||'').trim()||null;
       if($('eAmb')) b[i].ambito=amb.n;
       if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
                     b[i].partes = dividido ? partes : undefined; }
