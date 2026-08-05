@@ -677,7 +677,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-0657";
+<script>window.MM_VER="20260805-0706";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1836,6 +1836,7 @@ function verDividir(op){
     el.onclick=function(){ var i=+el.dataset.cat;
       elegirCatEdit(CT, function(c){
         L[i].g=c.g; L[i].e=c.e; L[i].sub=c.sub; verDividir(op); }, '', CUAL);
+      volverHoja=function(){ verDividir(op); };
     };
   });
   $('sheetBody').querySelectorAll('.pdel').forEach(function(el){
@@ -1844,6 +1845,7 @@ function verDividir(op){
   $('pAdd').onclick=function(){
     elegirCatEdit(CT, function(c){
       L.push({g:c.g,e:c.e,sub:c.sub,amount:''}); verDividir(op); }, '', CUAL);
+    volverHoja=function(){ verDividir(op); };
   };
   function terminar(){
     verDividir._f=null;                           // el foco no se hereda a la próxima vez
@@ -1862,6 +1864,9 @@ function verDividir(op){
     closeSheet(); pintaPartes();
   }
   verDividir._ok=terminar;
+  /* la ‹ desde Dividir: en el EDITOR regresa al movimiento (guardando lo tecleado);
+     en la captura cierra, porque abajo está la pantalla de captura y eso es "regresar" */
+  volverHoja = op ? terminar : null;
 }
 
 
@@ -1996,10 +2001,20 @@ function openSheet(t){
   if(typeof ajustaTeclado==='function') setTimeout(ajustaTeclado,60);
 }
 function closeSheet(){
+  volverHoja=null;        /* el "regresar" muere con la hoja */
   modoOrdenar=false;      /* el modo ordenar no se hereda a la próxima hoja */
   if(sheet.classList.contains('show')) cerrarCapa();
 }
-scrim.onclick=closeSheet; $('sheetX').onclick=closeSheet; $('sheetBack').onclick=closeSheet;
+/* La flecha ‹ regresa UN nivel cuando la pantalla registró a dónde volver; si no, cierra.
+   Antes siempre cerraba todo: elegir grupo en un movimiento dividido y tocar ‹ te aventaba
+   hasta la pantalla del movimiento ("me debería regresar a la anterior", 5-ago-2026).
+   "Cerrar" y tocar afuera sí cierran todo, esos son para eso. */
+var volverHoja=null;
+scrim.onclick=closeSheet; $('sheetX').onclick=closeSheet;
+$('sheetBack').onclick=function(){
+  if(volverHoja){ var f=volverHoja; volverHoja=null; f(); }
+  else closeSheet();
+};
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') cerrarCapa(); });
 
 /* El gesto de retroceder del teléfono lo atrapa el sistema antes que la página, así que
@@ -2748,18 +2763,21 @@ function editarMov(id, pre){
         '<div class="nm">'+A.n+'<small>'+A.d+'</small></div></div>';}).join('');
     $('sheetBody').querySelectorAll('.acct').forEach(function(el){
       el.onclick=function(){ v.amb=el.dataset.n; editarMov(id,v); }; });
+    volverHoja=function(){ editarMov(id, v); };
   };
   if($('eCta')) $('eCta').onclick=function(){
     var v=leer();
     openSheet(T.lb||'Cuenta');
     listaCuentas(v.ctaId, function(c){ v.ctaId=c.id; editarMov(id,v); },
                  filtro(T.o, dosCuentas(m.tipo)?v.desId:null), true);
+    volverHoja=function(){ editarMov(id, v); };
   };
   if($('eDes')) $('eDes').onclick=function(){
     var v=leer();
     openSheet('Destino');
     listaCuentas(v.desId, function(c){ v.desId=c.id; editarMov(id,v); },
                  filtro(T.d, v.ctaId), true);
+    volverHoja=function(){ editarMov(id, v); };
   };
   if($('eCat')) $('eCat').onclick=function(){
     var v=leer();
@@ -2780,9 +2798,11 @@ function editarMov(id, pre){
                                     v.amt=String(np[0].amount); } }
           editarMov(id, v);
         }});
+      volverHoja=function(){ editarMov(id, v); };
       return;
     }
     elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); }, '', cual);
+    volverHoja=function(){ editarMov(id, v); };
   };
   $('eSave').onclick=function(){
     var v = dividido ? partes.reduce(function(a,p){ return a+(+p.amount||0); },0)
