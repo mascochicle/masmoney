@@ -698,7 +698,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1238";
+<script>window.MM_VER="20260805-1342";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2574,7 +2574,11 @@ function filaMov(m,cid){
   if(m.partes && m.partes.length>1) lab += ' +'+(m.partes.length-1)+' más';
   var extra = (m.interes ? '<span class="msi-b">interés '+fmtM(m.interes,m.mon)+'</span>' : '')
             + (m.ambito&&m.ambito!=='Personal' ? '<span class="amb-b">'+m.ambito+'</span>' : '');
-  var meta = dstr(m.fecha)+' · '+m.hora+(m.agente?' · '+m.agente:'')+' · '+(m.ajuste?'saldo corregido':m.cuenta)+
+  /* `sinHora` = el movimiento vino de un estado de cuenta, que NO reporta la hora. La hora
+     que trae adentro es sintética: sirve para conservar el ORDEN del estado de cuenta, pero
+     no se enseña — Marco usa la hora para cotejar contra el banco y una hora inventada sería
+     peor que ninguna (5-ago-2026). Los que salen de la app del banco sí traen la real. */
+  var meta = dstr(m.fecha)+(m.sinHora?'':' · '+m.hora)+(m.agente?' · '+m.agente:'')+' · '+(m.ajuste?'saldo corregido':m.cuenta)+
              (m.mon&&m.mon!==BASE?' · '+fmt2(aBase(m.amount,m.mon))+' MXN':'')+(m.desc?' · '+m.desc:'');
   var sig,cls,monto=m.amount,mn=m.mon;
   if(cid && m.destinoId===cid){                       // llega dinero a esta cuenta
@@ -2943,8 +2947,11 @@ function editarMov(id, pre){
       if(T.dir) b[i].dir=dirM;
       if(nInt!=null) b[i].interes=nInt||null;
       if($('eMes')) b[i].meses=Math.max(2, parseInt($('eMes').value,10)||2);
+      var horaAnt=b[i].hora;
       b[i].fecha=$('eFec').value||b[i].fecha; b[i].hora=$('eHor').value||b[i].hora;
       b[i].ts=new Date(b[i].fecha+'T'+b[i].hora+':00').getTime();
+      /* si le puso la hora a mano, ya no es la sintética del estado de cuenta: se enseña */
+      if(b[i].sinHora && b[i].hora!==horaAnt) delete b[i].sinHora;
       /* el monto que LLEGA solo se guarda si hace falta: otra moneda o hay interés.
          Se recalcula siempre, porque cambiar de cuenta puede cambiar la moneda. */
       if(dosCuentas(b[i].tipo)){
