@@ -698,7 +698,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1424";
+<script>window.MM_VER="20260805-1456";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1451,11 +1451,15 @@ $('btnMas').onclick=function(){
 $('formX').onclick=function(){ verForm(false); renderCuenta(); };
 
 /* ---- buscador de movimientos ----
-   Busca en la cuenta que estás viendo, o en TODAS si estás en "Todas las cuentas".
-   Ignora el periodo a propósito: cuando buscas algo no sabes de cuándo era. */
-var buscando=false;
+   Busca en la cuenta que estás viendo, o en TODAS si estás en "Todas las cuentas",
+   y DENTRO DEL PERIODO que tengas puesto arriba. Antes buscaba en toda la historia:
+   con "Agosto 2026" en la banda, buscar "Robux" sacaba resultados de julio y no cuadraba
+   con nada de lo que se veía (Marco, 5-ago-2026). Por eso la banda del periodo ahora se
+   queda VISIBLE mientras buscas: se puede cambiar de mes con la búsqueda puesta.
+   Si hay coincidencias fuera del periodo se avisa y se pueden ver con un toque. */
+var buscando=false, buscTodo=false;
 function abreBusqueda(v){
-  buscando=v;
+  buscando=v; buscTodo=false;
   $('buscMov').style.display=v?'flex':'none';
   $('btnBuscar').classList.toggle('on',v);
   if(v){ $('qMov').value=''; renderBusqueda(); $('qMov').focus(); }
@@ -1471,30 +1475,54 @@ function renderBusqueda(){
   var dentro = ctaVer
     ? 'en '+(cta(ctaVer)||{}).n
     : 'en todas las cuentas';
-  /* el periodo y el calendario no aplican mientras buscas */
-  document.querySelector('.periodo').style.display='none';
+  var R=rango();
+  /* la banda del periodo se queda: la búsqueda vive dentro de ella y él puede moverla.
+     El calendario sí se cierra, que ocupa media pantalla. La etiqueta se repinta aquí
+     porque renderCuenta se sale antes cuando se está buscando. */
+  document.querySelector('.periodo').style.display='';
   $('cal').style.display='none';
+  $('pLbl').textContent=R.lbl;
+  $('pRango').textContent=R.uno?dlargo(R.d1).replace(/^(Hoy|Ayer) · /,''):(dstr(R.d1)+' — '+dstr(R.d2));
+  var movible=(per.t!=='dias');
+  $('pPrev').style.visibility=movible?'visible':'hidden';
+  $('pNext').style.visibility=movible?'visible':'hidden';
   if(!q){
     $('ctaSaldo').innerHTML='';
     $('ctaMovs').innerHTML='<div class="empty">Busca '+dentro+'<br>'+
       '<span style="font-size:12px">Por descripción, comercio, categoría o monto. '+
-      'Busca en toda la historia, sin importar el periodo.</span></div>';
+      'Busca dentro de <b>'+R.lbl+'</b>; cambia el periodo arriba para buscar en otro.</span></div>';
     return;
   }
-  var L=movs().filter(function(m){
+  function pega(m){
     if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
     if(num!==null && Math.abs((m.amount||0)-num)<0.005) return true;
     var t=llano([m.desc,m.agente,m.grupo,m.sub,m.cuenta,m.destino,
                  (m.partes||[]).map(function(p){return p.g+' '+p.sub;}).join(' ')].join(' '));
     return t.indexOf(q)>=0;
-  }).sort(function(x,y){return (y.ts||0)-(x.ts||0);});
+  }
+  var todos=movs().filter(pega).sort(function(x,y){return (y.ts||0)-(x.ts||0);});
+  var enPer=todos.filter(function(m){ return m.fecha>=R.d1 && m.fecha<=R.d2; });
+  var fuera=todos.length-enPer.length;
+  var L = buscTodo ? todos : enPer;
   var tot=L.reduce(function(s,m){ return s+(m.tipo==='Gasto'?aBase(m.amount,m.mon):0); },0);
   $('ctaSaldo').innerHTML='<div class="ln">'+L.length+' resultado'+(L.length===1?'':'s')+
+    '<small style="color:var(--mut2)"> · '+(buscTodo?'toda la historia':R.lbl)+'</small>'+
     (tot>0?'<b class="neg">−'+fmt2(tot)+' en gastos</b>':'<b></b>')+'</div>';
-  $('ctaMovs').innerHTML = L.length
+  /* el aviso de lo que quedó fuera: sin él, buscar algo del mes pasado con agosto puesto
+     se ve como si el movimiento no existiera */
+  var aviso = (fuera>0 && !buscTodo)
+    ? '<div class="hint tocable" id="bTodo" style="cursor:pointer"><b>'+fuera+'</b> '+
+      (fuera===1?'resultado más fuera':'resultados más fuera')+' de '+R.lbl+
+      ' · <b style="color:var(--accent-ink)">ver todo</b></div>'
+    : (buscTodo
+        ? '<div class="hint tocable" id="bTodo" style="cursor:pointer">Viendo <b>toda la historia</b>'+
+          ' · <b style="color:var(--accent-ink)">volver a '+R.lbl+'</b></div>'
+        : '');
+  $('ctaMovs').innerHTML = (L.length
     ? filasMov(L.slice(0,120), ctaVer?cta(ctaVer):null)+
       (L.length>120?'<div class="hint">Se muestran los primeros 120; afina la búsqueda.</div>':'')
-    : '<div class="empty">Nada con «'+$('qMov').value+'» '+dentro+'</div>';
+    : '<div class="empty">Nada con «'+$('qMov').value+'» '+dentro+' en '+R.lbl+'</div>')+aviso;
+  if($('bTodo')) $('bTodo').onclick=function(){ buscTodo=!buscTodo; renderBusqueda(); };
   $('ctaMovs').querySelectorAll('.mov').forEach(function(el){ el.onclick=function(){ editarMov(el.dataset.id); }; });
 }
 
