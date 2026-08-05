@@ -240,14 +240,15 @@ button{font-family:inherit;}
 .mov .info .d{font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .mov .amt{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--gasto);white-space:nowrap;}
 .mov .amt.i{color:var(--ingreso);}
-/* `.t` = el dinero se movió entre cuentas suyas: transferencia, compra/venta de activo,
-   alta/pago de deuda, ajuste de saldo. Va en AZUL porque "no son gastos ni ingresos"
-   (Marco, 5-ago-2026 — primero lo pidió en negro y luego quiso probar el azul). Antes iba
-   en gris de apoyo, que lo hacía ver menos importante, y peor: al ver la cuenta que RECIBE
-   salía en verde, como si fuera un ingreso.
-   Se usa `--accent-ink`, el azul de la app, que ya está definido en los tres temas: se
-   lee bien en Día (#3b49c4) y aclara solo en Oscuro y Nocturno. */
-.mov .amt.t{color:var(--accent-ink);}
+.mov .amt.t{color:var(--mut);}
+/* `.tr` = TRANSFERENCIA, y solo transferencia. Va en AZUL porque "no son gastos ni
+   ingresos" (Marco, 5-ago-2026). El problema original: al ver la cuenta que RECIBE salía
+   en verde, como si fuera un ingreso. Se probó extenderlo a los otros tipos de dos cuentas
+   (compra/venta de activo, alta/pago de deuda) y al ajuste, pero él lo quiso **solo en
+   transferencias** — los demás se quedan como estaban.
+   Se usa `--accent-ink`, el azul de la app, ya definido en los tres temas: se lee bien en
+   Día (#3b49c4) y aclara solo en Oscuro y Nocturno. */
+.mov .amt.tr{color:var(--accent-ink);}
 .msi-b{font-size:9.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 6px;border-radius:6px;margin-left:6px;}
 .amb-b{font-size:9.5px;color:var(--chip-ink);background:var(--chip-bg);padding:1px 6px;border-radius:6px;margin-left:6px;}
 .empty{padding:38px 24px;text-align:center;color:var(--mut2);font-size:13.5px;line-height:1.6;}
@@ -706,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1511";
+<script>window.MM_VER="20260805-1514";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2658,20 +2659,21 @@ function filaMov(m,cid){
   var meta = dstr(m.fecha)+(m.sinHora?'':' · '+m.hora)+(m.agente?' · '+m.agente:'')+' · '+(m.ajuste?'saldo corregido':m.cuenta)+
              (m.mon&&m.mon!==BASE?' · '+fmt2(aBase(m.amount,m.mon))+' MXN':'')+(m.desc?' · '+m.desc:'');
   var sig,cls,monto=m.amount,mn=m.mon;
-  /* Los dos lados de un movimiento entre cuentas suyas van en negro (`.t`), no en
-     verde/rojo: conserva el signo para saber si entró o salió, pero no lo pinta como
-     ingreso ni como gasto. */
+  /* Los dos lados de una TRANSFERENCIA van en azul (`.tr`), no en verde/rojo: conserva el
+     signo para saber si entró o salió, pero no la pinta como ingreso ni como gasto. Los
+     demás tipos de dos cuentas se quedan con su color de siempre. */
+  var esTransf = (m.tipo==='Transferencia');
   if(cid && m.destinoId===cid){                       // llega dinero a esta cuenta
-    sig='+'; cls=' t'; monto=(m.amount2!=null)?m.amount2:m.amount; mn=m.mon2||m.mon;
+    sig='+'; cls=esTransf?' tr':' i'; monto=(m.amount2!=null)?m.amount2:m.amount; mn=m.mon2||m.mon;
   } else if(cid && dosCuentas(m.tipo)){               // sale de esta cuenta
-    sig='−'; cls=' t';
+    sig='−'; cls=esTransf?' tr':'';
   } else {
     /* el cambio de valor lleva su propio signo, igual que el ajuste */
     sig = (m.ajuste||m.tipo==='Cambio de valor') ? (m.dir>0?'+':'−')
         : m.tipo==='Ingreso'?'+':m.tipo==='Gasto'?'−':'';
     cls = m.ajuste?' t'
         : m.tipo==='Cambio de valor' ? (m.dir>0?' i':'')
-        : m.tipo==='Ingreso'?' i':dosCuentas(m.tipo)?' t':'';
+        : m.tipo==='Ingreso'?' i':esTransf?' tr':dosCuentas(m.tipo)?' t':'';
   }
   return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+(m.foto?'<span class="pin">📎</span>':'')+'</div>'+
     '<div class="info"><div class="c">'+lab+(m.msi?'<span class="msi-b">'+m.meses+' MSI</span>':'')+extra+'</div>'+
