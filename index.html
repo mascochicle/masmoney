@@ -348,6 +348,8 @@ button{font-family:inherit;}
 .acct{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--surface);cursor:pointer;}
 .acct:active{background:var(--surface);}
 .acct .ic{width:29px;height:29px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;font-size:14px;flex:none;}
+/* cara con iniciales, para el agente que no tiene emoji propio ni marca conocida */
+.acct .ic.ini{border-radius:50%;font-size:12px;font-weight:800;letter-spacing:.2px;}
 .acct .nm{flex:1;font-size:14.5px;font-weight:550;}
 .acct .nm small{display:block;font-size:11px;color:var(--mut);font-weight:400;margin-top:2px;}
 .acct .tag{font-size:10px;color:var(--mut);background:var(--surface2);padding:2px 8px;border-radius:8px;}
@@ -677,7 +679,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-0706";
+<script>window.MM_VER="20260805-1125";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2144,6 +2146,59 @@ function acomodaCat(){
 /* ---- agente: con quién fue la transacción. Buscador, porque son 249. ---- */
 /* la lista arranca del catálogo y a partir de la primera edición vive en el teléfono */
 var K_AG='appcaptura_agentes_v2', agEdit=false;
+/* ---- CARA DE LOS AGENTES (5-ago-2026) ----
+   No se usan logos de verdad: la app corre sin internet ni servidor, habría que incrustar
+   249 imágenes dentro del archivo, y la mayoría son negocios locales (Happy Pappy, El
+   Santo Fuego, Ferreconstru) sin logo que buscar. En su lugar, tres capas:
+     1. el emoji que Marco le haya puesto a mano
+     2. el de una marca conocida, por palabra en el nombre
+     3. sus INICIALES sobre un color sacado del nombre — automático para los 249 */
+var K_AGICO='appcaptura_agicos_v1';
+function agIcos(){ return ld(K_AGICO,{}); }
+function setAgIco(n,e){ var m=agIcos(); if(e) m[n]=e; else delete m[n]; sv(K_AGICO,m); }
+var MARCAS=[
+ ['amazon','📦'],['aliexpress','📦'],['ebay','📦'],['temu','📦'],
+ ['mercado libre','🛒'],['mercadolibre','🛒'],['walmart','🛒'],['chedraui','🛒'],
+ ['soriana','🛒'],['costco','🛒'],['bodega','🛒'],['sams','🛒'],
+ ['oxxo','🏪'],['seven','🏪'],['minisuper','🏪'],['ultramart','🏪'],
+ ['hsbc','🏦'],['bbva','🏦'],['banamex','🏦'],['banorte','🏦'],['santander','🏦'],
+ ['azteca','🏦'],['scotia','🏦'],['banco','🏦'],['plata','🏦'],
+ ['liverpool','👕'],['zara','👕'],['shein','👕'],['coppel','👕'],
+ ['farmacia','💊'],['similares','💊'],['guadalajara','💊'],
+ ['cinepolis','🎬'],['cinemex','🎬'],['netflix','🎬'],['hbo','🎬'],['disney','🎬'],
+ ['spotify','🎵'],['youtube','▶️'],['google','🔍'],['apple','🍎'],['icloud','☁️'],
+ ['microsoft','💻'],['claude','🤖'],['openai','🤖'],['chatgpt','🤖'],
+ ['pemex','⛽'],['gasolin','⛽'],['uber','🚗'],['didi','🚗'],
+ ['telcel','📱'],['at&t','📱'],['bait','📱'],['izzi','📶'],['totalplay','📶'],
+ ['megacable','📶'],['cfe','💡'],
+ ['home depot','🔨'],['ferre','🔨'],['truper','🔨'],
+ ['starbucks','☕'],['cafe','☕'],['restaurant','🍽️'],['pizza','🍕'],['taquer','🌮'],
+ ['dentista','🦷'],['doctor','🩺'],['clinica','🏥'],['hospital','🏥'],['imss','🏥'],
+ ['laboratorio','🔬'],['veterinar','🐶'],
+ ['sat','🏛️'],['seafi','🏛️'],['gobierno','🏛️'],
+ ['casa','🏠'],['depto','🏢'],['local','🏢'],['terreno','🟩']
+];
+/* color estable a partir del nombre: el mismo agente siempre del mismo color */
+function _hashAg(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return Math.abs(h); }
+function inicialesAg(n){
+  var p=String(n||'').trim().split(/\s+/).filter(Boolean);
+  if(!p.length) return '?';
+  return (p.length===1 ? p[0].slice(0,2) : (p[0][0]+p[1][0])).toUpperCase();
+}
+function caraAgente(n){
+  n=String(n||'');
+  var propio=agIcos()[n];
+  if(propio) return {txt:propio, emoji:true};
+  var t=sinAc(n);
+  for(var i=0;i<MARCAS.length;i++) if(t.indexOf(MARCAS[i][0])>=0) return {txt:MARCAS[i][1], emoji:true};
+  var h=_hashAg(t)%360;
+  return {txt:inicialesAg(n), emoji:false, bg:'hsl('+h+' 62% 88%)', fg:'hsl('+h+' 70% 30%)'};
+}
+function htmlCaraAg(n){
+  var c=caraAgente(n);
+  return c.emoji ? '<div class="ic">'+c.txt+'</div>'
+                 : '<div class="ic ini" style="background:'+c.bg+';color:'+c.fg+'">'+c.txt+'</div>';
+}
 function agentes(){ var v=ld(K_AG,null); return (v&&v.length)?v:AGENTES.slice(); }
 function guardaAgentes(L){ return sv(K_AG,L); }
 var _AC=new RegExp('[\\u0300-\\u036f]','g');
@@ -2167,7 +2222,7 @@ function abrirAgentes(){
       f.slice(0,80).map(function(n){
         return '<div class="acct'+(n===st.agente?' sel':'')+'" data-n="'+n.replace(/"/g,'&quot;')+'">'+
                (agEdit?'<button class="del" data-del="'+n.replace(/"/g,'&quot;')+'">−</button>':'')+
-               '<div class="ic">👤</div><div class="nm">'+n+'</div>'+
+               htmlCaraAg(n)+'<div class="nm">'+n+'</div>'+
                (agEdit?'<div class="tag">editar ›</div>':'')+'</div>';}).join('')+
       (f.length>80?'<div class="note">…y '+(f.length-80)+' más. Escribe para filtrar.</div>':'');
     $('agL').querySelectorAll('.acct').forEach(function(el){
@@ -2189,10 +2244,30 @@ function renombrarAgente(viejo){
   openSheet('Editar agente');
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="fld"><div class="k">Nombre</div><input id="agV" type="text" value="'+viejo.replace(/"/g,'&quot;')+'"></div>'+
+    /* la cara: por default van sus iniciales con un color sacado del nombre; aquí puede
+       ponerle el emoji que quiera, y con el botón vuelve a las iniciales */
+    '<div class="fld"><div class="k">Cara</div>'+
+      '<div class="ro" id="agCaraPrev" style="display:flex;align-items:center;gap:10px">'+
+        htmlCaraAg(viejo)+'<span style="font-size:12.5px;color:var(--mut)">'+
+        (agIcos()[viejo]?'emoji tuyo':(caraAgente(viejo).emoji?'marca reconocida':'iniciales'))+'</span></div>'+
+      '<input class="emoin" id="agIco" maxlength="8" placeholder="emoji" autocomplete="off" '+
+        'value="'+(agIcos()[viejo]||'').replace(/"/g,'&quot;')+'">'+
+      '<button class="ahchip" id="agIcoX" style="margin-left:8px">Iniciales</button></div>'+
     '<div class="note">Si lo renombras, se corrige también en los movimientos que ya lo usan.</div>'+
     '<div class="edit-acts"><button class="b-del" id="agDel">Borrar</button><button class="b-save" id="agOk">Guardar</button></div></div>';
+  function previaCara(n){
+    var c=caraAgente(n);
+    $('agCaraPrev').innerHTML=htmlCaraAg(n)+'<span style="font-size:12.5px;color:var(--mut)">'+
+      ($('agIco').value.trim()?'emoji tuyo':(c.emoji?'marca reconocida':'iniciales'))+'</span>';
+  }
+  $('agIco').oninput=function(){
+    setAgIco(viejo, this.value.trim()); previaCara(viejo);
+  };
+  $('agIcoX').onclick=function(){ $('agIco').value=''; setAgIco(viejo,''); previaCara(viejo); };
   $('agOk').onclick=function(){
     var nv=$('agV').value.trim(); if(!nv){ toast('Ponle nombre',true); return; }
+    var ico=$('agIco').value.trim();
+    if(nv!==viejo){ setAgIco(viejo,''); if(ico) setAgIco(nv,ico); }   // la cara sigue al nombre
     if(nv!==viejo){
       var L=agentes().map(function(x){return x===viejo?nv:x;});
       // sin duplicados si ya existía
