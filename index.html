@@ -664,13 +664,18 @@ button{font-family:inherit;}
   <section class="pane" id="p-cfg">
     <div class="hd"><div class="t">Ajustes<span class="brand">MasMoney</span></div></div>
     <div class="scrollable" id="cfgBody"></div>
-    <!-- SIN filtro de tipo a propósito. Con accept=".json,application/json" el selector de
-         Android escondía el respaldo: los proveedores en la nube (OneDrive, Drive) reportan
-         los archivos como application/octet-stream, así que el filtro los tachaba y Marco
-         no podía escogerlo por más que llegara a la carpeta correcta (5-ago-2026, video).
-         No hace falta filtrar: revisarImport ya valida el contenido y avisa si no es un
-         respaldo de MasMoney. -->
-    <input type="file" id="impIn" style="display:none">
+    <!-- El `accept` de aquí está peleado entre dos problemas, y esta lista es el punto medio
+         (5-ago-2026, los dos vistos en video):
+         · Con `.json,application/json` el respaldo salía TACHADO: los proveedores en la nube
+           (OneDrive, Drive) reportan sus archivos como application/octet-stream, así que el
+           filtro los descartaba aunque Marco llegara a la carpeta correcta.
+         · Sin `accept`, Android abre "Seleccionar una acción" y ofrece CÁMARA — que no tiene
+           nada que hacer aquí, y Marco se quedó atorado en esa pantalla.
+         La solución es filtrar por tipos que SÍ cubran lo que mandan las nubes, sin incluir
+         image/* ni video/*: así no aparece la cámara y el archivo sigue siendo escogible.
+         revisarImport de todos modos valida el contenido y avisa si no es un respaldo. -->
+    <input type="file" id="impIn" style="display:none"
+           accept="application/json,application/octet-stream,text/plain,.json">
   </section>
 
   <div class="avres" id="avRes" style="display:none"></div>
@@ -693,7 +698,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1230";
+<script>window.MM_VER="20260805-1238";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
