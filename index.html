@@ -109,6 +109,17 @@ button{font-family:inherit;}
 .mas{width:34px;height:34px;border-radius:50%;border:0;background:var(--accent);color:#fff;
   font-size:22px;line-height:1;cursor:pointer;flex:none;}
 .mas:active{background:var(--accent-2);}
+/* la lupa, junto al + */
+.lupa{width:34px;height:34px;border-radius:50%;border:0;background:var(--surface2);
+  font-size:15px;line-height:1;cursor:pointer;flex:none;margin-right:8px;}
+.lupa:active,.lupa.on{background:var(--accent-soft);}
+.buscmov{display:flex;gap:8px;align-items:center;padding:0 16px 10px;}
+.buscmov input{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  color:var(--ink);padding:11px 14px;font-size:15px;font-family:inherit;outline:none;}
+.buscmov input:focus{border-color:var(--accent-ink);}
+.buscmov input::placeholder{color:var(--mut2);}
+.buscmov button{width:34px;height:34px;border-radius:50%;border:0;background:var(--surface2);
+  color:var(--mut);font-size:14px;cursor:pointer;flex:none;}
 .ctaSaldo{padding:2px 16px 12px;display:flex;flex-direction:column;gap:5px;}
 .ctaSaldo .ln{display:flex;align-items:baseline;font-size:13.5px;color:var(--mut);}
 .ctaSaldo .ln b{margin-left:auto;font-size:16px;font-variant-numeric:tabular-nums;color:var(--ink);}
@@ -515,7 +526,14 @@ button{font-family:inherit;}
    <div class="vista on" id="vCta">
      <div class="hd">
        <button class="ctaNom" id="ctaSel"><span id="ctaNomT">Efectivo</span></button>
+       <button class="lupa" id="btnBuscar" title="Buscar movimientos">🔍</button>
        <button class="mas" id="btnMas" title="Nuevo movimiento">+</button>
+     </div>
+     <!-- buscador de movimientos: busca en la cuenta que estés viendo, o en TODAS si
+          estás en "Todas las cuentas". Ignora el periodo: busca en toda la historia. -->
+     <div class="buscmov" id="buscMov" style="display:none">
+       <input type="text" id="qMov" placeholder="Buscar…" autocomplete="off">
+       <button id="qMovX" title="Cerrar">✕</button>
      </div>
      <div class="ctaSaldo" id="ctaSaldo"></div>
      <div class="periodo">
@@ -659,7 +677,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-2028";
+<script>window.MM_VER="20260805-0657";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1411,7 +1429,58 @@ $('btnMas').onclick=function(){
 };
 $('formX').onclick=function(){ verForm(false); renderCuenta(); };
 
+/* ---- buscador de movimientos ----
+   Busca en la cuenta que estás viendo, o en TODAS si estás en "Todas las cuentas".
+   Ignora el periodo a propósito: cuando buscas algo no sabes de cuándo era. */
+var buscando=false;
+function abreBusqueda(v){
+  buscando=v;
+  $('buscMov').style.display=v?'flex':'none';
+  $('btnBuscar').classList.toggle('on',v);
+  if(v){ $('qMov').value=''; renderBusqueda(); $('qMov').focus(); }
+  else renderCuenta();
+}
+$('btnBuscar').onclick=function(){ abreBusqueda(!buscando); };
+$('qMovX').onclick=function(){ abreBusqueda(false); };
+$('qMov').oninput=function(){ renderBusqueda(); };
+function renderBusqueda(){
+  var q=llano($('qMov').value).trim();
+  var esNum=/^[\d.,]+$/.test(q.replace(/\s/g,''));
+  var num=esNum?parseFloat(q.replace(/,/g,'')):null;
+  var dentro = ctaVer
+    ? 'en '+(cta(ctaVer)||{}).n
+    : 'en todas las cuentas';
+  /* el periodo y el calendario no aplican mientras buscas */
+  document.querySelector('.periodo').style.display='none';
+  $('cal').style.display='none';
+  if(!q){
+    $('ctaSaldo').innerHTML='';
+    $('ctaMovs').innerHTML='<div class="empty">Busca '+dentro+'<br>'+
+      '<span style="font-size:12px">Por descripción, comercio, categoría o monto. '+
+      'Busca en toda la historia, sin importar el periodo.</span></div>';
+    return;
+  }
+  var L=movs().filter(function(m){
+    if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
+    if(num!==null && Math.abs((m.amount||0)-num)<0.005) return true;
+    var t=llano([m.desc,m.agente,m.grupo,m.sub,m.cuenta,m.destino,
+                 (m.partes||[]).map(function(p){return p.g+' '+p.sub;}).join(' ')].join(' '));
+    return t.indexOf(q)>=0;
+  }).sort(function(x,y){return (y.ts||0)-(x.ts||0);});
+  var tot=L.reduce(function(s,m){ return s+(m.tipo==='Gasto'?aBase(m.amount,m.mon):0); },0);
+  $('ctaSaldo').innerHTML='<div class="ln">'+L.length+' resultado'+(L.length===1?'':'s')+
+    (tot>0?'<b class="neg">−'+fmt2(tot)+' en gastos</b>':'<b></b>')+'</div>';
+  $('ctaMovs').innerHTML = L.length
+    ? filasMov(L.slice(0,120), ctaVer?cta(ctaVer):null)+
+      (L.length>120?'<div class="hint">Se muestran los primeros 120; afina la búsqueda.</div>':'')
+    : '<div class="empty">Nada con «'+$('qMov').value+'» '+dentro+'</div>';
+  $('ctaMovs').querySelectorAll('.mov').forEach(function(el){ el.onclick=function(){ editarMov(el.dataset.id); }; });
+}
+
 function renderCuenta(){
+  if(buscando){ renderBusqueda(); return; }
+  document.querySelector('.periodo').style.display='';
+  $('cal').style.display='';
   var a=movs(), R=rango(), c=cta(ctaVer);
   var mv=(per.t!=='dias');
   $('pLbl').textContent=R.lbl;
