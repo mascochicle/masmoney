@@ -268,8 +268,12 @@ button{font-family:inherit;}
 .secttl span{margin-left:auto;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0;font-size:12px;}
 .secttl .ord{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0;text-align:left;
   text-transform:inherit;letter-spacing:inherit;}
-.secttl .ord.der{margin-left:auto;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0;
-  font-size:12px;text-transform:none;}
+/* el subtotal del grupo con más presencia y su color: verde activo, rojo deuda
+   ("la letra debería ser más grande y del color que corresponda", 4-ago-2026) */
+.secttl .ord.der{margin-left:auto;font-variant-numeric:tabular-nums;letter-spacing:0;
+  font-size:14px;font-weight:800;text-transform:none;}
+.secttl .ord.der.pos{color:var(--ingreso);} .secttl .ord.der.neg{color:var(--gasto);}
+.secttl .ord.der.cero{color:var(--ink);}
 .secttl .ord:active{opacity:.6;}
 /* asa de arrastre: touch-action none para que el dedo mueva la fila y no la pantalla */
 .asa{flex:none;width:30px;text-align:center;font-size:17px;color:var(--mut2);cursor:grab;
@@ -655,7 +659,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260804-1914";
+<script>window.MM_VER="20260804-2021";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3025,8 +3029,11 @@ function renderSaldos(){
     if(ord!=='manual') cs=cs.slice().sort(function(x,y){
       return ord==='monto-desc' ? Math.abs(y._mx)-Math.abs(x._mx) : Math.abs(x._mx)-Math.abs(y._mx); });
     var sum=tot[G.g]||0;
+    /* el signo del subtotal: en grupos de deuda un saldo positivo es dinero que DEBE */
+    var sCero=Math.abs(sum)<0.005;
+    var sCls=sCero?'cero':((G.deuda?sum>0:sum<0)?'neg':'pos');
     return '<div class="secttl"><button class="ord" data-ord="manual">'+G.t+(ord==='manual'?' ·':'')+'</button>'+
-      '<button class="ord der" data-ord="monto">'+(G.deuda&&sum?'−':'')+fmt2(sum)+flecha[ord]+'</button></div>'+
+      '<button class="ord der '+sCls+'" data-ord="monto">'+((G.deuda&&sum>0)||sum<0?'−':'')+fmt2(Math.abs(sum))+flecha[ord]+'</button></div>'+
       cs.map(function(c){
         var cero=Math.abs(c._v)<0.005;                       // cero = neutro, en blanco
         var neg=!cero&&((G.deuda&&c._v>0)||(!G.deuda&&c._v<0));
