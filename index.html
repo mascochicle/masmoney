@@ -679,7 +679,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1137";
+<script>window.MM_VER="20260805-1149";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3899,11 +3899,93 @@ $('impIn').onchange=function(e){
   };
   r.readAsText(f);
 };
+function clip(t,n){ t=String(t||''); return t.length>n ? t.slice(0,n-1)+'…' : t; }
 function revisarImport(d,nombre){
   var mios=movs(), ids={}; mios.forEach(function(m){ ids[m.id]=1; });
-  var nuevos=d.movimientos.filter(function(m){ return !ids[m.id]; });
   var fechas=d.movimientos.map(function(m){return m.fecha;}).filter(Boolean).sort();
   var ctasN=(d.cuentas||[]).length, conFoto=d.movimientos.filter(function(m){return m.foto;}).length;
+
+  /* ---- IMPORTACIÓN PARCIAL POR CUENTA (5-ago-2026) ----
+     Marco: "debe haber alguna manera de hacer importación parcial de movimientos por
+     cuenta, en Money Pro sí se puede". Sirve para meter el corte de Mercado Pago y las
+     Aura sin tocar las cuentas que él captura a mano. */
+  var nomCta={}; (d.cuentas||[]).forEach(function(c){ nomCta[c.id]=c.n; });
+  var porCta={};
+  d.movimientos.forEach(function(m){
+    var k=m.cuentaId||'(sin cuenta)';
+    if(!porCta[k]) porCta[k]={id:k, n:m.cuenta||nomCta[k]||'(sin nombre)', n_:0, nuevos:0};
+    porCta[k].n_++; if(!ids[m.id]) porCta[k].nuevos++;
+  });
+  var lista=Object.keys(porCta).map(function(k){return porCta[k];})
+                  .sort(function(a,b){ return b.n_-a.n_; });
+  var sel={}; lista.forEach(function(c){ sel[c.id]=true; });   // todas, de entrada
+  function filtrado(){
+    var todas=lista.every(function(c){ return sel[c.id]; });
+    if(todas) return d;
+    var copia={}; Object.keys(d).forEach(function(k){ copia[k]=d[k]; });
+    copia.movimientos=d.movimientos.filter(function(m){ return sel[m.cuentaId||'(sin cuenta)']; });
+    return copia;
+  }
+  /* ---- POSIBLES REPETIDOS ----
+     El id solo empata lo que salió del MISMO origen. Si Marco capturó a mano parte de la
+     semana y luego importa el corte de esa cuenta, los mismos gastos llegan con otro id.
+     Se marcan por PARECIDO — misma cuenta, mismo monto, fecha a ≤4 días — que es el mismo
+     criterio con el que se concilian sus tarjetas. Vienen APAGADOS: se importan solo si
+     él los prende. Marco: "si no puedo llenar mis gastos a mano por una semana, tendría
+     que pasar un buen rato llenando, y quiero prevenir eso" (5-ago-2026). */
+  var DIAS_PAR=4;
+  function dnum(f){ var p=String(f||'').split('-'); return p.length<3?0:Date.UTC(+p[0],+p[1]-1,+p[2])/864e5; }
+  var porMonto={};
+  mios.forEach(function(m){
+    var k=(m.cuentaId||'')+'|'+Math.round((m.amount||0)*100);
+    (porMonto[k]=porMonto[k]||[]).push(m);
+  });
+  var repes={};
+  d.movimientos.forEach(function(m){
+    if(ids[m.id]) return;                       // ese ya está, por id
+    var k=(m.cuentaId||'')+'|'+Math.round((m.amount||0)*100);
+    var cand=(porMonto[k]||[]).filter(function(x){ return Math.abs(dnum(x.fecha)-dnum(m.fecha))<=DIAS_PAR; });
+    if(cand.length) repes[m.id]={mio:cand[0]};
+  });
+  var traer={};                                 // qué repetidos SÍ quiere importar
+  var nuevos=d.movimientos.filter(function(m){ return !ids[m.id]; });
+
+  function pintaImp(){
+    var D=filtrado();
+    var enSel=D.movimientos.filter(function(m){ return !ids[m.id]; });
+    var limpios=enSel.filter(function(m){ return !repes[m.id]; }).length;
+    var repEnSel=enSel.filter(function(m){ return repes[m.id]; });
+    var marcados=repEnSel.filter(function(m){ return traer[m.id]; }).length;
+    $('impN').textContent=(limpios+marcados)+' se van a agregar'+
+      (repEnSel.length?' · '+repEnSel.length+' posible'+(repEnSel.length>1?'s':'')+
+        ' repetido'+(repEnSel.length>1?'s':'')+
+        (marcados?' ('+marcados+' marcado'+(marcados>1?'s':'')+')':' fuera'):'');
+    $('impCtas').innerHTML=lista.map(function(c){
+      return '<div class="acct'+(sel[c.id]?' sel':'')+'" data-c="'+c.id+'">'+
+        '<div class="ic">'+(sel[c.id]?'✓':'—')+'</div>'+
+        '<div class="nm">'+c.n+'<small>'+c.n_+' movimientos · '+c.nuevos+' nuevos</small></div></div>';
+    }).join('');
+    $('impCtas').querySelectorAll('.acct').forEach(function(el){
+      el.onclick=function(){ sel[el.dataset.c]=!sel[el.dataset.c]; pintaImp(); }; });
+    $('impRepBox').style.display=repEnSel.length?'block':'none';
+    $('impRep').innerHTML=repEnSel.slice(0,40).map(function(m){
+      var mio=repes[m.id].mio;
+      return '<div class="acct'+(traer[m.id]?' sel':'')+'" data-r="'+m.id+'">'+
+        '<div class="ic">'+(traer[m.id]?'✓':'—')+'</div>'+
+        '<div class="nm">'+fmtM(m.amount,m.mon)+' · '+clip(m.desc||m.agente||m.sub||'',26)+
+        '<small>'+dstr(m.fecha)+' · ya tienes uno igual del '+dstr(mio.fecha)+
+        (mio.desc?' («'+clip(mio.desc,20)+'»)':'')+'</small></div></div>';
+    }).join('')+(repEnSel.length>40?'<div class="note">…y '+(repEnSel.length-40)+' más.</div>':'');
+    $('impRep').querySelectorAll('.acct').forEach(function(el){
+      el.onclick=function(){ traer[el.dataset.r]=!traer[el.dataset.r]; pintaImp(); }; });
+  }
+  function paraAgregar(){
+    var D=filtrado(), copia={};
+    Object.keys(D).forEach(function(k){ copia[k]=D[k]; });
+    copia.movimientos=D.movimientos.filter(function(m){ return !repes[m.id] || traer[m.id]; });
+    return copia;
+  }
+
   openSheet('Importar');
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="note" style="font-size:12.5px">Archivo: <b>'+nombre+'</b>'+
@@ -3912,6 +3994,7 @@ function revisarImport(d,nombre){
       (fechas.length?' · de '+dstr(fechas[0])+' a '+dstr(fechas[fechas.length-1]):'')+'</div></div>'+
     '<div class="fld"><div class="k">Nuevos</div><div class="ro">'+nuevos.length+' que aún no tienes'+
       (nuevos.length!==d.movimientos.length?' · '+(d.movimientos.length-nuevos.length)+' ya están':'')+'</div></div>'+
+    '<div class="fld"><div class="k">A agregar</div><div class="ro" id="impN"></div></div>'+
     '<div class="fld"><div class="k">Cuentas</div><div class="ro">'+ctasN+'</div></div>'+
     /* los catálogos existen desde la v13; en un respaldo viejo se avisa que no vienen */
     (d.catalogos
@@ -3923,12 +4006,27 @@ function revisarImport(d,nombre){
       : '<div class="fld"><div class="k">Catálogos</div><div class="ro" style="color:var(--mut)">'+
         'no vienen (respaldo anterior) · los tuyos se quedan como están</div></div>')+
     (conFoto?'<div class="fld"><div class="k">Con foto</div><div class="ro">'+conFoto+'</div></div>':'')+
+    '<div class="note" style="margin-top:12px"><b>¿Qué cuentas traes?</b> Toca para dejar fuera '+
+      'las que capturas a mano.</div>'+
+    '<div class="sublist" id="impCtas"></div>'+
+    '<div id="impRepBox" style="display:none">'+
+      '<div class="note" style="margin-top:14px"><b>Posibles repetidos</b> — mismo monto y misma '+
+      'cuenta, con pocos días de diferencia: parece que ya lo habías capturado a mano. Vienen '+
+      'apagados; préndelos si de verdad fueron dos compras.</div>'+
+      '<div class="sublist" id="impRep"></div></div>'+
     '<div class="note">Tienes lo que tienes hoy: <b>'+mios.length+' movimientos</b>.</div>'+
-    '<div class="edit-acts"><button class="b-save" id="impSuma">Agregar lo que falte</button></div>'+
+    '<div class="edit-acts"><button class="b-save" id="impSuma">Agregar lo seleccionado</button></div>'+
     '<div class="edit-acts"><button class="b-del" id="impTodo">Reemplazar todo</button></div>'+
-    '<div class="note">«Agregar» respeta lo que ya capturaste y solo mete lo que no tengas. '+
-    '«Reemplazar» borra lo tuyo y deja exactamente lo del archivo — úsalo para restaurar un respaldo.</div></div>';
-  $('impSuma').onclick=function(){ aplicarImport(d,false,nuevos.length); };
+    '<div class="note">«Agregar» respeta lo que ya capturaste y solo mete lo que elegiste arriba. '+
+    '«Reemplazar» borra lo tuyo y deja exactamente lo del archivo — úsalo para restaurar un respaldo; '+
+    'ese se lleva el archivo completo sin importar lo que hayas seleccionado.</div></div>';
+  pintaImp();
+  $('impSuma').onclick=function(){
+    var D=paraAgregar();
+    var n=D.movimientos.filter(function(m){ return !ids[m.id]; }).length;
+    if(!n){ toast('No hay nada nuevo que agregar',true); return; }
+    aplicarImport(D,false,n);
+  };
   $('impTodo').onclick=function(){
     ask('¿Reemplazar TODO?<br>Se borran tus '+mios.length+' movimientos y quedan los '+d.movimientos.length+' del archivo.',
         'Reemplazar', function(){ aplicarImport(d,true,d.movimientos.length); });
