@@ -241,14 +241,14 @@ button{font-family:inherit;}
 .mov .amt{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--gasto);white-space:nowrap;}
 .mov .amt.i{color:var(--ingreso);}
 .mov .amt.t{color:var(--mut);}
-/* `.tr` = TRANSFERENCIA, y solo transferencia. Va en AZUL porque "no son gastos ni
-   ingresos" (Marco, 5-ago-2026). El problema original: al ver la cuenta que RECIBE salía
-   en verde, como si fuera un ingreso. Se probó extenderlo a los otros tipos de dos cuentas
-   (compra/venta de activo, alta/pago de deuda) y al ajuste, pero él lo quiso **solo en
-   transferencias** — los demás se quedan como estaban.
-   Se usa `--accent-ink`, el azul de la app, ya definido en los tres temas: se lee bien en
-   Día (#3b49c4) y aclara solo en Oscuro y Nocturno. */
-.mov .amt.tr{color:var(--accent-ink);}
+/* `.tr` = TRANSFERENCIA, y SOLO transferencia. Va en NEGRO —el color normal del texto—
+   porque "no son gastos ni ingresos" (Marco, 5-ago-2026). El problema original: al ver la
+   cuenta que RECIBE salía en verde, como si fuera un ingreso.
+   Dos cosas que ya se probaron y NO son: el AZUL (`--accent-ink`) "parece ingreso", y
+   extenderlo a los otros tipos de dos cuentas (compra/venta de activo, alta/pago de deuda)
+   o al ajuste de saldo — esos se quedan con su color de siempre. No volver a proponerlo.
+   `--ink` sigue al tema: #171a1f en Día, casi blanco en los oscuros. */
+.mov .amt.tr{color:var(--ink);}
 .msi-b{font-size:9.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 6px;border-radius:6px;margin-left:6px;}
 .amb-b{font-size:9.5px;color:var(--chip-ink);background:var(--chip-bg);padding:1px 6px;border-radius:6px;margin-left:6px;}
 .empty{padding:38px 24px;text-align:center;color:var(--mut2);font-size:13.5px;line-height:1.6;}
@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1514";
+<script>window.MM_VER="20260805-1518";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
