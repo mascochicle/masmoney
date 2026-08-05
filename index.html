@@ -698,7 +698,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1415";
+<script>window.MM_VER="20260805-1424";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1911,6 +1911,25 @@ $('fotoBtn').onclick=function(){ hojaFoto(null); };
    el original, fotoTipo, fotoNom); luego llama a `listo`. Se sacó de `tomarFoto` para que
    el EDITOR pueda usarla también: a Marco se le olvidó la foto al capturar y no había
    manera de agregarla después (5-ago-2026). */
+/* Calidad del ARCHIVO que se baja a Descargas. La miniatura de adentro de la app siempre
+   son 600px y pesa poco; lo que ocupa espacio es la foto completa, que sale de la cámara
+   del S25 Ultra en varios MB y de ahí se va a Drive. Marco: "¿hay manera de tomar la foto
+   con más baja resolución, para que no ocupe tanto espacio?" (5-ago-2026).
+   `max` es el lado largo en px; `q` la compresión del JPEG. */
+var FOTOCAL=[{n:'Original', d:'como sale de la cámara · varios MB', max:0,    q:1},
+             {n:'Media',    d:'1600 px · se lee bien un ticket',    max:1600, q:.72},
+             {n:'Baja',     d:'1000 px · la más ligera',            max:1000, q:.6}];
+function fotoCal(){ return FOTOCAL[ld(K_CFG,{}).fotoCal!=null ? ld(K_CFG,{}).fotoCal : 1] || FOTOCAL[1]; }
+/* dibuja la imagen en un canvas con el lado largo topado a `max` */
+function reescala(img, max, q){
+  var w=img.width, h=img.height;
+  if(max && (w>max||h>max)){ var s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+  var c=document.createElement('canvas'); c.width=w; c.height=h;
+  c.getContext('2d').drawImage(img,0,0,w,h);
+  return c.toDataURL('image/jpeg', q);
+}
+function pesoDataUrl(u){ return u ? Math.round(u.length*0.75) : 0; }   // base64 → bytes
+function kbTxt(b){ return !b ? '' : (b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.round(b/1024)+' KB'); }
 function leerFoto(f, dest, listo){
   var esPDF=(f.type==='application/pdf')||/\.pdf$/i.test(f.name||'');
   var r=new FileReader();
@@ -1920,16 +1939,17 @@ function leerFoto(f, dest, listo){
     dest.fotoNom=f.name||'';
     if(esPDF){
       /* de un PDF no se puede sacar miniatura sin una librería entera; se enseña una
-         tarjeta con su nombre y el archivo se guarda igual que una foto */
+         tarjeta con su nombre y el archivo se guarda igual que una foto. Tampoco se puede
+         bajar de resolución: se guarda tal cual. */
       dest.foto=null; listo(); return;
     }
     var img=new Image();
     img.onload=function(){
-      var max=600,w=img.width,h=img.height;
-      if(w>max||h>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
-      var c=document.createElement('canvas'); c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      dest.foto=c.toDataURL('image/jpeg',0.5);    // la miniatura, para la app
+      dest.foto=reescala(img, 600, .5);           // la miniatura, para la app
+      var cal=fotoCal();
+      /* el archivo: se rehace más chico salvo que él haya pedido Original */
+      if(cal.max) dest.fotoFull=reescala(img, cal.max, cal.q);
+      dest.fotoPeso=pesoDataUrl(dest.fotoFull);
       listo();
     };
     img.onerror=function(){ dest.foto=null; listo(); };
@@ -1950,7 +1970,8 @@ function tomarFoto(e){
         '. Se guarda como archivo al guardar el movimiento.';
     } else {
       $('fotoImg').style.display='';
-      $('fotoPrev').querySelector('.txt').textContent='Foto lista. Se guarda como archivo al guardar el movimiento.';
+      $('fotoPrev').querySelector('.txt').textContent='Foto lista ('+kbTxt(st.fotoPeso)+
+        ', calidad '+fotoCal().n.toLowerCase()+'). Se guarda como archivo al guardar el movimiento.';
       $('fotoImg').src=st.foto;
     }
     $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
@@ -2971,7 +2992,8 @@ function editarMov(id, pre){
       (fot.foto?'<img class="big" src="'+fot.foto+'" alt="Nota">':'')+
       (fot.arch&&!fot.fotoFull?'<div class="note">La foto completa está en <b>Descargas</b> como '+
         '<b>'+fot.arch+'</b>, y de ahí sube sola a Drive.</div>':'')+
-      (fot.fotoFull?'<div class="note">Se guarda como archivo en <b>Descargas</b> al guardar el movimiento.</div>':'')+
+      (fot.fotoFull?'<div class="note">Se guarda como archivo en <b>Descargas</b> al guardar el movimiento'+
+        (fot.fotoPeso?' · <b>'+kbTxt(fot.fotoPeso)+'</b> (calidad '+fotoCal().n.toLowerCase()+')':'')+'.</div>':'')+
       (hay?'<div class="edit-acts"><button class="b-del" id="eFotoX">Quitar la foto</button></div>':'');
     if($('eFotoX')) $('eFotoX').onclick=function(){
       fot={foto:null, fotoFull:null, fotoTipo:null, fotoNom:null, arch:null}; pintaFotoEd(); };
@@ -3599,6 +3621,21 @@ function aplicaLetra(){
 }
 window.addEventListener('resize', aplicaLetra);
 if(window.visualViewport) window.visualViewport.addEventListener('resize', aplicaLetra);
+function elegirFotoCal(){
+  var act=(ld(K_CFG,{}).fotoCal!=null)?ld(K_CFG,{}).fotoCal:1;
+  openSheet('Calidad de la foto');
+  $('sheetBody').innerHTML=FOTOCAL.map(function(F,i){
+    return '<div class="acct'+(i===act?' sel':'')+'" data-i="'+i+'"><div class="ic">📷</div>'+
+      '<div class="nm">'+F.n+'<small>'+F.d+'</small></div></div>';
+  }).join('')+
+  '<div class="note">Solo afecta al <b>archivo que se baja a Descargas</b> y de ahí sube a Drive. '+
+  'La foto que ves dentro del movimiento siempre es una miniatura y pesa poco, así que el '+
+  'respaldo no cambia de tamaño.<br><br>Los <b>PDF se guardan tal cual</b>: a un PDF no se le '+
+  'puede bajar la resolución desde el navegador.</div>';
+  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+    el.onclick=function(){ setCfg('fotoCal',+el.dataset.i); closeSheet(); renderCfg(); };
+  });
+}
 function elegirLetra(){
   var act=cfg().letra||0;
   openSheet('Tamaño de letra');
@@ -3695,6 +3732,7 @@ function renderCfg(){
       '<div class="nm">Mostrar centavos<small>'+(c.centavos===false?'$1,250':'$1,250.00')+'</small></div>'+
       '<div class="sw'+(c.centavos===false?'':' on')+'"></div></div>'+
     fila('semana','📅','La semana empieza en', c.semana===1?'lunes':'domingo','en el calendario')+
+    fila('fotocal','📷','Calidad de la foto', fotoCal().n, 'la que se guarda en Descargas')+
 
     '<div class="secttl">Respaldo'+(resp.txt?'<span class="'+resp.cls+'">'+resp.txt+'</span>':'')+'</div>'+
     '<div class="export">'+
@@ -3765,6 +3803,7 @@ function renderCfg(){
       else if(a==='centavos'){ setCfg('centavos', cfg().centavos===false); renderCfg(); renderCuenta(); renderSaldos(); }
       else if(a==='semana'){ setCfg('semana', cfg().semana===1?0:1); renderCfg(); renderCal(); }
       else if(a==='letra') elegirLetra();
+      else if(a==='fotocal') elegirFotoCal();
       else if(a==='tema') elegirTema();
     };
   });
