@@ -698,7 +698,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1342";
+<script>window.MM_VER="20260805-1410";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1906,47 +1906,67 @@ $('msiPlus').onclick=function(){st.meses=Math.min(48,st.meses+1);$('msiN').textC
      nombre que dice qué es. De ahí DriveSync la sube sola a Drive, igual que el respaldo.
    No se puede escribir en Drive directo ni meterle metadatos EXIF desde el navegador; el
    nombre del archivo es la manera práctica de que la foto se encuentre sola. */
-$('fotoBtn').onclick=function(){
-  openSheet('Foto de la nota');
-  $('sheetBody').innerHTML=
-    '<div class="acct" id="fCam"><div class="ic">📷</div><div class="nm">Tomar foto<small>abre la cámara</small></div></div>'+
-    '<div class="acct" id="fArch"><div class="ic">🖼️</div><div class="nm">Elegir un archivo<small>foto o PDF, del teléfono o de tus nubes</small></div></div>';
-  $('fCam').onclick=function(){ closeSheet(); $('fotoIn').click(); };
-  $('fArch').onclick=function(){ closeSheet(); $('archIn').click(); };
-};
-function tomarFoto(e){
-  var f=e.target.files&&e.target.files[0]; if(!f) return;
+$('fotoBtn').onclick=function(){ hojaFoto(null); };
+/* Lee el archivo y deja en `dest` los 4 campos de la foto (foto = miniatura, fotoFull =
+   el original, fotoTipo, fotoNom); luego llama a `listo`. Se sacó de `tomarFoto` para que
+   el EDITOR pueda usarla también: a Marco se le olvidó la foto al capturar y no había
+   manera de agregarla después (5-ago-2026). */
+function leerFoto(f, dest, listo){
   var esPDF=(f.type==='application/pdf')||/\.pdf$/i.test(f.name||'');
   var r=new FileReader();
   r.onload=function(ev){
-    st.fotoFull=ev.target.result;                 // el original, para el archivo
-    st.fotoTipo=esPDF?'pdf':'img';
-    st.fotoNom=f.name||'';
+    dest.fotoFull=ev.target.result;               // el original, para el archivo
+    dest.fotoTipo=esPDF?'pdf':'img';
+    dest.fotoNom=f.name||'';
     if(esPDF){
       /* de un PDF no se puede sacar miniatura sin una librería entera; se enseña una
          tarjeta con su nombre y el archivo se guarda igual que una foto */
-      st.foto=null;
-      $('fotoImg').style.display='none';
-      $('fotoPrev').querySelector('.txt').textContent='PDF listo: '+(f.name||'documento')+
-        '. Se guarda como archivo al guardar el movimiento.';
-      $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
-      return;
+      dest.foto=null; listo(); return;
     }
-    $('fotoImg').style.display='';
-    $('fotoPrev').querySelector('.txt').textContent='Foto lista. Se guarda como archivo al guardar el movimiento.';
     var img=new Image();
     img.onload=function(){
       var max=600,w=img.width,h=img.height;
       if(w>max||h>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
       var c=document.createElement('canvas'); c.width=w; c.height=h;
       c.getContext('2d').drawImage(img,0,0,w,h);
-      st.foto=c.toDataURL('image/jpeg',0.5);      // la miniatura, para la app
-      $('fotoImg').src=st.foto; $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
-    }; img.src=ev.target.result; };
-  r.readAsDataURL(f); e.target.value='';
+      dest.foto=c.toDataURL('image/jpeg',0.5);    // la miniatura, para la app
+      listo();
+    };
+    img.onerror=function(){ dest.foto=null; listo(); };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+/* a dónde mandar el archivo escogido: la captura, o el editor si él lo abrió desde ahí */
+var fotoPara=null;
+function tomarFoto(e){
+  var f=e.target.files&&e.target.files[0]; e.target.value='';
+  if(!f) return;
+  if(fotoPara){ var g=fotoPara; fotoPara=null; g(f); return; }
+  leerFoto(f, st, function(){
+    if(st.fotoTipo==='pdf'){
+      $('fotoImg').style.display='none';
+      $('fotoPrev').querySelector('.txt').textContent='PDF listo: '+(st.fotoNom||'documento')+
+        '. Se guarda como archivo al guardar el movimiento.';
+    } else {
+      $('fotoImg').style.display='';
+      $('fotoPrev').querySelector('.txt').textContent='Foto lista. Se guarda como archivo al guardar el movimiento.';
+      $('fotoImg').src=st.foto;
+    }
+    $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
+  });
 }
 $('fotoIn').onchange=tomarFoto;
 $('archIn').onchange=tomarFoto;
+/* la hoja de "Tomar foto / Elegir un archivo", compartida por la captura y el editor */
+function hojaFoto(destino){
+  openSheet('Foto de la nota');
+  $('sheetBody').innerHTML=
+    '<div class="acct" id="fCam"><div class="ic">📷</div><div class="nm">Tomar foto<small>abre la cámara</small></div></div>'+
+    '<div class="acct" id="fArch"><div class="ic">🖼️</div><div class="nm">Elegir un archivo<small>foto o PDF, del teléfono o de tus nubes</small></div></div>';
+  $('fCam').onclick=function(){ fotoPara=destino||null; closeSheet(); $('fotoIn').click(); };
+  $('fArch').onclick=function(){ fotoPara=destino||null; closeSheet(); $('archIn').click(); };
+}
 $('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
   $('fotoImg').style.display='';   // si lo anterior era un PDF, la imagen quedó oculta
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has'); };
@@ -2827,9 +2847,12 @@ function editarMov(id, pre){
     (m.mon&&m.mon!==BASE?'<div class="fld"><div class="k">Moneda</div><div class="ro">'+m.mon+' · '+fmt2(aBase(m.amount,m.mon))+' MXN</div></div>':'')+
     (m.msi?'<div class="fld"><div class="k">MSI</div><div class="ro"><input id="eMes" type="number" inputmode="numeric" step="1" min="2" '+
       'style="width:56px;text-align:right" value="'+(m.meses||0)+'"> meses</div></div>':'')+
-    (m.foto?'<img class="big" src="'+m.foto+'" alt="Nota">':'')+
-    (m.fotoArch?'<div class="note">La foto completa está en <b>Descargas</b> como '+
-      '<b>'+m.fotoArch+'</b>, y de ahí sube sola a Drive.</div>':'')+
+    /* La foto se puede AGREGAR y QUITAR desde aquí. Antes solo se veía la que ya tuviera:
+       si se le olvidaba al capturar, no había manera de ponerla después y tocaba borrar el
+       movimiento y rehacerlo (Marco, 5-ago-2026). */
+    '<button class="fld tocable" id="eFoto"><div class="k">Foto</div><div class="ro" id="eFotoRo"></div>'+
+      '<div class="chev">›</div></button>'+
+    '<div id="eFotoPrev"></div>'+
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
     '</div>'+
     padHojaHTML().replace('class="pad mini"','class="pad mini oculto"');
@@ -2837,7 +2860,10 @@ function editarMov(id, pre){
       amb:$('eAmb')?amb.n:null, desc:$('eDesc').value,
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
       ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null, dir:dirM,
-      inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null}; }
+      inte:$('eInt')?$('eInt').value:null, mes:$('eMes')?$('eMes').value:null,
+      /* la foto que traiga pendiente también se hereda al repintar: si escogía la foto y
+         luego cambiaba de categoría, se perdía */
+      fot:(typeof fot!=='undefined')?fot:undefined}; }
   /* el pad de la app en vez del de Android: aparece al tocar Monto o Interés y escribe
      en el que se haya tocado */
   var campo=null;
@@ -2927,6 +2953,41 @@ function editarMov(id, pre){
     elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); }, '', cual);
     volverHoja=function(){ editarMov(id, v); };
   };
+  /* ---- FOTO ----
+     `fot` arranca de lo que ya tiene el movimiento y se reemplaza si él escoge otra. Vive
+     en `pre` para que sobreviva a los repintados (cambiar categoría, cuenta, etc. vuelven
+     a llamar a editarMov). `fotoFull` solo existe cuando la acaba de escoger: es lo que se
+     baja al archivo al guardar. */
+  /* `pre.fot` puede venir en undefined (leer() lo incluye siempre), así que no sirve
+     preguntar con `in`: se pregunta por el valor */
+  var fot = (pre && pre.fot) ? pre.fot
+          : {foto:m.foto||null, fotoFull:null, fotoTipo:null, fotoNom:null, arch:m.fotoArch||null};
+  function pintaFotoEd(){
+    var hay = fot.foto || fot.fotoFull || fot.arch;
+    $('eFotoRo').innerHTML = hay
+      ? (fot.fotoTipo==='pdf' ? '📄  '+(fot.fotoNom||'PDF') : '🖼️  '+(fot.fotoFull?'Foto nueva':'Con foto'))
+      : '<span style="color:var(--mut)">Sin foto · toca para agregar</span>';
+    $('eFotoPrev').innerHTML =
+      (fot.foto?'<img class="big" src="'+fot.foto+'" alt="Nota">':'')+
+      (fot.arch&&!fot.fotoFull?'<div class="note">La foto completa está en <b>Descargas</b> como '+
+        '<b>'+fot.arch+'</b>, y de ahí sube sola a Drive.</div>':'')+
+      (fot.fotoFull?'<div class="note">Se guarda como archivo en <b>Descargas</b> al guardar el movimiento.</div>':'')+
+      (hay?'<div class="edit-acts"><button class="b-del" id="eFotoX">Quitar la foto</button></div>':'');
+    if($('eFotoX')) $('eFotoX').onclick=function(){
+      fot={foto:null, fotoFull:null, fotoTipo:null, fotoNom:null, arch:null}; pintaFotoEd(); };
+  }
+  pintaFotoEd();
+  $('eFoto').onclick=function(){
+    var v=leer(); v.fot=fot;                       // no se pierde lo tecleado
+    hojaFoto(function(f){
+      leerFoto(f, fot, function(){
+        fot.arch=null;                             // es otra foto: el archivo viejo ya no aplica
+        v.fot=fot; editarMov(id, v);
+      });
+    });
+    volverHoja=function(){ editarMov(id, v); };
+  };
+
   $('eSave').onclick=function(){
     var v = dividido ? partes.reduce(function(a,p){ return a+(+p.amount||0); },0)
                      : (evalua($('eAmt').value)||0);
@@ -2958,6 +3019,12 @@ function editarMov(id, pre){
         b[i].amount2 = (b[i].mon2!==b[i].mon || (b[i].interes||0)>0)
           ? +((v-(b[i].interes||0))*tc(b[i].mon)/tc(b[i].mon2)).toFixed(6) : null;
       }
+      /* la foto: la miniatura vive en el movimiento y la completa se baja a Descargas,
+         igual que al capturar. Se baja DESPUÉS de escribir los datos, porque el nombre
+         del archivo se arma con la fecha, el monto y el agente ya actualizados. */
+      b[i].foto = fot.foto || null;
+      if(fot.fotoFull) b[i].fotoArch = guardarFoto(b[i], fot.fotoFull, fot.fotoTipo);
+      else if(!fot.arch) b[i].fotoArch = null;      // la quitó
       break; }
     if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Actualizado'); }
   };
