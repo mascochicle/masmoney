@@ -714,7 +714,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1535";
+<script>window.MM_VER="20260806-1540";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2178,10 +2178,34 @@ window.addEventListener('popstate', function(){
 
 var scrim=$('scrim'), sheet=$('sheet');
 function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show'); sheet.classList.remove('alta');
-  sheet.style.bottom=''; sheet.style.maxHeight=''; }   // deshace el ajuste del teclado
+  /* se limpia al cerrar, no antes: si se borrara el `top` de inmediato la hoja saltaría
+     al borde a media animación de salida. Se hace cuando ya terminó de irse. */
+  sheet.style.bottom=''; sheet.style.maxHeight='';
+  setTimeout(function(){ if(!sheet.classList.contains('show')) sheet.style.top=''; }, 300); }
+/* La hoja no arranca pegada al borde: baja hasta debajo del ENCABEZADO de la pantalla en
+   la que estás, para que se siga viendo de dónde vienes (Marco, 6-ago-2026: "¿habrá manera
+   que empiece, no desde arriba, sino ahí donde te puse?"). Se mide en vivo porque cada
+   pantalla tiene un encabezado distinto: la de una cuenta trae nombre + saldo, Ajustes solo
+   el título. Si no se encuentra, cae a 64px. */
+function topDeHoja(){
+  var v=document.querySelector('.pane.on .vista.on') || document.querySelector('.pane.on');
+  if(!v) return 64;
+  var p=document.querySelector('.phone').getBoundingClientRect();
+  var ult=v.querySelector('.ctaSaldo') || v.querySelector('.hd');
+  if(!ult) return 64;
+  var r=ult.getBoundingClientRect();
+  var z=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z'))||1;
+  return Math.max(0, Math.round((r.bottom-p.top)/z));
+}
 function openSheet(t){
   $('sheetTit').textContent=t;
   if(sheet.classList.contains('show')) return;      // solo cambia el título
+  var arriba=topDeHoja();
+  sheet.style.top=arriba+'px';
+  /* el alto máximo se recorta por lo que ya se comió el encabezado, si no se salía por
+     abajo y la barra de pestañas quedaba tapada */
+  var altoMarco=document.querySelector('.phone').offsetHeight;
+  sheet.style.maxHeight=Math.max(200, altoMarco-arriba-12)+'px';
   scrim.classList.add('show'); sheet.classList.add('show'); abrirCapa(_sheetFuera);
   /* por si el teclado ya estaba abierto cuando se abrió la hoja */
   if(typeof ajustaTeclado==='function') setTimeout(ajustaTeclado,60);
