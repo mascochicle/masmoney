@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1341";
+<script>window.MM_VER="20260806-1348";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1527,12 +1527,17 @@ function renderBusqueda(){
       'Busca dentro de <b>'+R.lbl+'</b>; cambia el periodo arriba para buscar en otro.</span></div>';
     return;
   }
+  /* Se buscan TODAS LAS PALABRAS, en cualquier orden, no la frase pegada. Marco escribió
+     "Pago tarjetas" y le salieron 0 resultados porque el texto dice "pago DE tarjetas":
+     tenía que atinarle exacto (6-ago-2026). Ahora "pago tarjetas", "tarjetas pago" y
+     "pago de tarjetas" encuentran lo mismo. */
+  var pals=q.split(/\s+/).filter(Boolean);
   function pega(m){
     if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
     if(num!==null && Math.abs((m.amount||0)-num)<0.005) return true;
     var t=llano([m.desc,m.agente,m.grupo,m.sub,m.cuenta,m.destino,
                  (m.partes||[]).map(function(p){return p.g+' '+p.sub;}).join(' ')].join(' '));
-    return t.indexOf(q)>=0;
+    return pals.every(function(w){ return t.indexOf(w)>=0; });
   }
   var todos=movs().filter(pega).sort(function(x,y){return (y.ts||0)-(x.ts||0);});
   var enPer=todos.filter(function(m){ return m.fecha>=R.d1 && m.fecha<=R.d2; });
