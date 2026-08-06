@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260805-1518";
+<script>window.MM_VER="20260806-1341";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -935,7 +935,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=15;
+var MIG_V=16;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1190,6 +1190,31 @@ function migrar(){
       I15.splice(i15>=0?i15+1:I15.length, 0,
         {n:'Aportación familiar', e:'🧓', subs:['Pensión mamá','Renta Ultramart Portillo']});
       sv(K_ING,I15);
+    }
+  }
+
+  if(hecho<16){
+    /* 16) Los ingresos del negocio que ATERRIZAN EN UNA TARJETA pasan de "Retiro del
+           negocio" a "Pago de tarjetas" (6-ago-2026).
+           Los 34 que decían "Retiro del negocio" venían TODOS del histórico de Money Pro;
+           los únicos dos que Marco capturó él mismo en la app usan "Pago de tarjetas", y
+           lo eligió a propósito: "retiro del negocio me suena a retirar ganancias para
+           usarlo como quiera y no hago eso, tengo deudas que pagar primero".
+           Se cambian SOLO los que van a tarjeta (26 de 34). Los otros 8 —a BBVA *378,
+           Banamex *882 y Efectivo— son retiros de verdad y se quedan: ahí sí sacó dinero
+           para él, no pagó una tarjeta.
+           En un Ingreso la cuenta que RECIBE es `cuentaId` (destinoId va en null). */
+    var M16=ld(K_MOV,null);
+    if(M16 && M16.length){
+      var g16={}; (ld(K_CTA,[])||[]).forEach(function(c){ g16[c.id]=c.g; });
+      var n16=0;
+      M16.forEach(function(m){
+        if(m.tipo==='Ingreso' && m.grupo==='Negocio' && m.sub==='Retiro del negocio'
+           && (g16[m.cuentaId]==='tarjeta' || g16[m.cuentaId]==='credito')){
+          m.sub='Pago de tarjetas'; n16++;
+        }
+      });
+      if(n16) sv(K_MOV,M16);
     }
   }
 
