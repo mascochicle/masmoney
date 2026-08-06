@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1348";
+<script>window.MM_VER="20260806-1405";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1530,8 +1530,14 @@ function renderBusqueda(){
   /* Se buscan TODAS LAS PALABRAS, en cualquier orden, no la frase pegada. Marco escribió
      "Pago tarjetas" y le salieron 0 resultados porque el texto dice "pago DE tarjetas":
      tenía que atinarle exacto (6-ago-2026). Ahora "pago tarjetas", "tarjetas pago" y
-     "pago de tarjetas" encuentran lo mismo. */
-  var pals=q.split(/\s+/).filter(Boolean);
+     "pago de tarjetas" encuentran lo mismo.
+     Y se le quita la S final a las palabras de 4 letras o más, para que el plural encuentre
+     al singular: "pagos" → "pago", que sí está dentro de "pago de tarjetas". Al revés ya
+     funcionaba solo, porque el singular es prefijo del plural. El mínimo de 4 letras evita
+     destrozar palabras cortas como "gas" o "mas". */
+  var pals=q.split(/\s+/).filter(Boolean).map(function(w){
+    return (w.length>=4 && w.slice(-1)==='s') ? w.slice(0,-1) : w;
+  });
   function pega(m){
     if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
     if(num!==null && Math.abs((m.amount||0)-num)<0.005) return true;
