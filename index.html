@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1405";
+<script>window.MM_VER="20260806-1412";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1366,11 +1366,12 @@ var PERIODOS=[
   {n:'Hoy',             f:function(){per={t:'dia',f:hoyISO()};}},
   {n:'Últimos 5 días',  f:function(){per={t:'dias',n:5};}},
   {n:'Últimos 30 días', f:function(){per={t:'dias',n:30};}},
-  /* 30 y 90 días se quitaron el 3-ago-2026: con "este mes", "el mes pasado" y el
-     calendario ya se cubren, y la lista se leía más larga de lo que servía. */
-  {n:'Este mes',        f:function(){var d=new Date(); per={t:'mes',y:d.getFullYear(),m:d.getMonth()+1};}},
-  {n:'El mes pasado',   f:function(){var d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1);
-                                     per={t:'mes',y:d.getFullYear(),m:d.getMonth()+1};}},
+  /* Historia de esta lista: el 3-ago-2026 se quitaron "30 y 90 días" porque "este mes" y
+     "el mes pasado" los cubrían. El 6-ago-2026 Marco le dio la vuelta: quitar los dos de
+     mes y dejar "Últimos 90 días", que es una ventana móvil y no depende de en qué día del
+     mes vaya. No se pierde la vista por mes: el calendario tiene "Ver el mes", que pone
+     `per.t='mes'` y de ahí las flechas ‹ › se mueven mes por mes. */
+  {n:'Últimos 90 días', f:function(){per={t:'dias',n:90};}},
   {n:'Este año',        f:function(){per={t:'anio',y:new Date().getFullYear()};}},
   {n:'Escoger año…',    f:null}
 ];
