@@ -344,9 +344,13 @@ button{font-family:inherit;}
 /* ---------- sheets ---------- */
 .scrim{position:absolute;inset:0;background:var(--scrim);opacity:0;visibility:hidden;transition:.2s;z-index:40;}
 .scrim.show{opacity:1;visibility:visible;}
-.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ground);border-radius:20px 20px 0 0;
-  transform:translateY(101%);transition:transform .25s cubic-bezier(.3,.9,.4,1);z-index:50;max-height:88%;
-  display:flex;flex-direction:column;border-top:1px solid var(--line);}
+/* La hoja BAJA DESDE ARRIBA y se ancla al tope (6-ago-2026). Antes subía desde abajo y
+   quedaba pegada al borde inferior, así que las listas largas —el tipo de operación, las
+   cuentas— empezaban muy abajo. Marco: "¿se puede esta parte más arriba? y veo que aparece
+   de abajo hacia arriba, que aparezca de arriba hacia abajo". */
+.sheet{position:absolute;left:0;right:0;top:0;background:var(--ground);border-radius:0 0 20px 20px;
+  transform:translateY(-101%);transition:transform .25s cubic-bezier(.3,.9,.4,1);z-index:50;max-height:88%;
+  display:flex;flex-direction:column;border-bottom:1px solid var(--line);}
 .sheet.show{transform:translateY(0);}
 .sheet h3{font-size:14px;text-align:center;padding:15px;font-weight:700;position:relative;flex:none;}
 .sheet h3 .x{position:absolute;right:14px;top:13px;color:var(--mut);font-size:14px;border:0;background:transparent;cursor:pointer;}
@@ -710,7 +714,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1530";
+<script>window.MM_VER="20260806-1535";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3795,7 +3799,8 @@ function ajustaTeclado(){
   var kb=altoTeclado()/z;
   if(!kb){ sh.style.bottom=''; sh.style.maxHeight=''; sh.style.minHeight=''; return; }
   var alto=document.querySelector('.phone').offsetHeight;
-  sh.style.bottom=Math.round(kb)+'px';
+  /* Desde que la hoja se ancla ARRIBA (6-ago-2026) ya no hay que levantarla: el teclado
+     sale por abajo y no la tapa. Solo se le topa el alto para que no se meta debajo. */
   sh.style.maxHeight=Math.max(180, Math.round(alto-kb-20))+'px';
   /* con el teclado abierto la hoja se pega a su contenido: si conserva el alto mínimo
      queda flotando muy arriba, con un hueco entre el botón y el teclado (3-ago-2026) */
