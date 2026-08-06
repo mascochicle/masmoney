@@ -575,13 +575,16 @@ button{font-family:inherit;}
              puesta, y es lo primero que Marco revisa. -->
         <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
           <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
-        <!-- El ámbito va antes del TIPO y de la categoría: es lo que decide si se ofrecen
-             las categorías personales o las del negocio, y Marco lo elige mentalmente antes
-             que nada ("suben campo Negocio arriba de gasto", 4-ago-2026). -->
-        <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
-          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
+        <!-- El TIPO va justo debajo de la cuenta (6-ago-2026). Antes iba abajo del ámbito
+             ("suben campo Negocio arriba de gasto", 4-ago), pero desde que el + pregunta
+             el tipo ANTES de abrir la captura, esta fila es solo para corregirlo: conviene
+             pegada a la cuenta, que es el otro dato que a veces hay que cambiar. -->
         <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
           <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">›</div></button>
+        <!-- El ámbito sigue antes de la CATEGORÍA: es lo que decide si se ofrecen las
+             categorías personales o las del negocio. -->
+        <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
+          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
@@ -707,7 +710,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1508";
+<script>window.MM_VER="20260806-1530";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
