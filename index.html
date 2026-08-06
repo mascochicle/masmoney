@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1412";
+<script>window.MM_VER="20260806-1457";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -935,7 +935,7 @@ function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice()
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=16;
+var MIG_V=17;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1215,6 +1215,25 @@ function migrar(){
         }
       });
       if(n16) sv(K_MOV,M16);
+    }
+  }
+
+  if(hecho<17){
+    /* 17) El ámbito de TODOS los ingresos se recalcula desde la categoría, con la misma
+           regla que ahora usa la captura (ambDeIngreso). Cierra la confusión del 6-ago:
+           el campo preguntaba "¿de quién es?" y Marco contestaba con criterio de "¿de
+           dónde viene?" — que era el correcto, pero quedó mezclado (84 en Personal por
+           default del histórico, 2 en Negocio, 1 en Propiedades). Con esto los pagos de
+           tarjeta del negocio quedan en Negocio y las rentas en Propiedades, solos. */
+    var M17=ld(K_MOV,null);
+    if(M17 && M17.length){
+      var n17=0;
+      M17.forEach(function(m){
+        if(m.tipo!=='Ingreso') return;
+        var amb=ambDeIngreso(m.grupo);
+        if(m.ambito!==amb){ m.ambito=amb; n17++; }
+      });
+      if(n17) sv(K_MOV,M17);
     }
   }
 
@@ -1803,7 +1822,8 @@ function setTipo(t){
   var parte=(t==='Gasto'||t==='Ingreso');
   if(!parte){ st.partes=null; }
   if(typeof pintaPartes==='function') pintaPartes();
-  $('rowAmb').style.display = T.sinAmb?'none':'flex';   // una transferencia no es de nadie
+  /* transferencia: no es de nadie · ingreso: el ámbito se deriva de la categoría */
+  $('rowAmb').style.display = (T.sinAmb||t==='Ingreso')?'none':'flex';
   if(T.sinAg) setAgente(null);
   /* la cuenta de origen tiene que existir dentro del filtro de este tipo */
   var O=filtro(T.o); if(!O.some(function(c){return c.id===st.cuentaId;}) && O.length) st.cuentaId=O[0].id;
@@ -2245,6 +2265,17 @@ var AMBITOS=[
    personal". En gastos siguen las cuatro y en su orden, para que el default siga
    siendo Personal. */
 var AMB_INGRESO=['Negocio','Propiedades','Personal'];
+/* En un INGRESO el ámbito ya NO se pregunta: se deriva de la categoría, que lo contesta
+   el 100% de las veces (Negocio→Negocio, Arrendamiento→Propiedades, lo demás→Personal).
+   Marco (6-ago-2026): "el de dónde viene también me lo contesta el agente... es
+   redundante... en Money Pro solo pedía categoría y agente". En GASTOS se queda: ahí el
+   mismo agente sirve a los dos mundos (Costco puede ser mercancía de la tienda o despensa
+   de la familia) y el ámbito es lo único que los separa. */
+function ambDeIngreso(g){
+  if(g==='Negocio') return 'Negocio';
+  if(g==='Arrendamiento') return 'Propiedades';
+  return 'Personal';
+}
 /* `tipo` se lo pasa el EDITOR, que trabaja sobre un movimiento guardado y no sobre `st` */
 function ambitosPara(tipo){
   var L=ambitos();
@@ -2646,7 +2677,9 @@ $('guardar').onclick=function(){
     e: dos?T.e:st.cat.e,
     dir: T.dir?(st.dir||-1):null,          // solo el cambio de valor lleva sentido
     amount:num(), msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
-    agente:st.agente, ambito:(T.sinAmb?null:st.ambito), desc:$('desc').value.trim(), foto:st.foto,
+    agente:st.agente,
+    ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g) : st.ambito),
+    desc:$('desc').value.trim(), foto:st.foto,
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
   /* la foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
      movimiento solo queda su nombre, para poder encontrarla */
@@ -2910,7 +2943,8 @@ function editarMov(id, pre){
       '<div class="ro" style="display:flex;align-items:center;gap:9px">'+
       (agN?htmlCaraAg(agN)+'<span>'+agN+'</span>':'<span style="color:var(--mut)">Sin agente</span>')+
       '</div><div class="chev">›</div></button>'+
-    (m.ajuste?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
+    /* en un Ingreso el ámbito se deriva de la categoría: ni se pregunta ni se edita */
+    ((m.ajuste||m.tipo==='Ingreso')?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
       '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
     '<div class="fld"><div class="k">Descripción</div><input id="eDesc" type="text" value="'+(m.desc||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     '<div class="fld"><div class="k">Fecha</div><input id="eFec" type="date" value="'+m.fecha+'"></div>'+
@@ -3099,6 +3133,8 @@ function editarMov(id, pre){
     var b=movs(); for(var i=0;i<b.length;i++) if(b[i].id===id){
       b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=(agN||'').trim()||null;
       if($('eAmb')) b[i].ambito=amb.n;
+      /* el ámbito de un Ingreso sigue a la categoría, también al editarla */
+      if(b[i].tipo==='Ingreso') b[i].ambito=ambDeIngreso(editable?cat.g:b[i].grupo);
       if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
                     b[i].partes = dividido ? partes : undefined; }
       /* la cuenta manda la moneda: si la cambia a una en otra divisa, el movimiento
