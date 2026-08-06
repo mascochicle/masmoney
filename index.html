@@ -53,14 +53,16 @@ button{font-family:inherit;}
 .row .lb .t{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .lb .s{font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .chev{color:var(--mut2);font-size:17px;}
-/* CUENTA + TIPO en un solo renglón, mitad y mitad: los dos llegan ya decididos y no deben
-   competir con Categoría y Agente, que es lo que Marco sí tiene que llenar (6-ago-2026).
-   Van sin chevrón y con el ícono e interlínea más chicos, para que quepan sin apretarse. */
-.rows .par{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);}
-.rows .par .row{min-width:0;padding:10px 12px;gap:10px;}
-.rows .par .row .ic{width:28px;height:28px;border-radius:9px;font-size:14px;}
-.rows .par .row .lb .t{font-size:13.5px;}
-.rows .par .row .lb .s{font-size:10.5px;}
+/* CUENTA + TIPO en un solo renglón, mitad y mitad, y en su PROPIO cuadro separado del
+   resto: los dos llegan ya decididos y no deben competir con Categoría y Agente, que es lo
+   que Marco sí tiene que llenar. El hueco entre los dos cuadros lo pone el `gap:11px` de
+   `.top`, y es lo que le dice de un vistazo "esto ya es otra cosa" (6-ago-2026).
+   Van sin chevrón y con el ícono y la letra más chicos, para que quepan sin apretarse. */
+.rows.par{display:grid;grid-template-columns:1fr 1fr;}
+.rows.par .row{min-width:0;padding:10px 12px;gap:10px;}
+.rows.par .row .ic{width:28px;height:28px;border-radius:9px;font-size:14px;}
+.rows.par .row .lb .t{font-size:13.5px;}
+.rows.par .row .lb .s{font-size:10.5px;}
 /* segmentado sube/baja del cambio de valor */
 .seg{display:flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:none;}
 .seg button{border:0;background:var(--surface2);color:var(--mut);font-family:inherit;font-size:12.5px;
@@ -582,19 +584,23 @@ button{font-family:inherit;}
     <div class="hd"><button class="ctaNom" id="formX">‹ Cancelar</button><div class="ftit" id="formT">Nuevo movimiento</div></div>
     <div class="capscroll">
     <div class="top">
-      <div class="rows">
+      <div class="rows par">
         <!-- CUENTA y TIPO comparten renglón, a la mitad cada uno (6-ago-2026). Los dos
              llegan YA decididos —la cuenta por la pantalla de donde vienes, el tipo porque
              el + lo pregunta antes— así que ocupaban dos renglones enteros para nada y
              Marco los volvía a leer cada vez: "al aparecerme así las 4 filas vuelvo a
              revisar las primeras dos, ¿habrá manera de acomodarlas donde ya no me distraiga
              para seleccionar lo demás?". Siguen siendo tocables para corregirlos. -->
-        <div class="par">
-          <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
-            <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div></button>
-          <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
-            <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div></button>
-        </div>
+        <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
+          <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div></button>
+        <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
+          <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div></button>
+      </div>
+      <!-- bloque aparte: lo que SÍ hay que llenar. El hueco entre los dos cuadros es a
+           propósito, para que se lean como cosas distintas (Marco, 6-ago-2026: "sepáralos,
+           que sean partes independientes, déjales un espacio entre partes, así sé que ya
+           es otra cosa"). El `gap:11px` de `.top` es el que los separa. -->
+      <div class="rows">
         <!-- El ámbito sigue antes de la CATEGORÍA: es lo que decide si se ofrecen las
              categorías personales o las del negocio. -->
         <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
@@ -724,7 +730,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1547";
+<script>window.MM_VER="20260806-1553";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
