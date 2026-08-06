@@ -707,7 +707,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1457";
+<script>window.MM_VER="20260806-1508";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1491,17 +1491,30 @@ function elegirAnio(){
     el.onclick=function(){ per={t:'anio', y:+el.dataset.a}; closeSheet(); renderCuenta(); };
   });
 }
+/* El + pregunta PRIMERO el tipo de operación y de ahí cae a la captura. Antes aterrizaba
+   directo en Gasto y había que abrir el tipo desde adentro; Marco lo pidió al revés
+   (6-ago-2026): "al darle, más quiero que me mande primero al tipo de operación".
+   El tipo que tiene sentido según la cuenta de donde vienes llega preseleccionado. */
 $('btnMas').onclick=function(){
   var c=cta(ctaVer)||cta(st.cuentaId)||ctas()[0];
-  /* el tipo que tiene sentido según de qué cuenta vienes */
-  if(ctaVer && c.g==='activo'){ setTipo('Compra de activo'); st.cuenta2Id=c.id; setTipo('Compra de activo'); }
-  else if(ctaVer && c.g==='credito'){ setTipo('Descarga de pasivo'); st.cuenta2Id=c.id; setTipo('Descarga de pasivo'); }
-  else { st.cuentaId=c.id; setTipo('Gasto'); }
+  var pre = (ctaVer && c.g==='activo')  ? 'Compra de activo'
+          : (ctaVer && c.g==='credito') ? 'Descarga de pasivo' : 'Gasto';
+  openSheet('Tipo de operación');
+  $('sheetBody').innerHTML=TIPOS.map(function(T){
+    return '<div class="acct'+(T.t===pre?' sel':'')+'" data-t="'+T.t+'"><div class="ic">'+T.e+'</div>'+
+      '<div class="nm">'+T.t+'</div></div>';}).join('');
+  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+    el.onclick=function(){ closeSheet(); arrancaCaptura(el.dataset.t, c); }; });
+};
+function arrancaCaptura(t, c){
+  if(ctaVer && c.g==='activo' && t==='Compra de activo'){ setTipo(t); st.cuenta2Id=c.id; setTipo(t); }
+  else if(ctaVer && c.g==='credito' && t==='Descarga de pasivo'){ setTipo(t); st.cuenta2Id=c.id; setTipo(t); }
+  else { st.cuentaId=c.id; setTipo(t); }
   limpiarForm();
   var d=diaDelPer();                       // captura en el día que estás viendo
   if(d && d!==hoyISO()){ st.fecha=d; pintaFecha(); }
   verForm(true);
-};
+}
 $('formX').onclick=function(){ verForm(false); renderCuenta(); };
 
 /* ---- buscador de movimientos ----
