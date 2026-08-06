@@ -177,7 +177,11 @@ button{font-family:inherit;}
 .pad.off{display:none;}
 .key.listo{grid-column:span 2;font-size:14px;font-weight:650;color:var(--mut);}
 /* el mismo teclado, chico, dentro de una hoja */
-.pad.mini{margin:10px -14px -12px;border-radius:0;}
+/* El teclado de la hoja se PEGA al fondo mientras editas, en vez de vivir al final del
+   contenido. Antes había que hacer scroll para enseñarlo, y si el campo era el primero
+   —Monto en el editor— ese scroll lo empujaba fuera de la pantalla y Marco escribía a
+   ciegas (6-ago-2026, video). Pegado abajo, el campo se queda donde está. */
+.pad.mini{margin:10px -14px -12px;border-radius:0;position:sticky;bottom:-12px;z-index:2;}
 .pad.mini .key{font-size:19px;padding:12px 0;}
 .pad.mini .key.listo{font-size:13px;}
 .pad.mini.oculto{display:none;}
@@ -730,7 +734,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1553";
+<script>window.MM_VER="20260806-1559";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3064,7 +3068,11 @@ function editarMov(id, pre){
     campo=el;
     $('sheetBody').querySelectorAll('.calcin').forEach(function(x){ x.classList.toggle('act', x===el); });
     $('padHoja').classList.remove('oculto');
-    $('padHoja').scrollIntoView({block:'end', behavior:'smooth'});
+    /* Se lleva a la vista el CAMPO, no el teclado: el teclado ya se pega solo al fondo
+       (.pad.mini es sticky). Antes se hacía scrollIntoView del teclado y, si el campo era
+       el primero, se iba fuera de la pantalla. `nearest` además no mueve nada si el campo
+       ya se ve, que es el caso normal. */
+    el.scrollIntoView({block:'nearest', behavior:'smooth'});
   }
   $('sheetBody').querySelectorAll('.calcin').forEach(function(el){
     el.onclick=el.onfocus=function(){ enfoca(el); };
