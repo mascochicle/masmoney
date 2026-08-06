@@ -734,7 +734,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1559";
+<script>window.MM_VER="20260806-1707";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2200,7 +2200,7 @@ var scrim=$('scrim'), sheet=$('sheet');
 function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show'); sheet.classList.remove('alta');
   /* se limpia al cerrar, no antes: si se borrara el `top` de inmediato la hoja saltaría
      al borde a media animación de salida. Se hace cuando ya terminó de irse. */
-  sheet.style.bottom=''; sheet.style.maxHeight='';
+  sheet.style.bottom=''; sheet.style.maxHeight=''; delete sheet.dataset.maxh;
   setTimeout(function(){ if(!sheet.classList.contains('show')) sheet.style.top=''; }, 300); }
 /* La hoja no arranca pegada al borde: baja hasta debajo del ENCABEZADO de la pantalla en
    la que estás, para que se siga viendo de dónde vienes (Marco, 6-ago-2026: "¿habrá manera
@@ -2225,7 +2225,12 @@ function openSheet(t){
   /* el alto máximo se recorta por lo que ya se comió el encabezado, si no se salía por
      abajo y la barra de pestañas quedaba tapada */
   var altoMarco=document.querySelector('.phone').offsetHeight;
-  sheet.style.maxHeight=Math.max(200, altoMarco-arriba-12)+'px';
+  /* se guarda para poder REPONERLO: `ajustaTeclado` corre 60ms después y, al no ver
+     teclado, limpiaba el maxHeight que se acaba de calcular. La hoja se quedaba con el 88%
+     del CSS contado desde donde empieza y se salía por abajo: el botón Guardar del editor
+     quedaba cortado (6-ago-2026). */
+  sheet.dataset.maxh=Math.max(200, altoMarco-arriba-12);
+  sheet.style.maxHeight=sheet.dataset.maxh+'px';
   scrim.classList.add('show'); sheet.classList.add('show'); abrirCapa(_sheetFuera);
   /* por si el teclado ya estaba abierto cuando se abrió la hoja */
   if(typeof ajustaTeclado==='function') setTimeout(ajustaTeclado,60);
@@ -3792,6 +3797,13 @@ function aplicaLetra(){
   e.style.setProperty('--z', 1); ph.style.height='';
   var base=ph.getBoundingClientRect().height;
   e.style.setProperty('--z', z);
+  /* ⚠️ Si la medida sale absurda NO se fija nada y se deja el `height:100dvh` del CSS.
+     Cuando la app está en segundo plano o la pestaña oculta, el marco mide 0; sin esta
+     guarda se le escribía `height:0px` y la app se colapsaba entera —la barra de pestañas
+     desaparecía— hasta el siguiente resize. Es el bug que Marco reportó el 6-ago y que no
+     se podía reproducir a mano: no lo disparaba el teclado, lo disparaba medir en un
+     momento en que no había layout. */
+  if(!(base>200)){ ph.style.height=''; return; }
   ph.style.height=(base/z).toFixed(2)+'px';
   /* RED DE SEGURIDAD: si aun así el marco quedó más alto que la pantalla, la barra de
      pestañas se sale por abajo y simplemente DESAPARECE — no hay manera de cambiar de
@@ -3845,7 +3857,11 @@ function ajustaTeclado(){
   var sh=$('sheet'); if(!sh) return;
   var z=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z'))||1;
   var kb=altoTeclado()/z;
-  if(!kb){ sh.style.bottom=''; sh.style.maxHeight=''; sh.style.minHeight=''; return; }
+  /* sin teclado NO se limpia el maxHeight a secas: se repone el que calculó `openSheet`
+     según dónde arranca la hoja. Limpiarlo la dejaba con el 88% del CSS y se salía. */
+  if(!kb){ sh.style.bottom=''; sh.style.minHeight='';
+           sh.style.maxHeight = sh.dataset.maxh ? sh.dataset.maxh+'px' : '';
+           return; }
   var alto=document.querySelector('.phone').offsetHeight;
   /* Desde que la hoja se ancla ARRIBA (6-ago-2026) ya no hay que levantarla: el teclado
      sale por abajo y no la tapa. Solo se le topa el alto para que no se meta debajo. */
