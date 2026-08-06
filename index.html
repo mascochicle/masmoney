@@ -53,6 +53,14 @@ button{font-family:inherit;}
 .row .lb .t{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .lb .s{font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .row .chev{color:var(--mut2);font-size:17px;}
+/* CUENTA + TIPO en un solo renglón, mitad y mitad: los dos llegan ya decididos y no deben
+   competir con Categoría y Agente, que es lo que Marco sí tiene que llenar (6-ago-2026).
+   Van sin chevrón y con el ícono e interlínea más chicos, para que quepan sin apretarse. */
+.rows .par{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);}
+.rows .par .row{min-width:0;padding:10px 12px;gap:10px;}
+.rows .par .row .ic{width:28px;height:28px;border-radius:9px;font-size:14px;}
+.rows .par .row .lb .t{font-size:13.5px;}
+.rows .par .row .lb .s{font-size:10.5px;}
 /* segmentado sube/baja del cambio de valor */
 .seg{display:flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:none;}
 .seg button{border:0;background:var(--surface2);color:var(--mut);font-family:inherit;font-size:12.5px;
@@ -575,16 +583,18 @@ button{font-family:inherit;}
     <div class="capscroll">
     <div class="top">
       <div class="rows">
-        <!-- La CUENTA va primero: al capturar desde la pantalla de una cuenta ya viene
-             puesta, y es lo primero que Marco revisa. -->
-        <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
-          <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div><div class="chev">›</div></button>
-        <!-- El TIPO va justo debajo de la cuenta (6-ago-2026). Antes iba abajo del ámbito
-             ("suben campo Negocio arriba de gasto", 4-ago), pero desde que el + pregunta
-             el tipo ANTES de abrir la captura, esta fila es solo para corregirlo: conviene
-             pegada a la cuenta, que es el otro dato que a veces hay que cambiar. -->
-        <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
-          <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div><div class="chev">›</div></button>
+        <!-- CUENTA y TIPO comparten renglón, a la mitad cada uno (6-ago-2026). Los dos
+             llegan YA decididos —la cuenta por la pantalla de donde vienes, el tipo porque
+             el + lo pregunta antes— así que ocupaban dos renglones enteros para nada y
+             Marco los volvía a leer cada vez: "al aparecerme así las 4 filas vuelvo a
+             revisar las primeras dos, ¿habrá manera de acomodarlas donde ya no me distraiga
+             para seleccionar lo demás?". Siguen siendo tocables para corregirlos. -->
+        <div class="par">
+          <button class="row" id="rowCuenta"><div class="ic" id="cuentaIc">💵</div>
+            <div class="lb"><div class="t" id="cuentaNm">Efectivo</div><div class="s" id="cuentaLb">Cuenta</div></div></button>
+          <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
+            <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div></button>
+        </div>
         <!-- El ámbito sigue antes de la CATEGORÍA: es lo que decide si se ofrecen las
              categorías personales o las del negocio. -->
         <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
@@ -714,7 +724,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1540";
+<script>window.MM_VER="20260806-1547";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
