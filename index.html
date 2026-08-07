@@ -734,7 +734,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260806-1707";
+<script>window.MM_VER="20260807-1538";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2465,7 +2465,13 @@ function abrirAgentes(cb){
     $('agEd').className=agEdit?'on':'';
     $('agL').innerHTML=
       (t&&!exacto&&!agEdit?'<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Usar «'+q.value.trim()+'»</div></div>':'')+
-      (agEdit?'':'<div class="acct" data-n=""><div class="ic">—</div><div class="nm">Sin agente</div></div>')+
+      /* "Sin agente" ya NO es una opción de la lista: no poner agente es el estado por
+         defecto, no algo que haya que escoger (Marco, 7-ago-2026). Solo aparece —como
+         acción de QUITAR— cuando ya hay uno puesto, que si no, no habría manera de
+         borrarlo desde el editor. */
+      ((agEdit || !(cb?abrirAgentes._act:st.agente))
+        ? ''
+        : '<div class="acct" data-n=""><div class="ic">—</div><div class="nm">Quitar el agente</div></div>')+
       f.slice(0,80).map(function(n){
         return '<div class="acct'+(n===(cb?abrirAgentes._act:st.agente)?' sel':'')+'" data-n="'+n.replace(/"/g,'&quot;')+'">'+
                (agEdit?'<button class="del" data-del="'+n.replace(/"/g,'&quot;')+'">−</button>':'')+
@@ -3863,9 +3869,13 @@ function ajustaTeclado(){
            sh.style.maxHeight = sh.dataset.maxh ? sh.dataset.maxh+'px' : '';
            return; }
   var alto=document.querySelector('.phone').offsetHeight;
-  /* Desde que la hoja se ancla ARRIBA (6-ago-2026) ya no hay que levantarla: el teclado
-     sale por abajo y no la tapa. Solo se le topa el alto para que no se meta debajo. */
-  sh.style.maxHeight=Math.max(180, Math.round(alto-kb-20))+'px';
+  /* Desde que la hoja se ancla ARRIBA ya no hay que levantarla: el teclado sale por abajo.
+     Pero el tope hay que sacarlo del alto QUE LE TOCA a la hoja (`dataset.maxh`, que ya
+     descontó el encabezado), no del alto del marco: restándoselo al marco completo la hoja
+     seguía llegando más abajo del teclado y la lista de agentes quedaba tapada mientras
+     escribía (Marco, 7-ago-2026). */
+  var suyo = +sh.dataset.maxh || (alto-20);
+  sh.style.maxHeight=Math.max(180, Math.round(suyo-kb))+'px';
   /* con el teclado abierto la hoja se pega a su contenido: si conserva el alto mínimo
      queda flotando muy arriba, con un hueco entre el botón y el teclado (3-ago-2026) */
   sh.style.minHeight='0';
