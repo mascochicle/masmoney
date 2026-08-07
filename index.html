@@ -363,7 +363,7 @@ button{font-family:inherit;}
    cuentas— empezaban muy abajo. Marco: "¿se puede esta parte más arriba? y veo que aparece
    de abajo hacia arriba, que aparezca de arriba hacia abajo". */
 .sheet{position:absolute;left:0;right:0;top:0;background:var(--ground);border-radius:0 0 20px 20px;
-  transform:translateY(-101%);transition:transform .25s cubic-bezier(.3,.9,.4,1);z-index:50;max-height:88%;
+  transform:translateY(-101%);transition:transform .25s cubic-bezier(.3,.9,.4,1),top .18s ease;z-index:50;max-height:88%;
   display:flex;flex-direction:column;border-bottom:1px solid var(--line);}
 .sheet.show{transform:translateY(0);}
 .sheet h3{font-size:14px;text-align:center;padding:15px;font-weight:700;position:relative;flex:none;}
@@ -738,7 +738,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260807-1554";
+<script>window.MM_VER="20260807-1637";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2234,6 +2234,7 @@ function openSheet(t){
      del CSS contado desde donde empieza y se salía por abajo: el botón Guardar del editor
      quedaba cortado (6-ago-2026). */
   sheet.dataset.maxh=Math.max(200, altoMarco-arriba-12);
+  sheet.dataset.top0=arriba;          // para poder devolverla cuando se cierre el teclado
   sheet.style.maxHeight=sheet.dataset.maxh+'px';
   scrim.classList.add('show'); sheet.classList.add('show'); abrirCapa(_sheetFuera);
   /* por si el teclado ya estaba abierto cuando se abrió la hoja */
@@ -3908,6 +3909,8 @@ function ajustaTeclado(){
      según dónde arranca la hoja. Limpiarlo la dejaba con el 88% del CSS y se salía. */
   if(!kb){ sh.style.bottom=''; sh.style.minHeight='';
            sh.style.maxHeight = sh.dataset.maxh ? sh.dataset.maxh+'px' : '';
+           /* vuelve a su sitio, debajo del encabezado */
+           if(sh.dataset.top0) sh.style.top = sh.dataset.top0+'px';
            return; }
   var alto=document.querySelector('.phone').offsetHeight;
   /* Desde que la hoja se ancla ARRIBA ya no hay que levantarla: el teclado sale por abajo.
@@ -3915,8 +3918,13 @@ function ajustaTeclado(){
      descontó el encabezado), no del alto del marco: restándoselo al marco completo la hoja
      seguía llegando más abajo del teclado y la lista de agentes quedaba tapada mientras
      escribía (Marco, 7-ago-2026). */
-  var suyo = +sh.dataset.maxh || (alto-20);
-  sh.style.maxHeight=Math.max(180, Math.round(suyo-kb))+'px';
+  /* Con el teclado abierto la hoja SUBE hasta el tope del marco. Quedarse debajo del
+     encabezado le costaba ~150px justo cuando menos espacio hay: en el selector de agentes
+     solo cabía un resultado y no se veía el que estaba tecleando (Marco, 7-ago-2026:
+     "¿se podrá subir el modal un poco para que se vea la segunda línea?"). Al cerrarse el
+     teclado regresa sola a su sitio con `dataset.top0`. */
+  sh.style.top='0px';
+  sh.style.maxHeight=Math.max(180, Math.round(alto-kb-12))+'px';
   /* con el teclado abierto la hoja se pega a su contenido: si conserva el alto mínimo
      queda flotando muy arriba, con un hueco entre el botón y el teclado (3-ago-2026) */
   sh.style.minHeight='0';
