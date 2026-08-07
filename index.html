@@ -425,6 +425,10 @@ button{font-family:inherit;}
 @media(prefers-reduced-motion:reduce){.grid.ordenando .gcell{animation:none;}}
 .gcell .e{font-size:20px;line-height:1;} .gcell .n{font-size:10px;color:var(--ink);line-height:1.15;}
 .gback{display:flex;align-items:center;gap:8px;padding:5px 4px 11px;color:var(--mut);font-size:13px;cursor:pointer;}
+/* "Nueva subcategoría" al final de la lista: en verde y sin línea abajo, igual que el
+   "Usar «…»" del selector de agentes, para que se lea como acción y no como una más */
+.sublist .sub-i.nuevo{color:var(--ingreso);font-weight:650;border-bottom:0;}
+.sublist .sub-i.nuevo .e{color:var(--ingreso);}
 /* buscador del selector de grupo: con 26 grupos, encontrar algo que vive DENTRO de otro
    (p.ej. "Propinas" en Ocio) era imposible sin abrirlos uno por uno (3-ago-2026) */
 .busca{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);
@@ -734,7 +738,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260807-1538";
+<script>window.MM_VER="20260807-1554";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2698,13 +2702,47 @@ function showCatGrid(q){
   qi.oninput=function(){ var v=this.value, pos=this.selectionStart;
     showCatGrid(v); var n=$('qcat'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
+/* ---- crear una subcategoría SIN salir de la captura (7-ago-2026) ----
+   Marco: "permíteme agregar una subcategoría desde aquí y no solo en ajustes". Antes había
+   que cancelar el movimiento, ir a Ajustes, crearla y volver a empezar.
+   `cual` dice a qué catálogo va (gasto / ingreso / negocio); 'valor' es fijo y ahí no se
+   ofrece. Al guardarla se elige de inmediato, que es a lo que venía. */
+function filaNuevaSub(cual){
+  return (cual==='valor') ? ''
+    : '<div class="sub-i nuevo" id="subNueva"><span class="e">＋</span>Nueva subcategoría</div>';
+}
+function nuevaSubDe(cual, c, listo){
+  var b=$('sheetBody'), tit=$('sheetTit').textContent;
+  $('sheetTit').textContent='Nueva subcategoría';
+  b.innerHTML='<div class="edit-b">'+
+    '<div class="fld"><div class="k">Nombre</div><input id="nsN" type="text" placeholder="Escríbelo"></div>'+
+    '<div class="note">Se agrega al grupo '+c.e+' <b>'+c.n+'</b> y queda en tu lista para la próxima.</div>'+
+    '<div class="edit-acts"><button class="b-save" id="nsOk">Agregar y usar</button></div></div>';
+  setTimeout(function(){ try{ $('nsN').focus(); }catch(e){} }, 80);
+  $('nsN').onkeydown=function(e){ if(e.key==='Enter') $('nsOk').click(); };
+  $('nsOk').onclick=function(){
+    var v=$('nsN').value.trim();
+    if(!v){ toast('Ponle nombre',true); return; }
+    var A=lista(cual), g=A.filter(function(x){ return x.n===c.n; })[0];
+    if(!g){ toast('No encontré el grupo',true); return; }
+    g.subs=g.subs||[];
+    if(!g.subs.some(function(s){ return sinAc(s)===sinAc(v); })) g.subs.push(v);
+    guardaLista(cual,A);
+    c.subs=g.subs;
+    $('sheetTit').textContent=tit;
+    listo(v);
+  };
+}
 function showSubs(c){
   $('sheetTit').textContent='Subcategoría';
-  var b=$('sheetBody');
+  var b=$('sheetBody'), cual=cualLista();
   b.innerHTML='<div class="gback" id="gback">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
-    c.subs.map(function(s){return '<div class="sub-i" data-s="'+s.replace(/"/g,'&quot;')+'"><span class="e">'+c.e+'</span>'+s+'</div>';}).join('')+'</div>';
+    c.subs.map(function(s){return '<div class="sub-i" data-s="'+s.replace(/"/g,'&quot;')+'"><span class="e">'+c.e+'</span>'+s+'</div>';}).join('')+
+    filaNuevaSub(cual)+'</div>';
   $('gback').onclick=showCatGrid;
-  b.querySelectorAll('.sub-i').forEach(function(el){ el.onclick=function(){ pickCat(c.n,c.e,el.dataset.s); closeSheet(); }; });
+  if($('subNueva')) $('subNueva').onclick=function(){
+    nuevaSubDe(cual, c, function(v){ pickCat(c.n,c.e,v); closeSheet(); toast('Subcategoría agregada'); }); };
+  b.querySelectorAll('.sub-i[data-s]').forEach(function(el){ el.onclick=function(){ pickCat(c.n,c.e,el.dataset.s); closeSheet(); }; });
 }
 /* sentido del cambio de valor. Se puede cambiar a mano después de elegir el motivo. */
 function setDir(d){
@@ -2974,9 +3012,12 @@ function elegirCatEdit(L, listo, q, cual){
       $('sheetTit').textContent='Subcategoría';
       b.innerHTML='<div class="gback" id="gb2">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
         c.subs.map(function(x){ return '<div class="sub-i" data-s="'+x.replace(/"/g,'&quot;')+'">'+
-          '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+'</div>';
+          '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+
+        filaNuevaSub(cual)+'</div>';
       $('gb2').onclick=function(){ elegirCatEdit(L, listo, '', cual); };
-      b.querySelectorAll('.sub-i').forEach(function(y){
+      if($('subNueva')) $('subNueva').onclick=function(){
+        nuevaSubDe(cual, c, function(v){ listo({g:c.n, e:c.e, sub:v}); toast('Subcategoría agregada'); }); };
+      b.querySelectorAll('.sub-i[data-s]').forEach(function(y){
         y.onclick=function(){ listo({g:c.n, e:c.e, sub:y.dataset.s}); }; });
     }; });
   }

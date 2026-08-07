@@ -1,4 +1,4 @@
-const V = 'masmoney-20260807-1538';
+const V = 'masmoney-20260807-1554';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
