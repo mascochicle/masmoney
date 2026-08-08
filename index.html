@@ -427,6 +427,15 @@ button{font-family:inherit;}
 .gback{display:flex;align-items:center;gap:8px;padding:5px 4px 11px;color:var(--mut);font-size:13px;cursor:pointer;}
 /* "Nueva subcategoría" al final de la lista: en verde y sin línea abajo, igual que el
    "Usar «…»" del selector de agentes, para que se lea como acción y no como una más */
+/* filtros de un toque del buscador */
+.filbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:0 14px 4px;}
+.filchip{border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:7px 13px;font:inherit;font-size:12.5px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+.filchip b{background:var(--surface2);color:var(--mut);border-radius:999px;
+  padding:1px 7px;font-size:11px;}
+.filchip.vacio{opacity:.5;}
+.filchip.on{background:var(--accent-soft);border-color:var(--accent-ink);color:var(--accent-ink);}
 .sublist .sub-i.nuevo{color:var(--ingreso);font-weight:650;border-bottom:0;}
 .sublist .sub-i.nuevo .e{color:var(--ingreso);}
 /* buscador del selector de grupo: con 26 grupos, encontrar algo que vive DENTRO de otro
@@ -738,7 +747,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260807-1637";
+<script>window.MM_VER="20260808-0821";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1555,9 +1564,22 @@ $('formX').onclick=function(){ verForm(false); renderCuenta(); };
    con nada de lo que se veía (Marco, 5-ago-2026). Por eso la banda del periodo ahora se
    queda VISIBLE mientras buscas: se puede cambiar de mes con la búsqueda puesta.
    Si hay coincidencias fuera del periodo se avisa y se pueden ver con un toque. */
-var buscando=false, buscTodo=false;
+/* Además de escribir, el buscador tiene FILTROS de un toque. Nacieron con "Sin agente":
+   Marco siempre le pone agente a todo y quería una forma de cachar los que se le pasaron
+   (7-ago-2026). Se apoyan en el buscador porque ahí ya está resuelto lo difícil —respeta la
+   cuenta que estás viendo y el periodo de arriba— y no ensucian ninguna otra pantalla. */
+var FILTROS=[
+  {k:'sinag', n:'Sin agente', d:'movimientos a los que se les olvidó el comercio',
+   ok:function(m){ return !tipoDe(m.tipo).sinAg && !m.ajuste && !(m.agente||'').trim(); }},
+  {k:'sinnota', n:'Sin nota', d:'sin descripción ni comercio',
+   ok:function(m){ return !tipoDe(m.tipo).sinAg && !m.ajuste &&
+                          !(m.agente||'').trim() && !(m.desc||'').trim(); }},
+  {k:'foto', n:'Con foto', d:'los que traen nota fotografiada',
+   ok:function(m){ return !!(m.foto||m.fotoArch); }}
+];
+var buscando=false, buscTodo=false, buscFil=null;
 function abreBusqueda(v){
-  buscando=v; buscTodo=false;
+  buscando=v; buscTodo=false; buscFil=null;
   $('buscMov').style.display=v?'flex':'none';
   $('btnBuscar').classList.toggle('on',v);
   if(v){ $('qMov').value=''; renderBusqueda(); $('qMov').focus(); }
@@ -1584,11 +1606,24 @@ function renderBusqueda(){
   var movible=(per.t!=='dias');
   $('pPrev').style.visibility=movible?'visible':'hidden';
   $('pNext').style.visibility=movible?'visible':'hidden';
-  if(!q){
+  var F = buscFil ? FILTROS.filter(function(x){return x.k===buscFil;})[0] : null;
+  if(!q && !F){
+    /* pantalla de arranque: la ayuda de siempre y, abajo, los filtros de un toque con su
+       cuenta ya calculada, para que se vea de una si hay algo pendiente */
     $('ctaSaldo').innerHTML='';
+    var enPer=movs().filter(function(m){
+      if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
+      return m.fecha>=R.d1 && m.fecha<=R.d2; });
     $('ctaMovs').innerHTML='<div class="empty">Busca '+dentro+'<br>'+
       '<span style="font-size:12px">Por descripción, comercio, categoría o monto. '+
-      'Busca dentro de <b>'+R.lbl+'</b>; cambia el periodo arriba para buscar en otro.</span></div>';
+      'Busca dentro de <b>'+R.lbl+'</b>; cambia el periodo arriba para buscar en otro.</span></div>'+
+      '<div class="filbar">'+FILTROS.map(function(x){
+        var n=enPer.filter(x.ok).length;
+        return '<button class="filchip'+(n?'':' vacio')+'" data-k="'+x.k+'">'+x.n+
+               '<b>'+n+'</b></button>';}).join('')+'</div>'+
+      '<div class="hint">Toca un filtro para ver esos movimientos dentro de <b>'+R.lbl+'</b>.</div>';
+    $('ctaMovs').querySelectorAll('.filchip').forEach(function(el){
+      el.onclick=function(){ buscFil=el.dataset.k; renderBusqueda(); }; });
     return;
   }
   /* Se buscan TODAS LAS PALABRAS, en cualquier orden, no la frase pegada. Marco escribió
@@ -1604,6 +1639,8 @@ function renderBusqueda(){
   });
   function pega(m){
     if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
+    if(F && !F.ok(m)) return false;          // el filtro de un toque manda
+    if(!q) return true;                      // filtro sin texto: basta con que cumpla
     if(num!==null && Math.abs((m.amount||0)-num)<0.005) return true;
     var t=llano([m.desc,m.agente,m.grupo,m.sub,m.cuenta,m.destino,
                  (m.partes||[]).map(function(p){return p.g+' '+p.sub;}).join(' ')].join(' '));
@@ -1616,7 +1653,10 @@ function renderBusqueda(){
   var tot=L.reduce(function(s,m){ return s+(m.tipo==='Gasto'?aBase(m.amount,m.mon):0); },0);
   $('ctaSaldo').innerHTML='<div class="ln">'+L.length+' resultado'+(L.length===1?'':'s')+
     '<small style="color:var(--mut2)"> · '+(buscTodo?'toda la historia':R.lbl)+'</small>'+
-    (tot>0?'<b class="neg">−'+fmt2(tot)+' en gastos</b>':'<b></b>')+'</div>';
+    (tot>0?'<b class="neg">−'+fmt2(tot)+' en gastos</b>':'<b></b>')+'</div>'+
+    (F?'<div class="ln"><span class="filchip on" id="filQuita">'+F.n+' ✕</span>'+
+       '<small style="color:var(--mut2);margin-left:8px">'+F.d+'</small><b></b></div>':'');
+  if($('filQuita')) $('filQuita').onclick=function(){ buscFil=null; renderBusqueda(); };
   /* el aviso de lo que quedó fuera: sin él, buscar algo del mes pasado con agosto puesto
      se ve como si el movimiento no existiera */
   var aviso = (fuera>0 && !buscTodo)
