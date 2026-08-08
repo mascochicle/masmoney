@@ -658,10 +658,16 @@ button{font-family:inherit;}
     <div class="extras">
       <textarea class="desc" id="desc" placeholder="Descripción o comentario…"></textarea>
       <button class="fotobtn" id="fotoBtn" title="Foto de la nota">📷</button>
+      <!-- TRES entradas, y cada `accept` es a propósito: Android arma el menú que te
+           ofrece a partir de él, así que un solo input no puede dar las tres cosas.
+             · fotoIn — `capture` fuerza la CÁMARA, sin preguntar nada.
+             · galIn  — solo `image/*` y SIN `capture`: Android abre el selector de FOTOS
+                        (galería / Google Fotos). Esta es la que faltaba: con el `accept`
+                        mezclado de abajo, el menú salía con Cámara y Archivos nada más.
+             · archIn — al incluir un tipo que NO es imagen, Android abre el EXPLORADOR DE
+                        ARCHIVOS, que sí muestra el teléfono y las nubes (Drive, PDFs). -->
       <input type="file" id="fotoIn" accept="image/*" capture="environment" style="display:none">
-      <!-- Sin `capture` y aceptando PDF: con solo `image/*`, Android abre el selector de
-           FOTOS (nada más Google Fotos). Al incluir un tipo que no es imagen, abre el
-           EXPLORADOR DE ARCHIVOS, que sí muestra el teléfono y las nubes. -->
+      <input type="file" id="galIn"  accept="image/*" style="display:none">
       <input type="file" id="archIn" accept="image/*,application/pdf" style="display:none">
     </div>
     <div class="fotoprev" id="fotoPrev">
@@ -752,7 +758,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260808-0900";
+<script>window.MM_VER="20260808-0945";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2182,15 +2188,18 @@ function tomarFoto(e){
   });
 }
 $('fotoIn').onchange=tomarFoto;
+$('galIn').onchange=tomarFoto;
 $('archIn').onchange=tomarFoto;
 /* la hoja de "Tomar foto / Elegir un archivo", compartida por la captura y el editor */
 function hojaFoto(destino){
   openSheet('Foto de la nota');
   $('sheetBody').innerHTML=
     '<div class="acct" id="fCam"><div class="ic">📷</div><div class="nm">Tomar foto<small>abre la cámara</small></div></div>'+
-    '<div class="acct" id="fArch"><div class="ic">🖼️</div><div class="nm">Elegir un archivo<small>foto o PDF, del teléfono o de tus nubes</small></div></div>';
-  $('fCam').onclick=function(){ fotoPara=destino||null; closeSheet(); $('fotoIn').click(); };
-  $('fArch').onclick=function(){ fotoPara=destino||null; closeSheet(); $('archIn').click(); };
+    '<div class="acct" id="fGal"><div class="ic">🖼️</div><div class="nm">De la galería<small>fotos que ya tienes en el teléfono o en Google Fotos</small></div></div>'+
+    '<div class="acct" id="fArch"><div class="ic">📎</div><div class="nm">Elegir un archivo<small>PDF o imagen, del teléfono o de tus nubes</small></div></div>';
+  $('fCam').onclick =function(){ fotoPara=destino||null; cerrarYaPintado(); $('fotoIn').click(); };
+  $('fGal').onclick =function(){ fotoPara=destino||null; cerrarYaPintado(); $('galIn').click(); };
+  $('fArch').onclick=function(){ fotoPara=destino||null; cerrarYaPintado(); $('archIn').click(); };
 }
 $('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
   $('fotoImg').style.display='';   // si lo anterior era un PDF, la imagen quedó oculta
