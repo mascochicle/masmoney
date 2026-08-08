@@ -132,6 +132,11 @@ button{font-family:inherit;}
   color:var(--mut);font-size:14px;cursor:pointer;flex:none;}
 .ctaSaldo{padding:2px 16px 12px;display:flex;flex-direction:column;gap:5px;}
 .ctaSaldo .ln{display:flex;align-items:baseline;font-size:13.5px;color:var(--mut);}
+/* el renglón del resultado no se parte: con letra grande se veía roto en tres pedazos */
+.ctaSaldo .ln.nowrap{white-space:nowrap;gap:10px;}
+.ctaSaldo .ln.nowrap b{flex:none;}
+/* el chip del filtro activo se alinea a la derecha del renglón chico, no encima del texto */
+.ctaSaldo .ln .filchip{margin-left:auto;padding:4px 10px;font-size:11.5px;}
 .ctaSaldo .ln b{margin-left:auto;font-size:16px;font-variant-numeric:tabular-nums;color:var(--ink);}
 .ctaSaldo .ln b.neg{color:var(--gasto);} .ctaSaldo .ln b.pos{color:var(--ingreso);}
 .ctaSaldo small{font-size:11px;color:var(--mut2);}
@@ -747,7 +752,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260808-0834";
+<script>window.MM_VER="20260808-0845";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1587,7 +1592,16 @@ function abreBusqueda(v){
 }
 $('btnBuscar').onclick=function(){ abreBusqueda(!buscando); };
 $('qMovX').onclick=function(){ abreBusqueda(false); };
-$('qMov').oninput=function(){ renderBusqueda(); };
+/* Se espera un respiro antes de rebuscar. Cada tecla releía el almacén completo —1,600+
+   movimientos, ~600 KB de JSON— y reconstruía la lista entera; tecleando rápido se sentía
+   pesado (Marco, 8-ago-2026: "siento que podemos mejorar la fluidez"). Con 110 ms el
+   resultado sigue apareciendo de inmediato al dejar de teclear, pero ya no se hace el
+   trabajo completo letra por letra. */
+var _buscT=null;
+$('qMov').oninput=function(){
+  clearTimeout(_buscT);
+  _buscT=setTimeout(renderBusqueda, 110);
+};
 function renderBusqueda(){
   var q=llano($('qMov').value).trim();
   var esNum=/^[\d.,]+$/.test(q.replace(/\s/g,''));
@@ -1656,11 +1670,18 @@ function renderBusqueda(){
   var fuera=todos.length-enPer.length;
   var L = buscTodo ? todos : enPer;
   var tot=L.reduce(function(s,m){ return s+(m.tipo==='Gasto'?aBase(m.amount,m.mon):0); },0);
-  $('ctaSaldo').innerHTML='<div class="ln">'+L.length+' resultado'+(L.length===1?'':'s')+
-    '<small style="color:var(--mut2)"> · '+(buscTodo?'toda la historia':R.lbl)+'</small>'+
-    (tot>0?'<b class="neg">−'+fmt2(tot)+' en gastos</b>':'<b></b>')+'</div>'+
-    (F?'<div class="ln"><span class="filchip on" id="filQuita">'+F.n+' ✕</span>'+
-       '<small style="color:var(--mut2);margin-left:8px">'+F.d+'</small><b></b></div>':'');
+  /* Encabezado del resultado. Va en UN renglón que no se parte: con la letra grande de
+     Marco, "10 resultados", "· Últimos 30 días" y "−$1,629.00 en gastos" se peleaban el
+     ancho y cada uno caía en dos líneas — se veía roto (8-ago-2026, video). Ahora el
+     periodo va abajo en chico y el monto sin la coletilla "en gastos", que ya se entiende
+     por el color. Y con el filtro puesto NO se repite su descripción: acaba de tocarlo, ya
+     sabe qué pidió; basta el chip con su ✕. */
+  $('ctaSaldo').innerHTML=
+    '<div class="ln nowrap">'+L.length+' resultado'+(L.length===1?'':'s')+
+      (tot>0?'<b class="neg">−'+fmt2(tot)+'</b>':'<b></b>')+'</div>'+
+    '<div class="ln"><small>'+(buscTodo?'toda la historia':R.lbl)+
+      (F?' · filtrado':'')+'</small>'+
+      (F?'<span class="filchip on" id="filQuita">'+F.n+' ✕</span>':'')+'</div>';
   if($('filQuita')) $('filQuita').onclick=function(){ buscFil=null; renderBusqueda(); };
   /* el aviso de lo que quedó fuera: sin él, buscar algo del mes pasado con agosto puesto
      se ve como si el movimiento no existiera */
