@@ -428,7 +428,7 @@ button{font-family:inherit;}
 /* "Nueva subcategoría" al final de la lista: en verde y sin línea abajo, igual que el
    "Usar «…»" del selector de agentes, para que se lea como acción y no como una más */
 /* filtros de un toque del buscador */
-.filbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:0 14px 4px;}
+.filbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:14px 14px 2px;}
 .filchip{border:1px solid var(--line);background:var(--surface);color:var(--ink);
   border-radius:999px;padding:7px 13px;font:inherit;font-size:12.5px;font-weight:600;
   cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
@@ -747,7 +747,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260808-0821";
+<script>window.MM_VER="20260808-0834";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1614,14 +1614,19 @@ function renderBusqueda(){
     var enPer=movs().filter(function(m){
       if(ctaVer && m.cuentaId!==ctaVer && m.destinoId!==ctaVer) return false;
       return m.fecha>=R.d1 && m.fecha<=R.d2; });
-    $('ctaMovs').innerHTML='<div class="empty">Busca '+dentro+'<br>'+
-      '<span style="font-size:12px">Por descripción, comercio, categoría o monto. '+
-      'Busca dentro de <b>'+R.lbl+'</b>; cambia el periodo arriba para buscar en otro.</span></div>'+
+    /* Los chips van ARRIBA del texto de ayuda: aquí el teclado tapa la parte de abajo de la
+       pantalla —no es una hoja, es el panel de la cuenta— y quedaban escondidos justo
+       mientras escribía (Marco, 8-ago-2026). Además es mejor orden: primero lo que se toca,
+       después la explicación. */
+    $('ctaMovs').innerHTML=
       '<div class="filbar">'+FILTROS.map(function(x){
         var n=enPer.filter(x.ok).length;
         return '<button class="filchip'+(n?'':' vacio')+'" data-k="'+x.k+'">'+x.n+
                '<b>'+n+'</b></button>';}).join('')+'</div>'+
-      '<div class="hint">Toca un filtro para ver esos movimientos dentro de <b>'+R.lbl+'</b>.</div>';
+      '<div class="empty" style="padding-top:18px">Busca '+dentro+'<br>'+
+      '<span style="font-size:12px">Por descripción, comercio, categoría o monto, o toca un '+
+      'filtro de arriba. Busca dentro de <b>'+R.lbl+'</b>; cambia el periodo para buscar '+
+      'en otro.</span></div>';
     $('ctaMovs').querySelectorAll('.filchip').forEach(function(el){
       el.onclick=function(){ buscFil=el.dataset.k; renderBusqueda(); }; });
     return;
