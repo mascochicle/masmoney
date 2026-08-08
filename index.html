@@ -752,7 +752,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260808-0845";
+<script>window.MM_VER="20260808-0900";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1476,7 +1476,7 @@ $('ctaSel').onclick=function(){
   $('sheetBody').insertAdjacentHTML('afterbegin',
     '<div class="acct'+(ctaVer?'':' sel')+'" id="ctaTodas"><div class="ic">☰</div>'+
     '<div class="nm">Todas las cuentas<small>todos tus movimientos juntos</small></div></div>');
-  $('ctaTodas').onclick=function(){ ctaVer=null; detalle=false; closeSheet(); renderCuenta(); };
+  $('ctaTodas').onclick=function(){ ctaVer=null; detalle=false; renderCuenta(); cerrarYaPintado(); };
 };
 function mueve(d){
   if(per.t==='dia'){ var x=new Date(per.f+'T12:00:00'); x.setDate(x.getDate()+d); per.f=dISO(x);
@@ -2268,10 +2268,24 @@ window.addEventListener('popstate', function(){
 
 var scrim=$('scrim'), sheet=$('sheet');
 function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('show'); sheet.classList.remove('alta');
-  /* se limpia al cerrar, no antes: si se borrara el `top` de inmediato la hoja saltaría
-     al borde a media animación de salida. Se hace cuando ya terminó de irse. */
-  sheet.style.bottom=''; sheet.style.maxHeight=''; delete sheet.dataset.maxh;
-  setTimeout(function(){ if(!sheet.classList.contains('show')) sheet.style.top=''; }, 300); }
+  /* NADA de geometría se limpia hasta que la hoja ya salió. El `top` ya se respetaba, pero
+     `maxHeight` y `bottom` se borraban de inmediato: la hoja recuperaba el 88% del CSS y
+     CRECÍA a media animación, y como `translateY(-101%)` se mide sobre su PROPIA altura,
+     ese -101% pasaba a valer más píxeles → brinco hacia arriba. Con el re-render de la
+     lista encima se veía como "sube, se frena y vuelve a subir" (Marco, 8-ago-2026, video).
+     Ahora todo espera al transitionend, con reloj de respaldo por si no dispara. */
+  var limpio=false;
+  function limpia(){
+    if(limpio || sheet.classList.contains('show')) return;
+    limpio=true;
+    sheet.removeEventListener('transitionend', alFin);
+    sheet.style.bottom=''; sheet.style.maxHeight=''; sheet.style.minHeight=''; sheet.style.top='';
+    delete sheet.dataset.maxh; delete sheet.dataset.top0;
+  }
+  function alFin(e){ if(e.target===sheet && e.propertyName==='transform') limpia(); }
+  sheet.addEventListener('transitionend', alFin);
+  setTimeout(limpia, 320);
+}
 /* La hoja no arranca pegada al borde: baja hasta debajo del ENCABEZADO de la pantalla en
    la que estás, para que se siga viendo de dónde vienes (Marco, 6-ago-2026: "¿habrá manera
    que empiece, no desde arriba, sino ahí donde te puse?"). Se mide en vivo porque cada
@@ -2291,7 +2305,13 @@ function openSheet(t){
   $('sheetTit').textContent=t;
   if(sheet.classList.contains('show')) return;      // solo cambia el título
   var arriba=topDeHoja();
+  /* Colocar el `top` SIN animarlo: la transición de .18s existe para cuando sube por el
+     teclado, pero aquí se encimaba con el deslizamiento de entrada y se veían dos
+     movimientos. Se apaga, se coloca, se fuerza el reflow y se vuelve a encender. */
+  sheet.style.transition='none';
   sheet.style.top=arriba+'px';
+  void sheet.offsetHeight;
+  sheet.style.transition='';
   /* el alto máximo se recorta por lo que ya se comió el encabezado, si no se salía por
      abajo y la barra de pestañas quedaba tapada */
   var altoMarco=document.querySelector('.phone').offsetHeight;
@@ -2360,6 +2380,16 @@ $('askYes').onclick=function(){ var f=_askCb; cerrarCapa(); if(f) f(); };
 var TAGS={corriente:'', tarjeta:'crédito', credito:'deuda', activo:'activo'};
 /* `noCerrar` la usa el EDITOR: ahí la hoja no se cierra, se vuelve a pintar con el
    movimiento. Si cerrara, se cerraría encima de la que acaba de abrir el callback. */
+/* Cerrar DESPUÉS de que el navegador pintó lo que hay detrás.
+   Al elegir una cuenta se hacía `renderCuenta()` —relee todos los movimientos y rehace la
+   lista— y acto seguido arrancaba la animación de salida: el navegador seguía acomodando
+   la lista nueva y se comía los primeros cuadros, así que la hoja subía, se frenaba y
+   volvía a subir (Marco, 8-ago-2026, video). Con dos `requestAnimationFrame` se espera a
+   que ese trabajo ya esté pintado y la animación corre limpia. El retraso son ~2 cuadros,
+   no se percibe; el tirón sí se percibía. */
+function cerrarYaPintado(){
+  requestAnimationFrame(function(){ requestAnimationFrame(closeSheet); });
+}
 function listaCuentas(selId,cb,L,noCerrar){
   L = L || filtro('pago');
   var a=movs();
@@ -2371,7 +2401,7 @@ function listaCuentas(selId,cb,L,noCerrar){
       '<div class="sal-v '+(cero?'cero':neg?'neg':'pos')+'">'+(neg?'−':'')+fmtM(v,c.mon)+
         ((c.mon&&c.mon!==BASE)?'<small>'+fmt2(aBase(v,c.mon))+' MXN</small>':'')+'</div></div>';}).join('');
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
-    el.onclick=function(){ cb(cta(el.dataset.id)); if(!noCerrar) closeSheet(); }; });
+    el.onclick=function(){ cb(cta(el.dataset.id)); if(!noCerrar) cerrarYaPintado(); }; });
 }
 $('rowCuenta').onclick=function(){
   var T=tipoDe(st.tipo);
