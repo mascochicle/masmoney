@@ -797,7 +797,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-1002";
+<script>window.MM_VER="20260811-1506";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2613,11 +2613,19 @@ function abrirViajes(cb){
     $('sheetBody').querySelectorAll('.acct').forEach(function(el){
       el.onclick=function(){
         var n=el.dataset.n||null;
-        if(cb){ cb(n); } else { setViaje(n); }
-        cerrarYaPintado();
+        /* Cuando viene del EDITOR no se cierra: `cb` repinta el movimiento encima de esta
+           misma hoja. Cerrarla se llevaba el editor recién repintado y el viaje nunca se
+           guardaba (Marco, 11-ago-2026). Mismo trato que en `abrirAgentes`. */
+        if(cb){ cb(n); return; }
+        setViaje(n); cerrarYaPintado();
       };
     });
-    $('vjeNuevo').onclick=function(){ nuevoViaje(function(n){ if(cb){cb(n);cerrarYaPintado();} else {setViaje(n); cerrarYaPintado();} }); };
+    $('vjeNuevo').onclick=function(){
+      nuevoViaje(function(n){
+        if(cb){ cb(n); return; }
+        setViaje(n); cerrarYaPintado();
+      });
+    };
   }
   pinta();
 }
@@ -4601,7 +4609,21 @@ function verViajes(){
       '<b>No cambia nada más</b>: cada gasto sigue contando en su categoría de siempre.</div>';
   $('sheetBody').querySelectorAll('.acct').forEach(function(el){
     el.onclick=function(){
-      if(el.dataset.nuevo){ nuevoViaje(function(){ verViajes(); toast('Viaje creado'); }); }
+      if(el.dataset.nuevo){
+        nuevoViaje(function(n){
+          /* La marca automática solo actúa al CAPTURAR, así que lo que ya estaba registrado
+             en esas fechas se queda fuera. Pasa siempre que el viaje se crea a media
+             marcha: Marco creó "Merida" cuando ya llevaba un gasto de ese día y ese se
+             quedó sin chip (11-ago-2026). En vez de que lo tenga que ir a buscar, si hay
+             candidatos se abre directo la pantalla de marcar. */
+          var i=viajes().length-1, v=viajes()[i];
+          var hay=movs().filter(function(m){
+            return !m.viaje && !m.ajuste && !tipoDe(m.tipo).sinAmb &&
+                   v.ini && v.fin && m.fecha>=v.ini && m.fecha<=v.fin; }).length;
+          if(hay){ revisarViaje(i); toast(hay+' movimiento'+(hay===1?'':'s')+' en esas fechas'); }
+          else { verViajes(); toast('Viaje creado'); }
+        });
+      }
       else verViaje(+el.dataset.i);
     };
   });
