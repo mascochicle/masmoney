@@ -88,12 +88,24 @@ button{font-family:inherit;}
 .fotobtn{width:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);
   color:var(--mut);font-size:18px;cursor:pointer;flex:none;position:relative;}
 .fotobtn.has{border-color:var(--accent);color:var(--accent-ink);}
-.fotoprev{margin:9px 16px 0;display:none;align-items:center;gap:11px;background:var(--surface);
+.fotoprev{margin:9px 16px 0;display:none;flex-direction:column;gap:8px;background:var(--surface);
   border:1px solid var(--line);border-radius:12px;padding:9px 11px;}
 .fotoprev.show{display:flex;}
-.fotoprev img{width:44px;height:44px;object-fit:cover;border-radius:8px;flex:none;}
-.fotoprev .txt{flex:1;font-size:12px;color:var(--mut);line-height:1.35;}
-.fotoprev button{border:0;background:transparent;color:var(--mut);font-size:13px;cursor:pointer;padding:6px;}
+.fotoprev .txt{font-size:11.5px;color:var(--mut);line-height:1.35;}
+/* la tira: se desliza de lado cuando hay varias, en vez de apretarlas */
+.ftlist{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;}
+.ft{position:relative;flex:none;width:52px;height:52px;border-radius:9px;overflow:hidden;
+  background:var(--surface2);display:grid;place-items:center;font-size:21px;cursor:pointer;}
+.ft img{width:100%;height:100%;object-fit:cover;display:block;}
+.ft .x{position:absolute;top:0;right:0;width:19px;height:19px;border:0;padding:0;line-height:1;
+  border-radius:0 9px 0 9px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;cursor:pointer;}
+/* el "＋" que agrega otra, al final de la tira */
+.ft.mas{border:1px dashed var(--line);background:transparent;color:var(--mut);font-size:19px;}
+/* visor: la miniatura a pantalla casi completa, para revisar el ticket */
+#fotoOv{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.88);display:none;
+  align-items:center;justify-content:center;padding:18px;}
+#fotoOv.show{display:flex;}
+#fotoOv img{max-width:100%;max-height:100%;border-radius:10px;}
 .msi{margin:9px 16px 0;background:var(--surface);border-radius:14px;border:1px solid var(--line);overflow:hidden;}
 .msi-head{display:flex;align-items:center;gap:12px;padding:12px 15px;}
 .msi-head .lb{flex:1;} .msi-head .lb .t{font-size:14px;font-weight:650;}
@@ -255,6 +267,9 @@ button{font-family:inherit;}
 .mov:active{background:var(--surface);}
 .mov .ic{width:31px;height:31px;border-radius:9px;background:var(--surface2);display:grid;place-items:center;font-size:15px;flex:none;position:relative;}
 .mov .ic .pin{position:absolute;bottom:-3px;right:-3px;font-size:9px;}
+/* cuando son varias, el clip se cambia por el número dentro de un círculo */
+.mov .ic .pin b{display:block;min-width:14px;height:14px;border-radius:7px;background:var(--accent);
+  color:#fff;font-size:9px;line-height:14px;text-align:center;font-weight:700;}
 .mov .info{flex:1;min-width:0;}
 /* El título es una FILA, no una línea de texto: así el nombre se recorta con puntos
    suspensivos pero los chips (MSI, ámbito) conservan su ancho y se siguen leyendo. Antes
@@ -709,11 +724,9 @@ button{font-family:inherit;}
       <input type="file" id="galIn"  accept="image/*" style="display:none">
       <input type="file" id="archIn" accept="image/*,application/pdf" style="display:none">
     </div>
-    <div class="fotoprev" id="fotoPrev">
-      <img id="fotoImg" alt="Nota">
-      <div class="txt">Foto lista. Se manda con el gasto al exportar.</div>
-      <button id="fotoDel">Quitar</button>
-    </div>
+    <!-- La tira de fotos se dibuja desde `st.fotos` (ver `pintaFotos`): antes era un solo
+         <img> fijo porque solo cabía una foto. -->
+    <div class="fotoprev" id="fotoPrev"></div>
 
     <div class="msi" id="msiCard">
       <div class="msi-head">
@@ -786,6 +799,8 @@ button{font-family:inherit;}
   </nav>
 
   <div class="scrim" id="scrim"></div>
+  <!-- visor de la foto en grande: las miniaturas de 52px no dejan leer un ticket -->
+  <div id="fotoOv"><img alt="Nota"></div>
   <div class="sheet" id="sheet"><h3 id="sheetTitle"><button class="atras" id="sheetBack">‹</button><span id="sheetTit">Cuenta</span><button class="x" id="sheetX">Cerrar</button></h3>
     <div class="sheet-scroll" id="sheetBody"></div></div>
 
@@ -797,7 +812,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-1506";
+<script>window.MM_VER="20260811-1751";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1452,7 +1467,7 @@ function hoyISO(){ return dISO(new Date()); }
 /* ================= estado de captura ================= */
 var st={tipo:"Gasto", cuentaId:'c1', cuenta2Id:'c2',
         cat:{g:"Alimentación",e:"🧺",sub:"Víveres"},
-        amount:"0", msi:false, meses:12, foto:null, agente:null, ambito:'Personal',
+        amount:"0", msi:false, meses:12, fotos:[], agente:null, ambito:'Personal',
         viaje:null, viajeManual:false,
         fecha:hoyISO(),
         hora:new Date().toTimeString().slice(0,5)};
@@ -1513,7 +1528,7 @@ var PERIODOS=[
 function _formCerrarYa(){ $('vForm').classList.remove('on'); $('vCta').classList.add('on'); verPad(false); renderCuenta(); }
 /* ¿hay algo escrito que se perdería al salir? */
 function formSucio(){
-  return num()>0 || $('desc').value.trim()!=='' || !!st.foto || !!st.fotoFull || !!st.agente ||
+  return num()>0 || $('desc').value.trim()!=='' || st.fotos.length>0 || !!st.agente ||
          (parseFloat($('interes').value)||0)>0;
 }
 var _forzarSalir=false;
@@ -1651,7 +1666,7 @@ var FILTROS=[
    ok:function(m){ return !tipoDe(m.tipo).sinAg && !m.ajuste &&
                           !(m.agente||'').trim() && !(m.desc||'').trim(); }},
   {k:'foto', n:'Con foto', d:'los que traen nota fotografiada',
-   ok:function(m){ return !!(m.foto||m.fotoArch); }},
+   ok:function(m){ return fotosDe(m).length>0; }},
   /* solo aparece cuando ya hay viajes creados: si no, sería un chip que nunca encuentra nada */
   {k:'viaje', n:'De un viaje', d:'los que marcaste con algún viaje',
    solo:function(){ return viajes().length>0; },
@@ -2212,32 +2227,69 @@ function reescala(img, max, q){
 }
 function pesoDataUrl(u){ return u ? Math.round(u.length*0.75) : 0; }   // base64 → bytes
 function kbTxt(b){ return !b ? '' : (b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.round(b/1024)+' KB'); }
-function leerFoto(f, dest, listo){
+/* Lee un archivo y devuelve UNA foto ya lista: {mini, full, tipo, nom, peso}.
+   Antes escribía los 4 campos directo en `st` porque solo cabía una; ahora devuelve el
+   objeto y quien la pide lo mete en su lista (Marco, 11-ago-2026: "solo puedo agregar una
+   foto por transacción, quisiera poder agregar varias"). */
+function leerFoto(f, listo){
   var esPDF=(f.type==='application/pdf')||/\.pdf$/i.test(f.name||'');
   var r=new FileReader();
   r.onload=function(ev){
-    dest.fotoFull=ev.target.result;               // el original, para el archivo
-    dest.fotoTipo=esPDF?'pdf':'img';
-    dest.fotoNom=f.name||'';
+    var F={mini:null, full:ev.target.result, tipo:esPDF?'pdf':'img', nom:f.name||'', peso:0};
     if(esPDF){
       /* de un PDF no se puede sacar miniatura sin una librería entera; se enseña una
          tarjeta con su nombre y el archivo se guarda igual que una foto. Tampoco se puede
          bajar de resolución: se guarda tal cual. */
-      dest.foto=null; listo(); return;
+      F.peso=pesoDataUrl(F.full); listo(F); return;
     }
     var img=new Image();
     img.onload=function(){
-      dest.foto=reescala(img, 600, .5);           // la miniatura, para la app
+      F.mini=reescala(img, 600, .5);              // la miniatura, para la app
       var cal=fotoCal();
       /* el archivo: se rehace más chico salvo que él haya pedido Original */
-      if(cal.max) dest.fotoFull=reescala(img, cal.max, cal.q);
-      dest.fotoPeso=pesoDataUrl(dest.fotoFull);
-      listo();
+      if(cal.max) F.full=reescala(img, cal.max, cal.q);
+      F.peso=pesoDataUrl(F.full);
+      listo(F);
     };
-    img.onerror=function(){ dest.foto=null; listo(); };
+    img.onerror=function(){ listo(F); };
     img.src=ev.target.result;
   };
   r.readAsDataURL(f);
+}
+/* Una foto ya guardada (viene del movimiento) no trae `full`: la completa está en
+   Descargas y aquí solo queda la miniatura y el nombre del archivo. */
+function pintaFotos(){
+  var P=$('fotoPrev');
+  if(!st.fotos.length){
+    P.classList.remove('show'); P.innerHTML=''; $('fotoBtn').classList.remove('has'); return;
+  }
+  P.classList.add('show'); $('fotoBtn').classList.add('has');
+  var peso=st.fotos.reduce(function(a,F){ return a+(F.peso||0); },0);
+  var pdfs=st.fotos.filter(function(F){ return F.tipo==='pdf'; }).length;
+  P.innerHTML='<div class="ftlist">'+
+      st.fotos.map(function(F,i){
+        return '<div class="ft" data-i="'+i+'">'+
+          (F.mini?'<img src="'+F.mini+'" alt="">':'<span>📄</span>')+
+          '<button class="x" data-del="'+i+'" aria-label="Quitar">✕</button></div>';
+      }).join('')+
+      '<div class="ft mas" id="ftMas">＋</div>'+
+    '</div>'+
+    '<div class="txt">'+st.fotos.length+(st.fotos.length===1?' archivo':' archivos')+
+      (pdfs?' ('+pdfs+' PDF)':'')+' · '+kbTxt(peso)+
+      (fotoCal().max?', calidad '+fotoCal().n.toLowerCase():'')+
+      '. Se guardan en <b>Descargas</b> al guardar el movimiento.</div>';
+  P.querySelectorAll('.x').forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); st.fotos.splice(+b.dataset.del,1); pintaFotos(); };
+  });
+  P.querySelectorAll('.ft[data-i]').forEach(function(el){
+    el.onclick=function(){ var F=st.fotos[+el.dataset.i]; if(F&&F.mini) verFoto(F.mini); };
+  });
+  $('ftMas').onclick=function(){ hojaFoto(null); };
+}
+/* visor a pantalla casi completa: con miniaturas de 52px no se alcanza a leer un ticket */
+function verFoto(src){
+  var o=$('fotoOv'); o.querySelector('img').src=src; o.classList.add('show');
+  abrirCapa(function(){ o.classList.remove('show'); });
 }
 /* a dónde mandar el archivo escogido: la captura, o el editor si él lo abrió desde ahí */
 var fotoPara=null;
@@ -2245,19 +2297,7 @@ function tomarFoto(e){
   var f=e.target.files&&e.target.files[0]; e.target.value='';
   if(!f) return;
   if(fotoPara){ var g=fotoPara; fotoPara=null; g(f); return; }
-  leerFoto(f, st, function(){
-    if(st.fotoTipo==='pdf'){
-      $('fotoImg').style.display='none';
-      $('fotoPrev').querySelector('.txt').textContent='PDF listo: '+(st.fotoNom||'documento')+
-        '. Se guarda como archivo al guardar el movimiento.';
-    } else {
-      $('fotoImg').style.display='';
-      $('fotoPrev').querySelector('.txt').textContent='Foto lista ('+kbTxt(st.fotoPeso)+
-        ', calidad '+fotoCal().n.toLowerCase()+'). Se guarda como archivo al guardar el movimiento.';
-      $('fotoImg').src=st.foto;
-    }
-    $('fotoPrev').classList.add('show'); $('fotoBtn').classList.add('has');
-  });
+  leerFoto(f, function(F){ st.fotos.push(F); pintaFotos(); });
 }
 $('fotoIn').onchange=tomarFoto;
 $('galIn').onchange=tomarFoto;
@@ -2273,9 +2313,15 @@ function hojaFoto(destino){
   $('fGal').onclick =function(){ fotoPara=destino||null; cerrarYaPintado(); $('galIn').click(); };
   $('fArch').onclick=function(){ fotoPara=destino||null; cerrarYaPintado(); $('archIn').click(); };
 }
-$('fotoDel').onclick=function(){ st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
-  $('fotoImg').style.display='';   // si lo anterior era un PDF, la imagen quedó oculta
-  $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has'); };
+/* Normaliza al formato de lista. Antes solo cabía UNA foto (`m.foto` + `m.fotoArch`), y los
+   movimientos viejos —y los que vengan de un respaldo anterior— siguen con ese par. Por eso
+   se leen normalizados en vez de migrarlos: restaurar un respaldo viejo los vuelve a traer. */
+function fotosDe(m){
+  if(m.fotos && m.fotos.length) return m.fotos;
+  if(m.foto || m.fotoArch)
+    return [{mini:m.foto||null, arch:m.fotoArch||null, tipo:m.fotoTipo||'img', nom:m.fotoNom||''}];
+  return [];
+}
 
 /* nombre del archivo: tipo, cuenta, fecha, hora y monto — así se lee de un vistazo en
    Drive y se ordena solo. Se arma al GUARDAR, cuando ya están todos los datos. */
@@ -2288,17 +2334,20 @@ function limpioNom(t){
    se ordenan juntos y se mueven en bloque a "Transacciones Negocio" / "Transacciones
    Personal". (Si Marco activa "Preguntar dónde guardar cada archivo" en Chrome, elige la
    carpeta en el momento y ya no tiene que mover nada.) */
-function nombreFoto(mv, ext){
+/* `k` es el número de foto dentro del movimiento: con varias, el nombre lleva -2, -3…
+   La primera va SIN sufijo, para que los archivos ya bajados no cambien de nombre. */
+function nombreFoto(mv, ext, k){
   var destino = (mv.ambito==='Negocio') ? 'negocio' : 'personal';
   var p=[destino, limpioNom(mv.tipo), limpioNom(mv.cuenta),
          mv.fecha.replace(/-/g,''), (mv.hora||'').replace(':',''),
          Math.round(mv.amount)];
   if(mv.agente) p.push(limpioNom(mv.agente).slice(0,18));
+  if(k>0) p.push(String(k+1));
   return p.filter(Boolean).join('-')+'.'+(ext||'jpg');
 }
-function guardarFoto(mv, dataUrl, tipo){
+function guardarFoto(mv, dataUrl, tipo, k){
   var pdf=(tipo==='pdf');
-  var nom=nombreFoto(mv, pdf?'pdf':'jpg');
+  var nom=nombreFoto(mv, pdf?'pdf':'jpg', k||0);
   try{
     var b=atob(dataUrl.split(',')[1]), n=b.length, u=new Uint8Array(n);
     while(n--) u[n]=b.charCodeAt(n);
@@ -3070,11 +3119,14 @@ $('guardar').onclick=function(){
     /* el viaje solo tiene sentido en lo que se gasta o se recibe: en transferencias,
        ajustes y cambios de valor no se guarda (`T.sinAmb` son justo esos) */
     viaje:(T.sinAmb?null:(st.viaje||null)),
-    desc:$('desc').value.trim(), foto:st.foto,
+    desc:$('desc').value.trim(),
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
-  /* la foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
-     movimiento solo queda su nombre, para poder encontrarla */
-  if(st.fotoFull) mv.fotoArch=guardarFoto(mv, st.fotoFull, st.fotoTipo);
+  /* cada foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
+     movimiento solo queda la miniatura y el nombre del archivo, para poder encontrarla */
+  if(st.fotos.length) mv.fotos=st.fotos.map(function(F,k){
+    return {mini:F.mini||null, tipo:F.tipo, nom:F.nom||'',
+            arch: F.full ? guardarFoto(mv, F.full, F.tipo, k) : (F.arch||null)};
+  });
   var a=movs(); a.unshift(mv);
   if(!saveMovs(a)) return;
   /* que lo veas caer: si el movimiento queda fuera de lo que estás viendo, la vista se
@@ -3089,9 +3141,9 @@ $('guardar').onclick=function(){
 };
 function limpiarForm(){
   st.amount="0"; calcLimpia();
-  st.partes=null; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
-  $('interes').value=''; setAgente(null); verPad(false); $('fotoImg').style.display='';
-  pintaPartes();
+  st.partes=null; $('desc').value=''; st.fotos=[];
+  $('interes').value=''; setAgente(null); verPad(false);
+  pintaPartes(); pintaFotos();
   st.viajeManual=false;   // el siguiente movimiento vuelve a decidirse por las fechas
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has');
@@ -3139,7 +3191,10 @@ function filaMov(m,cid){
         : m.tipo==='Cambio de valor' ? (m.dir>0?' i':'')
         : m.tipo==='Ingreso'?' i':esTransf?' tr':dosCuentas(m.tipo)?' t':'';
   }
-  return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+(m.foto?'<span class="pin">📎</span>':'')+'</div>'+
+  /* con varias fotos el clip lleva el número, para saber cuántas trae sin abrirlo */
+  var nf=fotosDe(m).length;
+  return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+
+    (nf?'<span class="pin">'+(nf>1?'<b>'+nf+'</b>':'📎')+'</span>':'')+'</div>'+
     '<div class="info"><div class="c"><span class="lb">'+lab+'</span>'+(m.msi?'<span class="msi-b">'+m.meses+' MSI</span>':'')+extra+'</div>'+
     '<div class="d">'+meta+'</div></div>'+
     '<div class="amt'+cls+'">'+sig+fmtM(monto,mn)+'</div></div>';
@@ -3508,30 +3563,40 @@ function editarMov(id, pre){
      a llamar a editarMov). `fotoFull` solo existe cuando la acaba de escoger: es lo que se
      baja al archivo al guardar. */
   /* `pre.fot` puede venir en undefined (leer() lo incluye siempre), así que no sirve
-     preguntar con `in`: se pregunta por el valor */
-  var fot = (pre && pre.fot) ? pre.fot
-          : {foto:m.foto||null, fotoFull:null, fotoTipo:null, fotoNom:null, arch:m.fotoArch||null};
+     preguntar con `in`: se pregunta por el valor. Es una LISTA desde el 11-ago-2026;
+     `fotosDe` normaliza los movimientos viejos que traían una sola. */
+  var fot = (pre && pre.fot) ? pre.fot : fotosDe(m).map(function(F){
+    return {mini:F.mini||null, full:null, tipo:F.tipo||'img', nom:F.nom||'', arch:F.arch||null};
+  });
   function pintaFotoEd(){
-    var hay = fot.foto || fot.fotoFull || fot.arch;
-    $('eFotoRo').innerHTML = hay
-      ? (fot.fotoTipo==='pdf' ? '📄  '+(fot.fotoNom||'PDF') : '🖼️  '+(fot.fotoFull?'Foto nueva':'Con foto'))
+    $('eFotoRo').innerHTML = fot.length
+      ? '🖼️  '+fot.length+(fot.length===1?' archivo':' archivos')
       : '<span style="color:var(--mut)">Sin foto · toca para agregar</span>';
-    $('eFotoPrev').innerHTML =
-      (fot.foto?'<img class="big" src="'+fot.foto+'" alt="Nota">':'')+
-      (fot.arch&&!fot.fotoFull?'<div class="note">La foto completa está en <b>Descargas</b> como '+
-        '<b>'+fot.arch+'</b>, y de ahí sube sola a Drive.</div>':'')+
-      (fot.fotoFull?'<div class="note">Se guarda como archivo en <b>Descargas</b> al guardar el movimiento'+
-        (fot.fotoPeso?' · <b>'+kbTxt(fot.fotoPeso)+'</b> (calidad '+fotoCal().n.toLowerCase()+')':'')+'.</div>':'')+
-      (hay?'<div class="edit-acts"><button class="b-del" id="eFotoX">Quitar la foto</button></div>':'');
-    if($('eFotoX')) $('eFotoX').onclick=function(){
-      fot={foto:null, fotoFull:null, fotoTipo:null, fotoNom:null, arch:null}; pintaFotoEd(); };
+    var nuevas=fot.filter(function(F){ return F.full; }).length;
+    $('eFotoPrev').innerHTML = fot.length
+      ? '<div class="ftlist" style="padding:0 16px 4px">'+
+          fot.map(function(F,i){
+            return '<div class="ft" data-i="'+i+'">'+
+              (F.mini?'<img src="'+F.mini+'" alt="">':'<span>📄</span>')+
+              '<button class="x" data-del="'+i+'" aria-label="Quitar">✕</button></div>';
+          }).join('')+'</div>'+
+        '<div class="note">'+
+          (nuevas?'<b>'+nuevas+'</b> se guarda'+(nuevas===1?'':'n')+' en <b>Descargas</b> al guardar el movimiento. ':'')+
+          (fot.length-nuevas?'Las demás ya están en <b>Descargas</b>.':'')+'</div>'
+      : '';
+    $('eFotoPrev').querySelectorAll('.x').forEach(function(b){
+      b.onclick=function(e){ e.stopPropagation(); fot.splice(+b.dataset.del,1); pintaFotoEd(); };
+    });
+    $('eFotoPrev').querySelectorAll('.ft[data-i]').forEach(function(el){
+      el.onclick=function(){ var F=fot[+el.dataset.i]; if(F&&F.mini) verFoto(F.mini); };
+    });
   }
   pintaFotoEd();
   $('eFoto').onclick=function(){
     var v=leer(); v.fot=fot;                       // no se pierde lo tecleado
     hojaFoto(function(f){
-      leerFoto(f, fot, function(){
-        fot.arch=null;                             // es otra foto: el archivo viejo ya no aplica
+      leerFoto(f, function(F){
+        fot.push(F);                               // se AGREGA, ya no reemplaza
         v.fot=fot; editarMov(id, v);
       });
     });
@@ -3575,9 +3640,14 @@ function editarMov(id, pre){
       /* la foto: la miniatura vive en el movimiento y la completa se baja a Descargas,
          igual que al capturar. Se baja DESPUÉS de escribir los datos, porque el nombre
          del archivo se arma con la fecha, el monto y el agente ya actualizados. */
-      b[i].foto = fot.foto || null;
-      if(fot.fotoFull) b[i].fotoArch = guardarFoto(b[i], fot.fotoFull, fot.fotoTipo);
-      else if(!fot.arch) b[i].fotoArch = null;      // la quitó
+      /* las que trae `full` se acaban de escoger y se bajan ahora; las demás ya estaban
+         en Descargas y conservan su nombre. Se limpia el par viejo (`foto`/`fotoArch`)
+         para no dejar la primera guardada dos veces. */
+      b[i].fotos = fot.length ? fot.map(function(F,k){
+        return {mini:F.mini||null, tipo:F.tipo, nom:F.nom||'',
+                arch: F.full ? guardarFoto(b[i], F.full, F.tipo, k) : (F.arch||null)};
+      }) : undefined;
+      delete b[i].foto; delete b[i].fotoArch; delete b[i].fotoTipo; delete b[i].fotoNom;
       break; }
     if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Actualizado'); }
   };
@@ -4252,7 +4322,7 @@ function avisoRespaldo(){
 }
 function renderCfg(){
   var c=cfg(), a=movs(), L=ctas(), kb=Math.round(pesoDatos()/1024);
-  var fotos=a.filter(function(m){return m.foto;}).length;
+  var fotos=a.reduce(function(s,m){ return s+fotosDe(m).length; },0);
   var resp=estadoRespaldo();
   function fila(id,ic,nom,val,sub){
     return '<div class="cfg-i" data-a="'+id+'"><div class="ic">'+ic+'</div>'+
@@ -4818,7 +4888,7 @@ function clip(t,n){ t=String(t||''); return t.length>n ? t.slice(0,n-1)+'…' : 
 function revisarImport(d,nombre){
   var mios=movs(), ids={}; mios.forEach(function(m){ ids[m.id]=1; });
   var fechas=d.movimientos.map(function(m){return m.fecha;}).filter(Boolean).sort();
-  var ctasN=(d.cuentas||[]).length, conFoto=d.movimientos.filter(function(m){return m.foto;}).length;
+  var ctasN=(d.cuentas||[]).length, conFoto=d.movimientos.filter(function(m){return fotosDe(m).length;}).length;
 
   /* ---- IMPORTACIÓN PARCIAL POR CUENTA (5-ago-2026) ----
      Marco: "debe haber alguna manera de hacer importación parcial de movimientos por
