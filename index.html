@@ -14,6 +14,7 @@
   --gasto:#d64f45; --ingreso:#2fa25f; --op:#c9772e;
   --soft-ink:#c5cbf5;                          /* texto sobre accent-soft */
   --chip-bg:#3a2c17; --chip-ink:#e0b177;       /* la etiqueta del ámbito */
+  --vje-bg:#12363a; --vje-ink:#6fd3d8;         /* la etiqueta del viaje */
   --nuevo-bg:#173d27; --nuevo-ink:#5fd08d;     /* el "+ nuevo" de las listas */
   --del-line:#4a2b28;                          /* borde del botón Borrar */
   --avres-bg:#3a2a12; --avres-line:#6b4c1d; --avres-ink:#f0d9a8;   /* aviso de respaldo */
@@ -277,6 +278,31 @@ button{font-family:inherit;}
 .mov .amt.tr{color:var(--ink);}
 .msi-b{font-size:9.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 6px;border-radius:6px;margin-left:6px;}
 .amb-b{font-size:9.5px;color:var(--chip-ink);background:var(--chip-bg);padding:1px 6px;border-radius:6px;margin-left:6px;}
+.vje-b{font-size:9.5px;color:var(--vje-ink);background:var(--vje-bg);padding:1px 6px;border-radius:6px;margin-left:6px;}
+.mov .info .c .vje-b{flex:none;}
+/* ---- resumen de un viaje ---- */
+.vjeres{display:flex;gap:9px;padding:12px 16px 4px;}
+.vjekpi{flex:1;background:var(--surface);border-radius:12px;padding:10px 12px;text-align:center;}
+.vjekpi b{display:block;font-size:17px;font-variant-numeric:tabular-nums;letter-spacing:-.3px;}
+.vjekpi small{display:block;color:var(--mut);font-size:10.5px;margin-top:2px;}
+.vjerow{display:flex;align-items:center;gap:10px;padding:6px 16px;}
+.vjenm{width:34%;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vjetrack{flex:1;height:16px;background:var(--surface);border-radius:5px;overflow:hidden;}
+.vjebar{height:100%;background:var(--vje-ink);border-radius:5px;}
+.vjeval{width:96px;text-align:right;font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;}
+.vjeval small{display:block;color:var(--mut);font-weight:400;font-size:10px;}
+/* la lista para marcar/desmarcar movimientos de un viaje */
+.vjepick{display:flex;align-items:center;gap:11px;padding:9px 16px;border-top:1px solid var(--surface);cursor:pointer;}
+.vjepick .tx{flex:1;min-width:0;}
+.vjepick .t1{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vjepick .t2{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vjepick .mo{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.vjepick .bx{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);flex:none;
+  display:grid;place-items:center;font-size:13px;color:transparent;}
+.vjepick.on .bx{background:var(--vje-ink);border-color:var(--vje-ink);color:var(--ground);}
+.vjebar-f{position:sticky;bottom:0;background:var(--ground);border-top:1px solid var(--line);
+  padding:11px 16px;display:flex;align-items:center;gap:11px;}
+.vjebar-f .cnt{flex:1;font-size:12.5px;color:var(--mut);}
 .empty{padding:38px 24px;text-align:center;color:var(--mut2);font-size:13.5px;line-height:1.6;}
 .export{display:flex;gap:9px;padding:14px 16px 18px;}
 .export button{border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);}
@@ -638,6 +664,12 @@ button{font-family:inherit;}
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
         <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
           <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s" id="agLb">Comercio o persona</div></div><div class="chev">›</div></button>
+        <!-- El renglón de VIAJE solo existe si ya hay algún viaje creado: mientras no haya,
+             sería un campo vacío estorbando en cada captura. Cuando la fecha cae dentro del
+             rango de un viaje se pone solo; si no, queda en "Sin viaje" y se toca nada más
+             cuando haga falta (el boleto que compras un mes antes). -->
+        <button class="row" id="rowVje" style="display:none"><div class="ic" id="vjeIc">🧳</div>
+          <div class="lb"><div class="t" id="vjeNm">Sin viaje</div><div class="s" id="vjeLb">Viaje</div></div><div class="chev">›</div></button>
       </div>
       <div class="rows" id="intBox" style="display:none">
         <div class="row" style="cursor:default"><div class="ic">%</div>
@@ -765,7 +797,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260810-2037";
+<script>window.MM_VER="20260811-1002";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -989,6 +1021,31 @@ function cats(){  var v=ld(K_CAT,null); return (v&&v.length)?v:CATS.slice(); }
 function ings(){  var v=ld(K_ING,null); return (v&&v.length)?v:ING_CATS.slice(); }
 function negs(){  var v=ld(K_NEG,null); return (v&&v.length)?v:NEG_CATS.slice(); }
 function ambitos(){ var v=ld(K_AMB,null); return (v&&v.length)?v:AMBITOS.slice(); }
+/* ---- VIAJES (10-ago-2026) ----
+   Un viaje NO es una categoría: es una etiqueta que CRUZA todas las categorías. Una cena en
+   Mérida sigue siendo Restaurantes y sigue contando en Alimentación; el viaje solo agrega
+   otra forma de agrupar. Marco: "hay gastos normales de comida, restaurantes,
+   entretenimiento, que existen en la rutina diaria y que se dan en los viajes".
+   Por eso vive en su propio campo (`m.viaje`, el NOMBRE del viaje) y no toca ni la
+   categoría ni el ámbito. Los tableros no se enteran.
+   Cada viaje lleva FECHAS: dentro de ese rango la captura lo pone sola, pero el campo
+   siempre se puede tocar — el boleto de avión se compra un mes antes. */
+var K_VJE='appcaptura_viajes_v1';
+function viajes(){ var v=ld(K_VJE,null); return (v&&v.length)?v:[]; }
+function guardaViajes(V){ return sv(K_VJE,V); }
+function viajePorNom(n){ return viajes().filter(function(v){return v.n===n;})[0]||null; }
+/* el viaje cuyo rango cubre esa fecha; si se solapan gana el que empezó después */
+function viajeEn(f){
+  var C=viajes().filter(function(v){ return v.ini&&v.fin&&f>=v.ini&&f<=v.fin; });
+  C.sort(function(a,b){ return a.ini<b.ini?1:-1; });
+  return C[0]||null;
+}
+function icoViaje(n){ var v=viajePorNom(n); return (v&&v.e)||'🧳'; }
+/* cuántos días cubre el viaje, contando los dos extremos */
+function diasViaje(v){
+  if(!v.ini||!v.fin) return 0;
+  return Math.round((new Date(v.fin+'T12:00:00')-new Date(v.ini+'T12:00:00'))/86400000)+1;
+}
 /* ---- arreglos que no llegan solos ----
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
@@ -1396,6 +1453,7 @@ function hoyISO(){ return dISO(new Date()); }
 var st={tipo:"Gasto", cuentaId:'c1', cuenta2Id:'c2',
         cat:{g:"Alimentación",e:"🧺",sub:"Víveres"},
         amount:"0", msi:false, meses:12, foto:null, agente:null, ambito:'Personal',
+        viaje:null, viajeManual:false,
         fecha:hoyISO(),
         hora:new Date().toTimeString().slice(0,5)};
 
@@ -1593,7 +1651,11 @@ var FILTROS=[
    ok:function(m){ return !tipoDe(m.tipo).sinAg && !m.ajuste &&
                           !(m.agente||'').trim() && !(m.desc||'').trim(); }},
   {k:'foto', n:'Con foto', d:'los que traen nota fotografiada',
-   ok:function(m){ return !!(m.foto||m.fotoArch); }}
+   ok:function(m){ return !!(m.foto||m.fotoArch); }},
+  /* solo aparece cuando ya hay viajes creados: si no, sería un chip que nunca encuentra nada */
+  {k:'viaje', n:'De un viaje', d:'los que marcaste con algún viaje',
+   solo:function(){ return viajes().length>0; },
+   ok:function(m){ return !!m.viaje; }}
 ];
 var buscando=false, buscTodo=false, buscFil=null;
 function abreBusqueda(v){
@@ -1646,7 +1708,7 @@ function renderBusqueda(){
        mientras escribía (Marco, 8-ago-2026). Además es mejor orden: primero lo que se toca,
        después la explicación. */
     $('ctaMovs').innerHTML=
-      '<div class="filbar">'+FILTROS.map(function(x){
+      '<div class="filbar">'+FILTROS.filter(function(x){ return !x.solo || x.solo(); }).map(function(x){
         var n=enPer.filter(x.ok).length;
         return '<button class="filchip'+(n?'':' vacio')+'" data-k="'+x.k+'">'+x.n+
                '<b>'+n+'</b></button>';}).join('')+'</div>'+
@@ -1909,6 +1971,9 @@ $('pad').addEventListener('click',function(e){
 function pintaFecha(){
   var hoy=hoyISO();
   $('fechaLbl').textContent=(st.fecha===hoy?'hoy':dstr(st.fecha))+' '+st.hora;
+  /* la fecha manda sobre el viaje: al moverla se re-evalúa (salvo que él ya lo haya
+     puesto a mano, ver `sugiereViaje`) */
+  sugiereViaje(); pintaViaje();
 }
 $('fechaBtn').onclick=function(){
   openSheet('Fecha y hora');
@@ -2492,6 +2557,95 @@ function setAmbito(n){
   st.ambito=A.n; $('ambNm').textContent=A.n; $('ambIc').textContent=A.e;
   acomodaCat();
 }
+
+/* ================= viajes: el renglón de la captura =================
+   El nombre del viaje lo escribe Marco, así que puede traer comillas: se escapa antes de
+   meterlo en un atributo. Las otras listas son fijas y por eso no lo necesitan. */
+function escAtr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                      .replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function rangoViaje(v){
+  if(!v.ini||!v.fin) return 'sin fechas';
+  var a=new Date(v.ini+'T12:00:00'), b=new Date(v.fin+'T12:00:00');
+  return a.getDate()+' '+M[a.getMonth()]+' – '+b.getDate()+' '+M[b.getMonth()]+' '+b.getFullYear()+
+         ' · '+diasViaje(v)+' día'+(diasViaje(v)===1?'':'s');
+}
+function pintaViaje(){
+  var r=$('rowVje'); if(!r) return;
+  if(!viajes().length){ r.style.display='none'; st.viaje=null; return; }
+  r.style.display='';
+  var sug=viajeEn(st.fecha);
+  $('vjeNm').textContent = st.viaje || 'Sin viaje';
+  $('vjeIc').textContent = st.viaje ? icoViaje(st.viaje) : '🧳';
+  /* la letra chica explica POR QUÉ está puesto: si lo puso la fecha, que se note */
+  $('vjeLb').textContent = st.viaje
+      ? ((sug && sug.n===st.viaje && !st.viajeManual) ? 'Viaje · puesto por las fechas' : 'Viaje')
+      : (sug ? 'Viaje · toca para marcarlo' : 'Viaje · opcional');
+}
+/* La sugerencia por fechas NO pisa lo que él ya decidió a mano: si lo puso —o lo quitó—
+   manda su decisión aunque después mueva la fecha. */
+function sugiereViaje(){
+  if(st.viajeManual) return;
+  var v=viajeEn(st.fecha);
+  st.viaje = v ? v.n : null;
+}
+function setViaje(n){ st.viaje=n||null; st.viajeManual=true; pintaViaje(); }
+$('rowVje').onclick=function(){ abrirViajes(); };
+
+/* `cb` la usa el EDITOR de un movimiento: en vez de escribir en `st`, devuelve el elegido. */
+function abrirViajes(cb){
+  openSheet('Viaje');
+  var act = cb ? abrirViajes._act : st.viaje;
+  function pinta(){
+    var V=viajes();
+    $('sheetBody').innerHTML=
+      '<div class="sublist">'+
+      V.map(function(v){
+        return '<div class="acct'+(v.n===act?' sel':'')+'" data-n="'+escAtr(v.n)+'">'+
+          '<div class="ic">'+(v.e||'🧳')+'</div><div class="nm">'+escAtr(v.n)+
+          '<small>'+rangoViaje(v)+'</small></div></div>';
+      }).join('')+
+      (act?'<div class="acct" data-n=""><div class="ic">—</div><div class="nm">Quitar el viaje</div></div>':'')+
+      '<div class="sub-i nuevo" id="vjeNuevo"><span class="e">＋</span>Nuevo viaje</div>'+
+      '</div>'+
+      '<div class="note">El viaje no cambia la categoría: una cena de viaje sigue siendo '+
+        'Restaurantes y sigue contando en Alimentación. Solo sirve para poder sumar aparte '+
+        'lo que gastaste en ese viaje.</div>';
+    $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+      el.onclick=function(){
+        var n=el.dataset.n||null;
+        if(cb){ cb(n); } else { setViaje(n); }
+        cerrarYaPintado();
+      };
+    });
+    $('vjeNuevo').onclick=function(){ nuevoViaje(function(n){ if(cb){cb(n);cerrarYaPintado();} else {setViaje(n); cerrarYaPintado();} }); };
+  }
+  pinta();
+}
+/* Alta rápida desde la captura: nombre + fechas y ya. Lo demás se afina en Ajustes.
+   Se arranca con las fechas de hoy porque el caso normal es "ya estoy en el viaje". */
+function nuevoViaje(listo){
+  openSheet('Nuevo viaje');
+  var hoy=hoyISO();
+  $('sheetBody').innerHTML='<div class="edit-b">'+
+    '<div class="fld"><div class="k">¿Cómo se llama?</div>'+
+      '<input id="vnN" type="text" placeholder="Mérida, Disney, Ruta de los cenotes…" autocomplete="off"></div>'+
+    '<div class="fld"><div class="k">Empieza</div><input id="vnI" type="date" value="'+hoy+'"></div>'+
+    '<div class="fld"><div class="k">Termina</div><input id="vnF" type="date" value="'+hoy+'"></div>'+
+    '<div class="edit-acts"><button class="b-save" id="vnOk">Crear viaje</button></div>'+
+    '<div class="note">Dentro de esas fechas, lo que captures se marca solo con este viaje. '+
+      'Puedes cambiarlas después, y también marcar a mano lo que caiga fuera —como el boleto '+
+      'que compras con anticipación.</div></div>';
+  setTimeout(function(){ $('vnN').focus(); }, 80);
+  $('vnOk').onclick=function(){
+    var n=$('vnN').value.trim();
+    if(!n){ toast('Ponle nombre al viaje',true); return; }
+    if(viajePorNom(n)){ toast('Ya tienes un viaje con ese nombre',true); return; }
+    var i=$('vnI').value||hoy, f=$('vnF').value||i;
+    if(f<i){ var t=i; i=f; f=t; }          // si los invierte, se acomodan solos
+    var V=viajes(); V.push({n:n, e:'🧳', ini:i, fin:f}); guardaViajes(V);
+    listo(n);
+  };
+}
 /* Si la categoría puesta no existe en el catálogo que ahora toca, se cambia sola: si no,
    un gasto del negocio se quedaría con "Alimentación · Víveres" y un ingreso con una
    categoría de gasto. En ingreso arranca en Negocio, que es de donde le entra casi todo. */
@@ -2905,6 +3059,9 @@ $('guardar').onclick=function(){
     amount:num(), msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente,
     ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g) : st.ambito),
+    /* el viaje solo tiene sentido en lo que se gasta o se recibe: en transferencias,
+       ajustes y cambios de valor no se guarda (`T.sinAmb` son justo esos) */
+    viaje:(T.sinAmb?null:(st.viaje||null)),
     desc:$('desc').value.trim(), foto:st.foto,
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
   /* la foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
@@ -2927,6 +3084,7 @@ function limpiarForm(){
   st.partes=null; $('desc').value=''; st.foto=null; st.fotoFull=null; st.fotoTipo=null; st.fotoNom=null;
   $('interes').value=''; setAgente(null); verPad(false); $('fotoImg').style.display='';
   pintaPartes();
+  st.viajeManual=false;   // el siguiente movimiento vuelve a decidirse por las fechas
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has');
   if(st.msi){ st.msi=false; $('msiSw').classList.remove('on'); $('msiBody').classList.remove('show'); }
@@ -2947,7 +3105,9 @@ function filaMov(m,cid){
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : m.sub;
   if(m.partes && m.partes.length>1) lab += ' +'+(m.partes.length-1)+' más';
   var extra = (m.interes ? '<span class="msi-b">interés '+fmtM(m.interes,m.mon)+'</span>' : '')
-            + (m.ambito&&m.ambito!=='Personal' ? '<span class="amb-b">'+m.ambito+'</span>' : '');
+            + (m.ambito&&m.ambito!=='Personal' ? '<span class="amb-b">'+m.ambito+'</span>' : '')
+            /* el viaje también se marca solo como excepción, igual que el ámbito */
+            + (m.viaje ? '<span class="vje-b">'+icoViaje(m.viaje)+' '+escAtr(m.viaje)+'</span>' : '');
   /* `sinHora` = el movimiento vino de un estado de cuenta, que NO reporta la hora. La hora
      que trae adentro es sintética: sirve para conservar el ORDEN del estado de cuenta, pero
      no se enseña — Marco usa la hora para cotejar contra el banco y una hora inventada sería
@@ -3157,6 +3317,9 @@ function editarMov(id, pre){
   var dirM = (pre&&pre.dir) || m.dir || -1;
   var ambN = (pre&&pre.amb) || m.ambito || 'Personal';
   var amb  = ambitos().filter(function(x){return x.n===ambN;})[0] || ambitos()[0];
+  /* `pre.vje` puede venir en null a propósito (le quitó el viaje), así que se pregunta
+     si el campo VIENE, no si tiene valor */
+  var vjeN = (pre && ('vje' in pre)) ? pre.vje : (m.viaje||null);
   /* cuando el grupo no tiene subcategorías, sub == grupo: se escribe una sola vez */
   function texto(c){ return (c.sub && c.sub!==c.g) ? (c.g+' · '+c.sub) : c.g; }
   var lab = m.ajuste ? m.cuenta
@@ -3175,6 +3338,12 @@ function editarMov(id, pre){
     /* en un Ingreso el ámbito se deriva de la categoría: ni se pregunta ni se edita */
     ((m.ajuste||m.tipo==='Ingreso')?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
       '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
+    /* el viaje solo se ofrece si ya hay viajes creados, y no en transferencias ni ajustes */
+    ((m.ajuste||T.sinAmb||!viajes().length)?'':
+      '<button class="fld tocable" id="eVje"><div class="k">Viaje</div>'+
+      '<div class="ro">'+(vjeN?icoViaje(vjeN)+'  '+escAtr(vjeN)
+                              :'<span style="color:var(--mut)">Sin viaje</span>')+
+      '</div><div class="chev">›</div></button>')+
     '<div class="fld"><div class="k">Descripción</div><input id="eDesc" type="text" value="'+(m.desc||'').replace(/"/g,'&quot;')+'" placeholder="—"></div>'+
     '<div class="fld"><div class="k">Fecha</div><input id="eFec" type="date" value="'+m.fecha+'"></div>'+
     '<div class="fld"><div class="k">Hora</div><input id="eHor" type="time" value="'+m.hora+'"></div>'+
@@ -3218,7 +3387,7 @@ function editarMov(id, pre){
     '<div class="edit-acts"><button class="b-del" id="eDel">Borrar</button><button class="b-save" id="eSave">Guardar</button></div>'+
     '</div>'+
     padHojaHTML().replace('class="pad mini"','class="pad mini oculto"');
-  function leer(){ return {amt:$('eAmt').value, ag:agN,
+  function leer(){ return {amt:$('eAmt').value, ag:agN, vje:vjeN,
       amb:$('eAmb')?amb.n:null, desc:$('eDesc').value,
       fec:$('eFec').value, hor:$('eHor').value, cat:cat,
       ctaId:cta1?cta1.id:null, desId:cta2?cta2.id:null, dir:dirM,
@@ -3278,6 +3447,12 @@ function editarMov(id, pre){
         '<div class="nm">'+A.n+'<small>'+A.d+'</small></div></div>';}).join('');
     $('sheetBody').querySelectorAll('.acct').forEach(function(el){
       el.onclick=function(){ v.amb=el.dataset.n; editarMov(id,v); }; });
+    volverHoja=function(){ editarMov(id, v); };
+  };
+  if($('eVje')) $('eVje').onclick=function(){
+    var v=leer();
+    abrirViajes._act=vjeN;
+    abrirViajes(function(n){ v.vje=n; editarMov(id,v); });
     volverHoja=function(){ editarMov(id, v); };
   };
   if($('eCta')) $('eCta').onclick=function(){
@@ -3366,6 +3541,7 @@ function editarMov(id, pre){
     var b=movs(); for(var i=0;i<b.length;i++) if(b[i].id===id){
       b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=(agN||'').trim()||null;
       if($('eAmb')) b[i].ambito=amb.n;
+      if($('eVje')) b[i].viaje=vjeN||null;
       /* el ámbito de un Ingreso sigue a la categoría, también al editarla */
       if(b[i].tipo==='Ingreso') b[i].ambito=ambDeIngreso(editable?cat.g:b[i].grupo);
       if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
@@ -3860,7 +4036,7 @@ var TEMAS=[
    '--fondo':'#0e1621', '--ground':'#17212b', '--surface':'#1e2c3a', '--surface2':'#26374a',
    '--line':'#33475d', '--ink':'#eaf0f6', '--mut':'#8ea3b8', '--mut2':'#63798f',
    '--accent-soft':'#22305c', '--accent-ink':'#9fb2ff', '--soft-ink':'#cdd6f8',
-   '--chip-bg':'#3d3320', '--nuevo-bg':'#1c4630', '--del-line':'#52322e',
+   '--chip-bg':'#3d3320', '--vje-bg':'#173d47', '--nuevo-bg':'#1c4630', '--del-line':'#52322e',
    '--avres-bg':'#40311a', '--avres-line':'#75542a', '--avres-ink':'#f2dfb2',
    '--scrim':'rgba(4,12,20,.62)'}},
  {n:'Día', d:'claro', v:{
@@ -3869,6 +4045,7 @@ var TEMAS=[
    '--accent-soft':'#e6e9ff', '--accent-ink':'#3b49c4', '--soft-ink':'#2d3894',
    '--gasto':'#c62f26', '--ingreso':'#1e7a45', '--op':'#a85d18',
    '--chip-bg':'#fdf1dd', '--chip-ink':'#8a5a17',
+   '--vje-bg':'#dff3f4', '--vje-ink':'#12666e',
    '--nuevo-bg':'#e0f5e8', '--nuevo-ink':'#1e7a45', '--del-line':'#f0c9c5',
    '--avres-bg':'#fff4dc', '--avres-line':'#e6c98a', '--avres-ink':'#7a5410',
    '--scrim':'rgba(23,26,31,.38)'}}
@@ -4091,6 +4268,9 @@ function renderCfg(){
     fila('negs','🏪','Categorías del negocio', negs().length+' grupos',
          'salen cuando el ámbito es Negocio')+
     fila('ambitos','🏷️','Ámbitos', ambitos().length, ambitos().map(function(x){return x.n;}).join(' · '))+
+    fila('viajes','🧳','Viajes', viajes().length||'—',
+         viajes().length ? viajes().map(function(x){return x.n;}).join(' · ')
+                         : 'para sumar aparte lo que gastas en un viaje')+
     fila('agentes','👤','Agentes', agentes().length, 'comercios y personas')+
     fila('ocultas','🙈','Cuentas ocultas', L.filter(function(x){return x.oculta;}).length,
          'siguen contando, no se listan')+
@@ -4170,6 +4350,7 @@ function renderCfg(){
       else if(a==='ings') verCategorias('ingreso');
       else if(a==='negs') verCategorias('negocio');
       else if(a==='ambitos') verAmbitos();
+      else if(a==='viajes') verViajes();
       else if(a==='centavos'){ setCfg('centavos', cfg().centavos===false); renderCfg(); renderCuenta(); renderSaldos(); }
       else if(a==='semana'){ setCfg('semana', cfg().semana===1?0:1); renderCfg(); renderCal(); }
       else if(a==='letra') elegirLetra();
@@ -4387,6 +4568,162 @@ function editarAmbito(i){
     var uso=movs().filter(function(m){return m.ambito===A.n;}).length;
     ask('¿Borrar el ámbito <b>'+A.n+'</b>?'+(uso?'<br><span style="color:var(--op)">Lo usan '+uso+' movimientos; ahí se queda escrito.</span>':''),
       'Borrar', function(){ var B=ambitos(); B.splice(i,1); saveAmbitos(B); verAmbitos(); toast('Borrado'); });
+  };
+}
+
+/* ================= VIAJES =================
+   Lo que gastó en un viaje sumado aparte, SIN sacarlo de sus categorías: la cena sigue
+   contando en Alimentación y también aquí. Por eso los números de esta pantalla no se
+   restan de ningún lado — son otra forma de cortar los mismos movimientos. */
+function resumenViaje(n){
+  var g=0, ing=0, k=0, grupos={};
+  movs().forEach(function(m){
+    if(m.viaje!==n) return;
+    var v=aBase(m.amount, m.mon);
+    if(m.tipo==='Gasto'){ g+=v; k++; grupos[m.grupo]=(grupos[m.grupo]||0)+v; }
+    else if(m.tipo==='Ingreso') ing+=v;
+  });
+  return {total:g, ingreso:ing, n:k, grupos:grupos};
+}
+function verViajes(){
+  var L=viajes();
+  openSheet('Viajes');
+  $('sheetBody').innerHTML=
+    L.map(function(v,i){
+      var r=resumenViaje(v.n);
+      return '<div class="acct" data-i="'+i+'"><div class="ic">'+(v.e||'🧳')+'</div>'+
+        '<div class="nm">'+escAtr(v.n)+'<small>'+rangoViaje(v)+'</small></div>'+
+        '<div class="tag">'+(r.n?fmt2(r.total):'sin gastos')+'</div></div>';
+    }).join('')+
+    '<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Nuevo viaje</div></div>'+
+    '<div class="note">Marca un gasto con un viaje y podrás ver cuánto te costó ese viaje '+
+      'completo, juntando el hospedaje y los boletos con la comida y los paseos. '+
+      '<b>No cambia nada más</b>: cada gasto sigue contando en su categoría de siempre.</div>';
+  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
+    el.onclick=function(){
+      if(el.dataset.nuevo){ nuevoViaje(function(){ verViajes(); toast('Viaje creado'); }); }
+      else verViaje(+el.dataset.i);
+    };
+  });
+}
+function verViaje(i){
+  var V=viajes(), v=V[i]; if(!v) return;
+  var r=resumenViaje(v.n), dias=diasViaje(v);
+  var gs=Object.keys(r.grupos).sort(function(a,b){ return r.grupos[b]-r.grupos[a]; });
+  var max=gs.length?r.grupos[gs[0]]:1;
+  openSheet((v.e||'🧳')+' '+v.n);
+  $('sheetBody').innerHTML=
+    '<div class="vjeres">'+
+      '<div class="vjekpi"><b>'+fmt2(r.total)+'</b><small>gastado</small></div>'+
+      '<div class="vjekpi"><b>'+r.n+'</b><small>movimiento'+(r.n===1?'':'s')+'</small></div>'+
+      '<div class="vjekpi"><b>'+(dias?fmt2(r.total/dias):'—')+'</b><small>por día · '+dias+'</small></div>'+
+    '</div>'+
+    (r.ingreso?'<div class="note">Además hay <b>'+fmt2(r.ingreso)+'</b> de ingresos marcados '+
+      'con este viaje (reembolsos, devoluciones). No se restan del gastado.</div>':'')+
+    (gs.length
+      ? '<div class="secttl">En qué se fue</div>'+gs.map(function(g){
+          return '<div class="vjerow"><div class="vjenm">'+g+'</div>'+
+            '<div class="vjetrack"><div class="vjebar" style="width:'+
+              Math.max(2, Math.round(r.grupos[g]/max*100))+'%"></div></div>'+
+            '<div class="vjeval">'+fmt2(r.grupos[g])+
+              '<small>'+Math.round(r.grupos[g]/r.total*100)+'%</small></div></div>';
+        }).join('')
+      : '<div class="note">Todavía no hay ningún gasto marcado con este viaje. '+
+        'Dale a <b>Revisar movimientos</b> y marca los que sean.</div>')+
+    '<div class="export" style="margin-top:16px">'+
+      '<button class="btn-imp" id="vjeRev">Revisar movimientos</button>'+
+      '<button class="btn-imp" id="vjeEd">Editar viaje</button>'+
+    '</div>';
+  $('vjeRev').onclick=function(){ revisarViaje(i); };
+  $('vjeEd').onclick=function(){ editarViaje(i); };
+}
+/* Marcar en bloque. Trae DOS cosas: lo que cae dentro de las fechas (aunque no esté
+   marcado) y lo que ya está marcado con este viaje aunque caiga fuera — que es el caso
+   del boleto comprado con anticipación. Así se arregla todo desde una sola pantalla. */
+function revisarViaje(i){
+  var V=viajes(), v=V[i]; if(!v) return;
+  var L=movs().filter(function(m){
+    if(m.ajuste || tipoDe(m.tipo).sinAmb) return false;
+    return m.viaje===v.n || (v.ini && v.fin && m.fecha>=v.ini && m.fecha<=v.fin);
+  }).sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  var sel={}; L.forEach(function(m){ sel[m.id] = (m.viaje===v.n); });
+  openSheet('Movimientos · '+v.n);
+  function pinta(){
+    var n=0, suma=0;
+    L.forEach(function(m){ if(sel[m.id]){ n++; if(m.tipo==='Gasto') suma+=aBase(m.amount,m.mon); } });
+    $('sheetBody').innerHTML=
+      (L.length? '' : '<div class="note">No hay movimientos entre esas fechas. '+
+        'Cambia las fechas del viaje, o marca los gastos uno por uno desde el editor.</div>')+
+      L.map(function(m){
+        /* si ya pertenece a OTRO viaje se avisa: marcarlo aquí se lo quita al otro */
+        var otro = m.viaje && m.viaje!==v.n ? ' · ahora en '+m.viaje : '';
+        return '<div class="vjepick'+(sel[m.id]?' on':'')+'" data-id="'+m.id+'">'+
+          '<div class="bx">✓</div>'+
+          '<div class="tx"><div class="t1">'+(m.sub||m.grupo)+'</div>'+
+          '<div class="t2">'+dstr(m.fecha)+(m.agente?' · '+m.agente:'')+' · '+m.cuenta+otro+'</div></div>'+
+          '<div class="mo">'+fmtM(m.amount,m.mon)+'</div></div>';
+      }).join('')+
+      '<div class="vjebar-f"><span class="cnt">'+n+' marcado'+(n===1?'':'s')+' · '+fmt2(suma)+'</span>'+
+        '<button class="cbtn b-save" id="vjeOk">Guardar</button></div>';
+    $('sheetBody').querySelectorAll('.vjepick').forEach(function(el){
+      el.onclick=function(){ sel[el.dataset.id]=!sel[el.dataset.id]; pinta(); };
+    });
+    $('vjeOk').onclick=function(){
+      var A=movs(), k=0;
+      A.forEach(function(m){
+        if(!(m.id in sel)) return;
+        var nuevo = sel[m.id] ? v.n : (m.viaje===v.n ? null : m.viaje);
+        if((m.viaje||null)!==(nuevo||null)){ m.viaje=nuevo||null; k++; }
+      });
+      if(saveMovs(A)){ renderCuenta(); verViaje(i); toast(k?('Listo · '+k+' movimiento'+(k===1?'':'s')):'Sin cambios'); }
+    };
+  }
+  pinta();
+}
+function editarViaje(i){
+  var L=viajes(), v=L[i]; if(!v) return;
+  openSheet('Editar viaje');
+  $('sheetBody').innerHTML='<div class="edit-b">'+
+    '<div class="fld"><div class="k">Nombre</div><input id="veN" type="text" value="'+escAtr(v.n)+'"></div>'+
+    '<div class="fld"><div class="k">Empieza</div><input id="veI" type="date" value="'+(v.ini||'')+'"></div>'+
+    '<div class="fld"><div class="k">Termina</div><input id="veF" type="date" value="'+(v.fin||'')+'"></div>'+
+    '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
+      '<div class="emojis" id="veE">'+['🧳','✈️','🏖️','🚗','⛺','🎡','🗺️','🏨','🚢','🎿'].map(function(x){
+        return '<button data-e="'+x+'"'+(x===(v.e||'🧳')?' class="on"':'')+'>'+x+'</button>';}).join('')+
+        campoOtroIco('veEotro')+'</div></div>'+
+    '<div class="edit-acts"><button class="b-del" id="veDel">Borrar</button>'+
+      '<button class="b-save" id="veOk">Guardar</button></div></div>';
+  var pick=v.e||'🧳';
+  $('veE').querySelectorAll('button').forEach(function(b){ b.onclick=function(){
+    $('veE').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on'); pick=b.dataset.e; $('veEotro').value=''; }; });
+  conectaOtroIco('veE','veEotro',function(x){ pick=x; });
+  $('veOk').onclick=function(){
+    var nom=$('veN').value.trim(); if(!nom){ toast('Ponle nombre',true); return; }
+    var otro=viajes().filter(function(x,j){ return j!==i && x.n===nom; }).length;
+    if(otro){ toast('Ya tienes otro viaje con ese nombre',true); return; }
+    var ini=$('veI').value||v.ini, fin=$('veF').value||v.fin;
+    if(ini && fin && fin<ini){ var t=ini; ini=fin; fin=t; }
+    var B=viajes(), viejo=B[i].n;
+    B[i]={n:nom, e:pick, ini:ini, fin:fin}; guardaViajes(B);
+    /* renombrar arrastra el cambio a sus movimientos, igual que con los grupos */
+    if(viejo!==nom){
+      var m=movs(), k=0; m.forEach(function(x){ if(x.viaje===viejo){ x.viaje=nom; k++; } });
+      if(k) saveMovs(m);
+      if(st.viaje===viejo) st.viaje=nom;
+    }
+    pintaViaje(); verViajes(); renderCuenta(); toast('Guardado');
+  };
+  $('veDel').onclick=function(){
+    var uso=movs().filter(function(m){ return m.viaje===v.n; }).length;
+    ask('¿Borrar el viaje <b>'+escAtr(v.n)+'</b>?'+
+        (uso?'<br><span style="color:var(--op)">Se le quitará la marca a '+uso+' movimiento'+(uso===1?'':'s')+'. Los movimientos NO se borran.</span>':''),
+      'Borrar', function(){
+        if(uso){ var m=movs(); m.forEach(function(x){ if(x.viaje===v.n) x.viaje=null; }); saveMovs(m); }
+        var B=viajes(); B.splice(i,1); guardaViajes(B);
+        if(st.viaje===v.n){ st.viaje=null; }
+        pintaViaje(); verViajes(); renderCuenta(); toast('Borrado');
+      });
   };
 }
 
@@ -4646,6 +4983,7 @@ function aplicarImport(d,reemplazar,cuantos){
     };
     if(K.agentes)      guardaAgentes(junta(agentes(), K.agentes, null));
     if(K.ambitos)      sv(K_AMB,    junta(ambitos(),  K.ambitos, 'n'));
+    if(K.viajes)       sv(K_VJE,    junta(viajes(),   K.viajes, 'n'));
     if(K.cats_gasto)   saveCats(    junta(cats(),     K.cats_gasto, 'n'));
     if(K.cats_ingreso) saveIngs(    junta(ings(),     K.cats_ingreso, 'n'));
     if(K.cats_negocio) saveNegs(    junta(negs(),     K.cats_negocio, 'n'));
@@ -4669,7 +5007,8 @@ function exportarTodo(){
   var data=JSON.stringify({app:"MasMoney", v:13, generado:new Date().toISOString(),
     base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a,
     catalogos:{agentes:agentes(), agentes_iconos:agIcos(), ambitos:ambitos(),
-               cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs()}},null,2);
+               cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs(),
+               viajes:viajes()}},null,2);
   /* con la fecha en el nombre: se acumulan en Descargas y así se sabe cuál es el bueno */
   var nom='masmoney-backup-'+hoyISO()+'.json';   // va a la carpeta "Masmoney Backup"
   if(window.claude&&window.claude.downloads){
