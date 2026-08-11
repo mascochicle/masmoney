@@ -255,7 +255,14 @@ button{font-family:inherit;}
 .mov .ic{width:31px;height:31px;border-radius:9px;background:var(--surface2);display:grid;place-items:center;font-size:15px;flex:none;position:relative;}
 .mov .ic .pin{position:absolute;bottom:-3px;right:-3px;font-size:9px;}
 .mov .info{flex:1;min-width:0;}
-.mov .info .c{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* El título es una FILA, no una línea de texto: así el nombre se recorta con puntos
+   suspensivos pero los chips (MSI, ámbito) conservan su ancho y se siguen leyendo. Antes
+   todo iba dentro de un solo `overflow:hidden` y en las cuentas con conceptos largos
+   ("Compra de mercancías…") el recorte se comía el chip y quedaba un cuadrito de color
+   sin texto (Marco, 10-ago-2026). */
+.mov .info .c{display:flex;align-items:center;min-width:0;font-size:14px;font-weight:600;}
+.mov .info .c .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.mov .info .c .msi-b,.mov .info .c .amb-b{flex:none;}
 .mov .info .d{font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .mov .amt{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--gasto);white-space:nowrap;}
 .mov .amt.i{color:var(--ingreso);}
@@ -758,7 +765,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260808-0945";
+<script>window.MM_VER="20260810-2037";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2965,7 +2972,7 @@ function filaMov(m,cid){
         : m.tipo==='Ingreso'?' i':esTransf?' tr':dosCuentas(m.tipo)?' t':'';
   }
   return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+(m.foto?'<span class="pin">📎</span>':'')+'</div>'+
-    '<div class="info"><div class="c">'+lab+(m.msi?'<span class="msi-b">'+m.meses+' MSI</span>':'')+extra+'</div>'+
+    '<div class="info"><div class="c"><span class="lb">'+lab+'</span>'+(m.msi?'<span class="msi-b">'+m.meses+' MSI</span>':'')+extra+'</div>'+
     '<div class="d">'+meta+'</div></div>'+
     '<div class="amt'+cls+'">'+sig+fmtM(monto,mn)+'</div></div>';
 }
