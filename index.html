@@ -933,7 +933,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1041";
+<script>window.MM_VER="20260812-1059";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2303,6 +2303,10 @@ function partesDesdeUna(){
 function agregaLinea(){
   partesDesdeUna();
   var vuelve=volverHoja;
+  /* `elegirCatEdit` solo LLENA la hoja: la abre quien la llama. En su uso original venía de
+     `verDividir`, que ya la tenía abierta; desde el formulario hay que abrirla o no se ve
+     nada al tocar el ⊕ (Marco, 12-ago-2026). */
+  openSheet('Grupo');
   elegirCatEdit(catsActuales(), function(c){
     st.partes.push({g:c.g, e:c.e, sub:c.sub, amount:''});
     st.li=st.partes.length-1; st.amount='0'; calcLimpia();
@@ -2312,6 +2316,7 @@ function agregaLinea(){
 }
 function cambiaCatLinea(i){
   var multi=!!(st.partes && st.partes.length>1), vuelve=volverHoja;
+  openSheet('Grupo');
   elegirCatEdit(catsActuales(), function(c){
     if(multi){ st.partes[i].g=c.g; st.partes[i].e=c.e; st.partes[i].sub=c.sub; }
     else pickCat(c.g,c.e,c.sub);
