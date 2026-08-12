@@ -847,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2151";
+<script>window.MM_VER="20260811-2158";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4884,8 +4884,11 @@ function repDescNegocio(){
 }
 function renderRep(){
   var R=repRango(), G=repMovs();
-  /* el ingreso se enseña NETO de las compras del negocio; el gasto va tal cual */
-  var desc=repDescNegocio();
+  /* El ingreso se enseña NETO de las compras del negocio; el gasto va tal cual.
+     ⚠️ La resta SOLO aplica a Personal (o Todos, que lo incluye): lo que el negocio le paga
+     a las tarjetas es ingreso personal, así que la parte que era del negocio se descuenta
+     de ahí. Restarla también de Propiedades daba $5,500 − $12,259 = negativo (11-ago-2026). */
+  var desc=(repAmb('ingreso')==='todos'||repAmb('ingreso')==='Personal') ? repDescNegocio() : 0;
   var bruto=repSuma(G), otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto'));
   var totG=(repModo==='gasto')?bruto:otro;
   var totI=((repModo==='ingreso')?bruto:otro)-desc;
@@ -4945,14 +4948,8 @@ function renderRep(){
         }).join('')
       : '<div class="note">No hay '+(repModo==='ingreso'?'ingresos':'gastos')+
         ' en este periodo'+(A==='todos'?'':' para '+A)+'.</div>')+
-    '<div class="note">Toca un grupo para ver sus movimientos. El filtro de ámbito <b>se '+
-      'recuerda</b>: si lo dejas en Personal, así lo vas a encontrar la próxima vez.'+
-      (repModo==='gasto'
-        ? ' Los <b>pagos de préstamos</b> cuentan como gasto y salen agrupados en <b>Deuda</b>, '+
-          'cada uno con el nombre de la deuda que pagas.'
-        : ' El ingreso de la tienda <b>no se lleva aquí</b>, vive en Ultramart: lo que ves es '+
-          'lo que llega a tus cuentas, incluido lo que el negocio te paga en las tarjetas.')+
-      '</div>'+
+    /* Sin leyendas explicativas: Marco las pidió fuera dos veces (11-ago-2026). Los datos
+       se explican solos y el texto largo estorba en una pantalla de consulta. */
 
     /* ---- viajes: hasta abajo, son ocasionales ---- */
     '<div class="secttl">Viajes</div>'+
