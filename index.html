@@ -847,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2141";
+<script>window.MM_VER="20260811-2151";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4826,8 +4826,13 @@ function ambRep(m){
 /* El orden lo pidió él: Personal, Negocio, Propiedades. Lo que no esté en la lista se
    agrega al final, para que un ámbito nuevo siga apareciendo solo. */
 var REP_ORDEN=['Personal','Negocio','Propiedades'];
-function ambitosRep(){
-  var L=ambitos().filter(function(x){ return x.n!=='Casa Sol'; });
+/* En INGRESOS tampoco va Negocio: el ingreso de la tienda no se lleva en esta app —vive en
+   Ultramart— así que ofrecer ese filtro promete algo que no existe (Marco, 11-ago-2026:
+   "el ingreso del negocio no lo llevo aquí, lo más correcto es quitarlo del reporte"). */
+function ambitosRep(modo){
+  var mo=modo||repModo;
+  var L=ambitos().filter(function(x){
+    return x.n!=='Casa Sol' && !(mo==='ingreso' && x.n==='Negocio'); });
   L.sort(function(a,b){
     var i=REP_ORDEN.indexOf(a.n), j=REP_ORDEN.indexOf(b.n);
     return (i<0?99:i)-(j<0?99:j);
@@ -4864,10 +4869,27 @@ function repMovs(modo, ambFijo){
   });
 }
 function repSuma(L){ return L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0); }
+/* Lo que el negocio le paga a las tarjetas entra como ingreso suyo, pero una parte de esos
+   pagos está cubriendo COMPRAS DEL NEGOCIO que hizo con tarjeta personal, y eso no es suyo
+   (Marco, 11-ago-2026: "es parte del negocio, no es mío, habría que restar eso").
+   Se resta del ingreso. Medido en sus datos: $12,259.27 de $589,151.87 — el 2.1%. */
+function repDescNegocio(){
+  var R=repRango();
+  return repSuma(movs().filter(function(m){
+    if(m.ajuste || m.tipo!=='Gasto') return false;
+    if((m.ambito||'')!=='Negocio') return false;
+    if(m.fecha<R.d1 || m.fecha>R.d2) return false;
+    return !(R.meses && R.meses.indexOf(m.fecha.slice(0,7))<0);
+  }));
+}
 function renderRep(){
   var R=repRango(), G=repMovs();
-  var tot=repSuma(G), otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto'));
-  var totG=(repModo==='gasto')?tot:otro, totI=(repModo==='gasto')?otro:tot;
+  /* el ingreso se enseña NETO de las compras del negocio; el gasto va tal cual */
+  var desc=repDescNegocio();
+  var bruto=repSuma(G), otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto'));
+  var totG=(repModo==='gasto')?bruto:otro;
+  var totI=((repModo==='ingreso')?bruto:otro)-desc;
+  var tot=(repModo==='ingreso')?(bruto-desc):bruto;
   var por={};
   G.forEach(function(m){ var g=repGrupoDe(m); por[g]=(por[g]||0)+aBase(m.amount,m.mon); });
   var gs=Object.keys(por).sort(function(a,b){ return por[b]-por[a]; });
@@ -4886,7 +4908,8 @@ function renderRep(){
   $('repBody').innerHTML=
     /* ---- en qué se te fue: es LO PRIMORDIAL y por eso va primero (Marco, 11-ago-2026:
            "los viajes me los pusiste primero como si fuera lo primordial, pero no") ---- */
-    '<div class="secttl">En qué se te fue<span>'+R.lbl+'</span></div>'+
+    '<div class="secttl">'+(repModo==='ingreso'?'De dónde vino':'En qué se te fue')+
+      '<span>'+R.lbl+'</span></div>'+
     '<div class="repchips">'+PERS.map(function(p){
       var on = (p[0]==='sel') ? (repPer==='sel'||repPer==='todo') : (repPer===p[0]);
       return '<button class="chip'+(on?' on':'')+'" data-per="'+p[0]+'">'+p[1]+'</button>';
@@ -4906,20 +4929,30 @@ function renderRep(){
     '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
-      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small></div>'+
+      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small>'+
+      /* la resta se enseña, no se esconde: es la única cifra del reporte que no sale
+         directo de sus movimientos */
+      ((repModo==='ingreso'&&desc>0)
+        ? '<small>'+fmt2(bruto)+' − <b>'+fmt2(desc)+'</b> de compras del negocio con tus tarjetas</small>'
+        : '')+'</div>'+
     (gs.length
       ? gs.map(function(g){
           return '<div class="vjerow" data-gr="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
             '<div class="vjetrack"><div class="vjebar" style="width:'+
               Math.max(2, Math.round(por[g]/max*100))+'%"></div></div>'+
-            '<div class="vjeval">'+fmt2(por[g])+'<small>'+Math.round(por[g]/tot*100)+'%</small></div></div>';
+            /* el % va sobre el BRUTO: las barras suman el bruto, no el neto */
+            '<div class="vjeval">'+fmt2(por[g])+'<small>'+Math.round(por[g]/bruto*100)+'%</small></div></div>';
         }).join('')
       : '<div class="note">No hay '+(repModo==='ingreso'?'ingresos':'gastos')+
         ' en este periodo'+(A==='todos'?'':' para '+A)+'.</div>')+
     '<div class="note">Toca un grupo para ver sus movimientos. El filtro de ámbito <b>se '+
       'recuerda</b>: si lo dejas en Personal, así lo vas a encontrar la próxima vez.'+
-      (repModo==='gasto'?' Los <b>pagos de préstamos</b> cuentan como gasto y salen agrupados '+
-        'en <b>Deuda</b>, cada uno con el nombre de la deuda que pagas.':'')+'</div>'+
+      (repModo==='gasto'
+        ? ' Los <b>pagos de préstamos</b> cuentan como gasto y salen agrupados en <b>Deuda</b>, '+
+          'cada uno con el nombre de la deuda que pagas.'
+        : ' El ingreso de la tienda <b>no se lleva aquí</b>, vive en Ultramart: lo que ves es '+
+          'lo que llega a tus cuentas, incluido lo que el negocio te paga en las tarjetas.')+
+      '</div>'+
 
     /* ---- viajes: hasta abajo, son ocasionales ---- */
     '<div class="secttl">Viajes</div>'+
