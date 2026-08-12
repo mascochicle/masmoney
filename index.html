@@ -826,7 +826,10 @@ button{font-family:inherit;}
   <nav class="tabbar" id="tabbar">
     <button data-p="cap"><span class="e">☰</span>Movimientos</button>
     <button class="on" data-p="sal"><span class="e">⚖</span>Saldos</button>
-    <button data-p="rep"><span class="e">📊</span>Reportes</button>
+    <!-- ▦ y no 📊: los emoji salen a color y desentonan con ☰ ⚖ ⚙, que son glifos de
+         texto y toman el color de la pestaña (Marco, 11-ago-2026). Este no tiene versión
+         emoji, así que siempre hereda el color. -->
+    <button data-p="rep"><span class="e">▦</span>Reportes</button>
     <button data-p="cfg"><span class="e">⚙</span>Ajustes</button>
   </nav>
 
@@ -844,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2045";
+<script>window.MM_VER="20260811-2057";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4763,12 +4766,28 @@ function hojaPeriodoRep(){
    "si me domina el reporte la compra de mercancías"). Arranca en Todos porque prefiere ver
    el dato completo y decidir él qué esconder, pero basta un toque y se queda así. */
 function repAmb(){ var v=cfg().repAmb; return v==null?'todos':v; }
-/* Solo GASTO: el reporte contesta "en qué se me fue", no el flujo completo. Los ajustes de
-   saldo y los cambios de valor no son gasto de nadie y quedan fuera. */
-function repGastos(){
-  var R=repRango(), A=repAmb();
+var repModo='gasto';        // 'gasto' | 'ingreso'
+/* Un pago de préstamo SÍ es gasto. Es la misma regla que Marco fijó para el tablero de la
+   web el 1-ago-2026 ("mete todo en el gasto real, hipoteca, panel, camioneta y pago prima,
+   mejor que todo salga y se vea"), y la app tiene que decir lo mismo que el tablero.
+   Las descargas de pasivo NO traen categoría —el tipo pregunta a qué deuda va, no en qué
+   se gastó— así que se agrupan como `Deuda` y su subcategoría es la deuda que pagan,
+   igual que en el tablero. */
+function repGrupoDe(m){
+  return m.tipo==='Descarga de pasivo' ? 'Deuda' : (m.grupo || '(sin grupo)');
+}
+function repSubDe(m){
+  return m.tipo==='Descarga de pasivo' ? (m.destino || 'Deuda') : (m.sub || repGrupoDe(m));
+}
+/* Quedan fuera los ajustes de saldo, las transferencias y los cambios de valor: no son
+   dinero que entró ni salió, solo mueven cifras entre cuentas. */
+function repMovs(modo){
+  var R=repRango(), A=repAmb(), MO=modo||repModo;
   return movs().filter(function(m){
-    if(m.tipo!=='Gasto' || m.ajuste) return false;
+    if(m.ajuste) return false;
+    var ok = (MO==='ingreso') ? (m.tipo==='Ingreso')
+                              : (m.tipo==='Gasto' || m.tipo==='Descarga de pasivo');
+    if(!ok) return false;
     if(m.fecha<R.d1 || m.fecha>R.d2) return false;
     /* meses sueltos: el rango deja pasar los de en medio, hay que checar pertenencia */
     if(R.meses && R.meses.indexOf(m.fecha.slice(0,7))<0) return false;
@@ -4776,11 +4795,13 @@ function repGastos(){
     return A==='todos' || (m.ambito||'Personal')===A;
   });
 }
+function repSuma(L){ return L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0); }
 function renderRep(){
-  var R=repRango(), G=repGastos();
-  var tot=G.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0);
+  var R=repRango(), G=repMovs();
+  var tot=repSuma(G), otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto'));
+  var totG=(repModo==='gasto')?tot:otro, totI=(repModo==='gasto')?otro:tot;
   var por={};
-  G.forEach(function(m){ var g=m.grupo||'(sin grupo)'; por[g]=(por[g]||0)+aBase(m.amount,m.mon); });
+  G.forEach(function(m){ var g=repGrupoDe(m); por[g]=(por[g]||0)+aBase(m.amount,m.mon); });
   var gs=Object.keys(por).sort(function(a,b){ return por[b]-por[a]; });
   var max=gs.length?por[gs[0]]:1;
   var V=viajes();
@@ -4805,8 +4826,18 @@ function renderRep(){
       return '<button class="chip'+(A===a.n?' on':'')+'" data-amb="'+escAtr(a.n)+'">'+
              a.e+' '+a.t+'</button>';
     }).join('')+'</div>'+
-    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' gasto'+(G.length===1?'':'s')+
-      (A==='todos'?'':' · solo '+A)+'</small></div>'+
+    /* El interruptor enseña LOS DOS totales: así el de al lado también informa, y de paso
+       se ve de un vistazo si el periodo cerró arriba o abajo. */
+    '<div class="segbtn" style="margin:2px 16px 10px" id="repModoSeg">'+
+      '<button data-modo="gasto"'+(repModo==='gasto'?' class="on"':'')+
+        '>Gastos<small>'+fmt2(totG)+'</small></button>'+
+      '<button data-modo="ingreso"'+(repModo==='ingreso'?' class="on"':'')+
+        '>Ingresos<small>'+fmt2(totI)+'</small></button>'+
+    '</div>'+
+    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' '+
+      (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
+      (A==='todos'?'':' · solo '+A)+
+      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small></div>'+
     (gs.length
       ? gs.map(function(g){
           return '<div class="vjerow" data-gr="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
@@ -4814,9 +4845,12 @@ function renderRep(){
               Math.max(2, Math.round(por[g]/max*100))+'%"></div></div>'+
             '<div class="vjeval">'+fmt2(por[g])+'<small>'+Math.round(por[g]/tot*100)+'%</small></div></div>';
         }).join('')
-      : '<div class="note">No hay gastos en este periodo'+(A==='todos'?'':' para '+A)+'.</div>')+
-    '<div class="note">Toca un grupo para ver sus movimientos. El filtro de arriba <b>se '+
-      'recuerda</b>: si lo dejas en Personal, así lo vas a encontrar la próxima vez.</div>'+
+      : '<div class="note">No hay '+(repModo==='ingreso'?'ingresos':'gastos')+
+        ' en este periodo'+(A==='todos'?'':' para '+A)+'.</div>')+
+    '<div class="note">Toca un grupo para ver sus movimientos. El filtro de ámbito <b>se '+
+      'recuerda</b>: si lo dejas en Personal, así lo vas a encontrar la próxima vez.'+
+      (repModo==='gasto'?' Los <b>pagos de préstamos</b> cuentan como gasto y salen agrupados '+
+        'en <b>Deuda</b>, cada uno con el nombre de la deuda que pagas.':'')+'</div>'+
 
     /* ---- viajes: hasta abajo, son ocasionales ---- */
     '<div class="secttl">Viajes</div>'+
@@ -4841,6 +4875,9 @@ function renderRep(){
   $('repBody').querySelectorAll('[data-amb]').forEach(function(b){
     b.onclick=function(){ setCfg('repAmb', b.dataset.amb); renderRep(); };
   });
+  $('repBody').querySelectorAll('[data-modo]').forEach(function(b){
+    b.onclick=function(){ repModo=b.dataset.modo; renderRep(); };
+  });
   $('repBody').querySelectorAll('[data-vje]').forEach(function(el){
     el.onclick=function(){ verViaje(+el.dataset.vje); };
   });
@@ -4862,15 +4899,16 @@ function renderRep(){
 /* el detalle de un grupo: sus subcategorías y sus movimientos, dentro del mismo periodo */
 function verGrupoRep(g){
   var R=repRango();
-  var L=repGastos().filter(function(m){ return (m.grupo||'(sin grupo)')===g; })
-                   .sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
-  var tot=L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0);
-  var sub={}; L.forEach(function(m){ var s=m.sub||g; sub[s]=(sub[s]||0)+aBase(m.amount,m.mon); });
+  var L=repMovs().filter(function(m){ return repGrupoDe(m)===g; })
+                 .sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  var tot=repSuma(L);
+  var sub={}; L.forEach(function(m){ var s=repSubDe(m); sub[s]=(sub[s]||0)+aBase(m.amount,m.mon); });
   var ss=Object.keys(sub).sort(function(a,b){ return sub[b]-sub[a]; });
   var max=ss.length?sub[ss[0]]:1;
   openSheet(g);
   $('sheetBody').innerHTML=
-    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+L.length+' gasto'+(L.length===1?'':'s')+
+    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+L.length+' '+
+      (repModo==='ingreso'?'ingreso':'movimiento')+(L.length===1?'':'s')+
       ' · '+R.lbl+'</small></div>'+
     /* si el grupo no tiene subcategorías, la lista sería una sola línea igual al total */
     (ss.length>1 ? ss.map(function(s){
