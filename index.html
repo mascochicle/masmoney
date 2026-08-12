@@ -990,7 +990,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1418";
+<script>window.MM_VER="20260812-1437";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3750,6 +3750,19 @@ function activaDeslizar(cont){
   });
   cont.addEventListener('touchcancel', suelta);
 }
+/* ¿Este movimiento ya está DENTRO del saldo anclado de su cuenta? Entonces borrarlo no mueve
+   lo que debes, y hay que decirlo ANTES (Marco, 12-ago-2026: borró un cargo de Amazon del
+   31-jul en Plata, la deuda no se movió y pensó que la había regado).
+   Devuelve la cuenta si está anclado, o null si el borrado sí va a contar. Repite el mismo
+   criterio de `saldoDe`: sobre la foto original solo cuenta el histórico importado; sobre un
+   saldo que Marco corrigió a mano, TODO lo anterior a esa corrección. */
+function anclado(m){
+  if(!m || m.ajuste) return null;
+  var c=cta(m.cuentaId), t0=c&&(c.baseTs||0), ts=m.ts||0;
+  if(!c || !t0 || ts>t0) return null;
+  if(t0===ANCLA && !m.origen) return null;
+  return c;
+}
 /* Borra al instante y ofrece Deshacer, como Gmail: no hay diálogo de confirmación porque el
    propio aviso es la red de seguridad. Guarda el movimiento entero para poder reponerlo tal
    cual, con su id, para que nada que lo referencie se rompa. */
@@ -3757,6 +3770,18 @@ function borraConDeshacer(id){
   var A=movs(), m=null;
   A.forEach(function(x){ if(x.id===id) m=x; });
   if(!m) return;
+  /* si está anclado se corta el gesto de Gmail y se pregunta: aquí el aviso vale más que la
+     fluidez, porque el borrado no va a hacer lo que él espera */
+  var anc=anclado(m);
+  if(anc && !borraConDeshacer._ok){
+    renderCuenta();                                  // que el renglón vuelva a su sitio
+    ask('Este movimiento ya está dentro del saldo de <b>'+anc.n+'</b>, que fijaste el '+
+        dstr(dISO(new Date(anc.baseTs)))+'.<br><br>Borrarlo <b>no va a cambiar</b> lo que debes '+
+        'en esa cuenta. Si te devolvieron el dinero, registra el reembolso.',
+        'Borrar de todos modos',
+        function(){ borraConDeshacer._ok=true; borraConDeshacer(id); borraConDeshacer._ok=false; });
+    return;
+  }
   var resto=A.filter(function(x){ return x.id!==id; });
   olvidaAuto(id);                         // si era automático, que no lo reponga al abrir
   if(!saveMovs(resto)) return;
@@ -4228,7 +4253,11 @@ function editarMov(id, pre){
     if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Actualizado'); }
   };
   $('eDel').onclick=function(){
-    ask('¿Borrar este movimiento?<br><b>'+lab+'</b> · '+fmtM(m.amount,m.mon),'Borrar',function(){
+    var anc=anclado(m);
+    ask('¿Borrar este movimiento?<br><b>'+lab+'</b> · '+fmtM(m.amount,m.mon)+
+        (anc?'<br><br>Ojo: ya está dentro del saldo de <b>'+anc.n+'</b> ('+
+             dstr(dISO(new Date(anc.baseTs)))+'), así que borrarlo <b>no cambia</b> lo que debes.':''),
+        'Borrar',function(){
       var b=movs().filter(function(x){return x.id!==id;});
       olvidaAuto(id);        // si era automático, que no lo vuelva a poner al abrir
       if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Borrado'); }
