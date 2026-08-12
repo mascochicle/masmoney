@@ -860,7 +860,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2246";
+<script>window.MM_VER="20260812-0836";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1113,7 +1113,7 @@ function diasViaje(v){
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=18;
+var MIG_V=19;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1429,6 +1429,21 @@ function migrar(){
         if(m.ambito!==amb){ m.ambito=amb; n18++; }
       });
       if(n18) sv(K_MOV,M18);
+    }
+  }
+
+  if(hecho<19){
+    /* 19) Otra vez el ámbito de los ingresos, ahora con la regla final: TODO ingreso es
+           Personal. La 18 dejó las rentas en Propiedades y eso las escondía del reporte
+           personal, igual que antes pasaba con los pagos del negocio. Ver `ambDeIngreso`. */
+    var M19=ld(K_MOV,null);
+    if(M19 && M19.length){
+      var n19=0;
+      M19.forEach(function(m){
+        if(m.tipo!=='Ingreso') return;
+        if(m.ambito!=='Personal'){ m.ambito='Personal'; n19++; }
+      });
+      if(n19) sv(K_MOV,M19);
     }
   }
 
@@ -2653,10 +2668,14 @@ var AMB_INGRESO=['Negocio','Propiedades','Personal'];
    es gasto suyo. Mandarlo todo a Negocio le borraba su mayor entrada del reporte personal.
    Ese 2% queda contado de más en el ingreso personal, pero sale marcado como Negocio del
    lado del GASTO, que es donde importa que no se cuele. */
-function ambDeIngreso(g){
-  if(g==='Arrendamiento') return 'Propiedades';
-  return 'Personal';
-}
+/* TODO ingreso es PERSONAL (11-ago→12-ago-2026). El ámbito contesta *de quién es ese dinero*
+   y, cuando entra, siempre es suyo: que venga de una renta o de la tienda es la CATEGORÍA,
+   no el dueño. Marco: *"en ingresos solo debe ir personal, y propiedades debe ir dentro como
+   categoría, así lo tenía en Money Pro"*. Las dos correcciones fueron el mismo error: primero
+   `Negocio` escondía $589,151.87 y luego `Arrendamiento` escondía las rentas del reporte
+   personal. En GASTOS el ámbito sí sigue vivo: ahí Propiedades separa lo que le metes a esas
+   casas de lo que gastas tú. */
+function ambDeIngreso(g){ return 'Personal'; }
 /* `tipo` se lo pasa el EDITOR, que trabaja sobre un movimiento guardado y no sobre `st` */
 function ambitosPara(tipo){
   var L=ambitos();
@@ -4854,6 +4873,9 @@ function hojaPeriodoRep(){
    los $589,151 de "Negocio · Pago de tarjetas", que tienen ámbito Negocio y son su mayor
    entrada. Cada modo recuerda el suyo. */
 function repAmb(modo){
+  /* En INGRESOS ya no hay nada que filtrar: todo ingreso es Personal (ver `ambDeIngreso`),
+     así que un filtro con una sola opción sería ruido y se quita de la pantalla. */
+  if((modo||repModo)==='ingreso') return 'todos';
   var k='repAmb_'+(modo||repModo), v=cfg()[k];
   if(v==null && (modo||repModo)==='gasto' && cfg().repAmb!=null) v=cfg().repAmb;
   if(v==null) return 'todos';
@@ -4971,10 +4993,11 @@ function renderRep(){
       var on = (p[0]==='sel') ? (repPer==='sel'||repPer==='todo') : (repPer===p[0]);
       return '<button class="chip'+(on?' on':'')+'" data-per="'+p[0]+'">'+p[1]+'</button>';
     }).join('')+'</div>'+
-    '<div class="repchips amb">'+AMBS.map(function(a){
-      return '<button class="chip'+(A===a.n?' on':'')+'" data-amb="'+escAtr(a.n)+'">'+
-             a.e+' '+a.t+'</button>';
-    }).join('')+'</div>'+
+    (repModo==='ingreso' ? '' :
+      '<div class="repchips amb">'+AMBS.map(function(a){
+        return '<button class="chip'+(A===a.n?' on':'')+'" data-amb="'+escAtr(a.n)+'">'+
+               a.e+' '+a.t+'</button>';
+      }).join('')+'</div>')+
     '<div class="reptot"><b>'+fmt2s(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
