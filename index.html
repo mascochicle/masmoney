@@ -309,6 +309,9 @@ button{font-family:inherit;}
 /* ---- pestaña Reportes ---- */
 .repchips{display:flex;gap:7px;flex-wrap:wrap;padding:4px 16px 8px;}
 .repchips.amb{padding-bottom:12px;}
+/* rejilla de meses del selector de periodo: 4 por renglón, todos del mismo ancho */
+.mesgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:4px 16px 12px;}
+.mesgrid .chip{text-align:center;padding:8px 0;}
 .repchips.amb .chip{font-size:12px;}
 .reptot{padding:2px 16px 12px;}
 .reptot b{font-size:26px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;}
@@ -832,7 +835,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2032";
+<script>window.MM_VER="20260811-2041";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4673,13 +4676,78 @@ function editarAmbito(i){
    le fue el periodo. El análisis a fondo (presupuesto, tendencias, deuda) sigue viviendo
    en el tablero de la web; esto NO lo repite. */
 var repPer='mes';
+/* periodo a la medida: un año y los meses que él marque. Puede ser uno, un tramo o
+   sueltos (nov y dic del año pasado, por ejemplo) — por eso se guarda la LISTA de meses
+   y no un rango, que no sabría representar meses no consecutivos. */
+var repSel={y:null, ms:[]};
+function aniosConDatos(){
+  var s={}; movs().forEach(function(m){ if(m.fecha) s[m.fecha.slice(0,4)]=1; });
+  var a=Object.keys(s).sort().reverse();
+  var y=String(new Date().getFullYear());
+  if(a.indexOf(y)<0) a.unshift(y);
+  return a;
+}
+function etiquetaSel(Y, ms){
+  if(!ms.length) return Y+' completo';
+  if(ms.length===12) return Y+' completo';
+  if(ms.length===1) return M[ms[0]-1]+' '+Y;
+  var seguido=ms.every(function(v,i){ return i===0 || v===ms[i-1]+1; });
+  return seguido ? (M[ms[0]-1]+'–'+M[ms[ms.length-1]-1]+' '+Y)
+                 : (ms.length+' meses de '+Y);
+}
 function repRango(){
   var h=new Date(), y=h.getFullYear(), m=h.getMonth();
   if(repPer==='mes')  return {d1:dISO(new Date(y,m,1)), d2:dISO(new Date(y,m+1,0)), lbl:M[m]+' '+y};
   if(repPer==='90'){  var a=new Date(h); a.setDate(a.getDate()-89);
                       return {d1:dISO(a), d2:dISO(h), lbl:'últimos 90 días'}; }
   if(repPer==='anio') return {d1:y+'-01-01', d2:y+'-12-31', lbl:'año '+y};
+  if(repPer==='sel'){
+    var Y=repSel.y||y, ms=repSel.ms.slice().sort(function(a,b){return a-b;});
+    if(!ms.length || ms.length===12) return {d1:Y+'-01-01', d2:Y+'-12-31', lbl:Y+' completo'};
+    return {d1:dISO(new Date(Y,ms[0]-1,1)), d2:dISO(new Date(Y,ms[ms.length-1]+0,0)),
+            /* con meses sueltos el rango no basta: se filtra por pertenencia */
+            meses:ms.map(function(k){ return Y+'-'+String(k).padStart(2,'0'); }),
+            lbl:etiquetaSel(Y, ms)};
+  }
   return {d1:'0000-01-01', d2:'9999-12-31', lbl:'toda la historia'};
+}
+/* la hoja para escoger año y meses */
+function hojaPeriodoRep(){
+  var h=new Date();
+  var Y = repSel.y || (repPer==='sel' ? h.getFullYear() : h.getFullYear());
+  var ms = repSel.ms.slice();
+  openSheet('Seleccionar periodo');
+  function pinta(){
+    $('sheetBody').innerHTML=
+      '<div class="secttl">Año</div>'+
+      '<div class="repchips">'+aniosConDatos().map(function(a){
+        return '<button class="chip'+(+a===+Y?' on':'')+'" data-y="'+a+'">'+a+'</button>';
+      }).join('')+'</div>'+
+      '<div class="secttl">Meses<span>'+(ms.length?ms.length+' marcado'+(ms.length===1?'':'s'):'todo el año')+'</span></div>'+
+      '<div class="mesgrid">'+M.map(function(n,i){
+        return '<button class="chip'+(ms.indexOf(i+1)>=0?' on':'')+'" data-m="'+(i+1)+'">'+n+'</button>';
+      }).join('')+'</div>'+
+      '<div class="repchips"><button class="chip" id="msTodos">Todo el año</button>'+
+        '<button class="chip" id="msNada">Ninguno</button>'+
+        '<button class="chip" id="msHist">Toda la historia</button></div>'+
+      '<div class="edit-acts" style="padding:4px 16px 16px">'+
+        '<button class="b-save" id="perOk">Ver este periodo</button></div>'+
+      '<div class="note">Puedes marcar meses sueltos: por ejemplo solo diciembre y enero, '+
+        'para ver lo que te costaron las fiestas. Si no marcas ninguno, se toma el año completo.</div>';
+    $('sheetBody').querySelectorAll('[data-y]').forEach(function(b){
+      b.onclick=function(){ Y=+b.dataset.y; pinta(); }; });
+    $('sheetBody').querySelectorAll('[data-m]').forEach(function(b){
+      b.onclick=function(){ var k=+b.dataset.m, i=ms.indexOf(k);
+        if(i>=0) ms.splice(i,1); else ms.push(k); pinta(); }; });
+    $('msTodos').onclick=function(){ ms=[1,2,3,4,5,6,7,8,9,10,11,12]; pinta(); };
+    $('msNada').onclick =function(){ ms=[]; pinta(); };
+    $('msHist').onclick =function(){ repPer='todo'; cerrarYaPintado(); renderRep(); };
+    $('perOk').onclick  =function(){
+      repSel={y:Y, ms:ms.slice().sort(function(a,b){return a-b;})};
+      repPer='sel'; cerrarYaPintado(); renderRep();
+    };
+  }
+  pinta();
 }
 /* El ámbito elegido SE RECUERDA: sin esto, cada vez que abría la pestaña volvía a salir
    todo junto y la compra de mercancía del negocio le tapaba el resto (Marco, 11-ago-2026:
@@ -4693,6 +4761,8 @@ function repGastos(){
   return movs().filter(function(m){
     if(m.tipo!=='Gasto' || m.ajuste) return false;
     if(m.fecha<R.d1 || m.fecha>R.d2) return false;
+    /* meses sueltos: el rango deja pasar los de en medio, hay que checar pertenencia */
+    if(R.meses && R.meses.indexOf(m.fecha.slice(0,7))<0) return false;
     /* los movimientos viejos sin ámbito se leen como Personal, igual que en la lista */
     return A==='todos' || (m.ambito||'Personal')===A;
   });
@@ -4705,7 +4775,10 @@ function renderRep(){
   var gs=Object.keys(por).sort(function(a,b){ return por[b]-por[a]; });
   var max=gs.length?por[gs[0]]:1;
   var V=viajes();
-  var PERS=[['mes','Este mes'],['90','90 días'],['anio','Este año'],['todo','Todo']];
+  /* el cuarto chip abre la hoja de año + meses; cuando hay algo elegido enseña QUÉ está
+     viendo en vez de "Seleccionar…", para que nunca lea una cifra sin saber de cuándo es */
+  var PERS=[['mes','Este mes'],['90','90 días'],['anio','Este año'],
+            ['sel', (repPer==='sel'||repPer==='todo') ? R.lbl : 'Seleccionar…']];
 
   /* Todos + los ámbitos que él tenga. "Todos" primero porque es el default. */
   var A=repAmb(), AMBS=[{n:'todos', e:'☰', t:'Todos'}].concat(ambitos().map(function(x){
@@ -4716,7 +4789,8 @@ function renderRep(){
            "los viajes me los pusiste primero como si fuera lo primordial, pero no") ---- */
     '<div class="secttl">En qué se te fue<span>'+R.lbl+'</span></div>'+
     '<div class="repchips">'+PERS.map(function(p){
-      return '<button class="chip'+(repPer===p[0]?' on':'')+'" data-per="'+p[0]+'">'+p[1]+'</button>';
+      var on = (p[0]==='sel') ? (repPer==='sel'||repPer==='todo') : (repPer===p[0]);
+      return '<button class="chip'+(on?' on':'')+'" data-per="'+p[0]+'">'+p[1]+'</button>';
     }).join('')+'</div>'+
     '<div class="repchips amb">'+AMBS.map(function(a){
       return '<button class="chip'+(A===a.n?' on':'')+'" data-amb="'+escAtr(a.n)+'">'+
@@ -4750,7 +4824,10 @@ function renderRep(){
       '<div class="nm" style="color:var(--nuevo-ink)">Nuevo viaje</div></div>';
 
   $('repBody').querySelectorAll('[data-per]').forEach(function(b){
-    b.onclick=function(){ repPer=b.dataset.per; renderRep(); };
+    b.onclick=function(){
+      if(b.dataset.per==='sel'){ hojaPeriodoRep(); return; }
+      repPer=b.dataset.per; renderRep();
+    };
   });
   $('repBody').querySelectorAll('[data-amb]').forEach(function(b){
     b.onclick=function(){ setCfg('repAmb', b.dataset.amb); renderRep(); };
