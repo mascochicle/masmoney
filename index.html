@@ -847,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2158";
+<script>window.MM_VER="20260811-2204";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1499,6 +1499,11 @@ function colorDeuda(pend){
 function fmt(n){return '$'+Math.round(Math.abs(n)).toLocaleString('en-US');}
 function fmt2(n){var d=_dec();
   return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+/* `fmt2` se come el signo A PROPÓSITO: casi todos los que la llaman ponen el suyo (el − del
+   gasto, el + del ingreso). Pero en un total que PUEDE salir negativo eso es peligroso —
+   Marco leyó como ingreso un −$18,336.27 que se dibujó "$18,336.27" (11-ago-2026). Usar
+   ésta en cualquier cifra cuyo signo no esté decidido de antemano. */
+function fmt2s(n){ return (n<0?'−':'')+fmt2(n); }
 
 var M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 var D=['dom','lun','mar','mié','jue','vie','sáb'];
@@ -4889,7 +4894,10 @@ function renderRep(){
      a las tarjetas es ingreso personal, así que la parte que era del negocio se descuenta
      de ahí. Restarla también de Propiedades daba $5,500 − $12,259 = negativo (11-ago-2026). */
   var desc=(repAmb('ingreso')==='todos'||repAmb('ingreso')==='Personal') ? repDescNegocio() : 0;
-  var bruto=repSuma(G), otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto'));
+  /* El otro lado se mide con el MISMO filtro de ámbito que tienes puesto. Si cada uno usara
+     el suyo, la "diferencia" restaría dos cosas de alcance distinto y no significaría nada. */
+  var bruto=repSuma(G);
+  var otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto', repAmb(repModo)));
   var totG=(repModo==='gasto')?bruto:otro;
   var totI=((repModo==='ingreso')?bruto:otro)-desc;
   var tot=(repModo==='ingreso')?(bruto-desc):bruto;
@@ -4925,11 +4933,11 @@ function renderRep(){
        se ve de un vistazo si el periodo cerró arriba o abajo. */
     '<div class="segbtn" style="margin:2px 16px 10px" id="repModoSeg">'+
       '<button data-modo="gasto"'+(repModo==='gasto'?' class="on"':'')+
-        '>Gastos<small>'+fmt2(totG)+'</small></button>'+
+        '>Gastos<small>'+fmt2s(totG)+'</small></button>'+
       '<button data-modo="ingreso"'+(repModo==='ingreso'?' class="on"':'')+
-        '>Ingresos<small>'+fmt2(totI)+'</small></button>'+
+        '>Ingresos<small>'+fmt2s(totI)+'</small></button>'+
     '</div>'+
-    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' '+
+    '<div class="reptot"><b>'+fmt2s(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
       ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small>'+
