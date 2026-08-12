@@ -848,7 +848,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2106";
+<script>window.MM_VER="20260811-2113";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4737,8 +4737,11 @@ function etiquetaSel(Y, ms){
 function repRango(){
   var h=new Date(), y=h.getFullYear(), m=h.getMonth();
   if(repPer==='mes')  return {d1:dISO(new Date(y,m,1)), d2:dISO(new Date(y,m+1,0)), lbl:M[m]+' '+y};
-  if(repPer==='90'){  var a=new Date(h); a.setDate(a.getDate()-89);
-                      return {d1:dISO(a), d2:dISO(h), lbl:'últimos 90 días'}; }
+  /* mes pasado en vez de "90 días" (Marco, 11-ago-2026). Con m-1 en enero, Date se va solo
+     a diciembre del año anterior, así que no hay que tratarlo aparte. */
+  if(repPer==='ant'){ var p=new Date(y,m-1,1);
+                      return {d1:dISO(p), d2:dISO(new Date(y,m,0)),
+                              lbl:M[p.getMonth()]+' '+p.getFullYear()}; }
   if(repPer==='anio') return {d1:y+'-01-01', d2:y+'-12-31', lbl:'año '+y};
   if(repPer==='sel'){
     var Y=repSel.y||y, ms=repSel.ms.slice().sort(function(a,b){return a-b;});
@@ -4750,11 +4753,21 @@ function repRango(){
   }
   return {d1:'0000-01-01', d2:'9999-12-31', lbl:'toda la historia'};
 }
+/* El selector abre mostrando LO QUE YA ESTÁS VIENDO, no en blanco: si vienes de "Este mes"
+   sale marcado agosto, de "Mes pasado" sale julio, y de "Este año" salen los 12 (Marco,
+   11-ago-2026). Así el periodo se afina desde donde estabas en vez de volver a empezar. */
+function periodoComoSeleccion(){
+  var h=new Date(), y=h.getFullYear(), m=h.getMonth();
+  if(repPer==='mes')  return {y:y, ms:[m+1]};
+  if(repPer==='ant'){ var p=new Date(y,m-1,1); return {y:p.getFullYear(), ms:[p.getMonth()+1]}; }
+  if(repPer==='anio') return {y:y, ms:[1,2,3,4,5,6,7,8,9,10,11,12]};
+  if(repPer==='sel')  return {y:repSel.y||y, ms:repSel.ms.slice()};
+  return {y:y, ms:[]};                       // 'todo' → año completo, sin marcar nada
+}
 /* la hoja para escoger año y meses */
 function hojaPeriodoRep(){
-  var h=new Date();
-  var Y = repSel.y || (repPer==='sel' ? h.getFullYear() : h.getFullYear());
-  var ms = repSel.ms.slice();
+  var ini=periodoComoSeleccion();
+  var Y = ini.y, ms = ini.ms;
   openSheet('Seleccionar periodo');
   function pinta(){
     $('sheetBody').innerHTML=
@@ -4845,7 +4858,7 @@ function renderRep(){
   var V=viajes();
   /* el cuarto chip abre la hoja de año + meses; cuando hay algo elegido enseña QUÉ está
      viendo en vez de "Seleccionar…", para que nunca lea una cifra sin saber de cuándo es */
-  var PERS=[['mes','Este mes'],['90','90 días'],['anio','Este año'],
+  var PERS=[['mes','Este mes'],['ant','Mes pasado'],['anio','Este año'],
             ['sel', (repPer==='sel'||repPer==='todo') ? R.lbl : 'Seleccionar…']];
 
   /* Todos + los ámbitos que él tenga. "Todos" primero porque es el default. */
