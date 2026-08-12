@@ -717,9 +717,13 @@ button{font-family:inherit;}
            compras de la tienda que él hizo con su plástico, y esa parte NO es ingreso suyo.
            Lo captura él porque lo tiene exacto por corte en su Excel: la app no puede
            deducirlo sola sin saber qué corte cubre cada pago (Marco, 11-ago-2026). -->
+      <!-- Textos CORTOS: la fila lleva un input fijo de 110px, así que al título le quedan
+           unos 15 caracteres antes de cortarse con puntos suspensivos — con la letra en
+           grande, menos. "¿Cuánto era del negocio?" salía como "¿Cuánto era …" (Marco,
+           11-ago-2026). El ícono es "−" y no 🏪 porque ese ya lo usa la categoría arriba. -->
       <div class="rows" id="negBox" style="display:none">
-        <div class="row" style="cursor:default"><div class="ic">🏪</div>
-          <div class="lb"><div class="t">¿Cuánto era del negocio?</div><div class="s">La parte que cubre compras de la tienda</div></div>
+        <div class="row" style="cursor:default"><div class="ic">−</div>
+          <div class="lb"><div class="t">Del negocio</div><div class="s">Compras de la tienda</div></div>
           <input class="intIn" id="negIn" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
       </div>
       <!-- para qué lado va el cambio de valor. El teclado no tiene signo, así que el
@@ -856,7 +860,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2229";
+<script>window.MM_VER="20260811-2241";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
