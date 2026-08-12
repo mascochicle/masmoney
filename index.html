@@ -81,6 +81,32 @@ button{font-family:inherit;}
 .amount .cur{font-size:14px;color:var(--ink);letter-spacing:.06em;margin-top:9px;text-transform:uppercase;
   background:transparent;border:0;cursor:pointer;font-family:inherit;font-weight:600;}
 .amount .cur u{text-decoration:none;border-bottom:1px dashed var(--mut);padding-bottom:2px;}
+/* ---- LÍNEAS de categoría dentro del formulario (12-ago-2026) ----
+   Una por categoría, con su monto; la activa es donde escribe el teclado. */
+.lineas{background:var(--surface);border-radius:14px;margin:9px 16px 0;overflow:hidden;}
+.lin{width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;
+  background:transparent;color:var(--ink);font-family:inherit;cursor:pointer;text-align:left;}
+.lin+.lin{border-top:1px solid var(--ground);}
+.lin .e{width:30px;height:30px;border-radius:9px;background:var(--surface2);display:grid;
+  place-items:center;font-size:15px;flex:none;}
+.lcat{flex:1;min-width:0;display:flex;align-items:center;gap:12px;border:0;background:transparent;
+  color:var(--ink);font-family:inherit;cursor:pointer;padding:0;text-align:left;}
+.lin .n{flex:1;min-width:0;font-size:14.5px;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;}
+.lm{border:0;background:transparent;font-family:inherit;cursor:pointer;padding:2px 0 2px 8px;
+  font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--mut);}
+.lin.act .lm{color:var(--accent-ink);}
+.lin .x{border:0;font-family:inherit;cursor:pointer;}
+.lin .m{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--mut);}
+.lin.act .m{color:var(--accent-ink);}
+.lin.act .e{background:var(--accent-soft);}
+.lin .x{width:24px;height:24px;border-radius:50%;background:var(--ground);color:var(--mut2);
+  display:grid;place-items:center;font-size:11px;flex:none;margin-left:2px;}
+.lintot{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--ground);}
+.lintot .k{flex:1;font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;}
+.lintot b{font-size:17px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
+.linmas{width:28px;height:28px;border-radius:50%;border:1px solid var(--accent-ink);background:transparent;
+  color:var(--accent-ink);font-size:16px;line-height:1;cursor:pointer;font-family:inherit;flex:none;}
 /* ---- captura compacta (12-ago-2026) ---- */
 /* Estos tres renglones ya no se usan (agente y viaje viven en la barra de iconos, el ámbito
    en chips) pero se quedan en el DOM porque veinte lugares del código los leen. Van con
@@ -723,9 +749,16 @@ button{font-family:inherit;}
       <div class="rows">
         <!-- El ámbito sigue antes de la CATEGORÍA: es lo que decide si se ofrecen las
              categorías personales o las del negocio. -->
-        <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
+        <!-- El renglón viejo de categoría se queda oculto: `pintaPartes` y compañía escriben
+             en él. Lo que se ve son las LÍNEAS de abajo. -->
+        <button class="row" id="rowCat" style="display:none"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
       </div>
+      <!-- Las categorías son RENGLONES de esta misma pantalla, cada una con su monto, y el
+           ⊕ agrega otra aquí mismo — no abre otra hoja (Marco, 12-ago-2026: "en money pro
+           ahí mismo se agrega, yo la quiero igual"). El teclado escribe en la línea que
+           tengas activa; el total es la suma. -->
+      <div class="lineas" id="lineasBox"></div>
       <!-- El ÁMBITO en chips y no en un renglón que abre hoja: es un toque en vez de tres, y
            sobre todo SE QUEDA A LA VISTA. Es el campo que no se puede esconder — es lo único
            que separa la mercancía de la tienda de la despensa de la casa (12-ago-2026). -->
@@ -893,7 +926,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-0926";
+<script>window.MM_VER="20260812-1002";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1586,7 +1619,7 @@ function hoyISO(){ return dISO(new Date()); }
 var st={tipo:"Gasto", cuentaId:'c1', cuenta2Id:'c2',
         cat:{g:"Alimentación",e:"🧺",sub:"Víveres"},
         amount:"0", msi:false, meses:12, fotos:[], agente:null, ambito:'Personal',
-        viaje:null, viajeManual:false,
+        viaje:null, viajeManual:false, li:0,
         fecha:hoyISO(),
         hora:new Date().toTimeString().slice(0,5)};
 
@@ -2114,7 +2147,7 @@ $('pad').addEventListener('click',function(e){
                     else if(st.amount.indexOf('.')<0) st.amount+="."; }
   else { if(calNuevo){ st.amount=t; calNuevo=false; }
          else st.amount = st.amount==="0"?t:st.amount+t; }
-  renderAmt();
+  sincLinea(); renderAmt();
 });
 function pintaFecha(){
   var hoy=hoyISO();
@@ -2204,11 +2237,91 @@ function pintaPartes(){
     $('catIc').textContent='🧾';
     $('catNm').textContent=n+' categorías';
     $('catSub').textContent='dividido · '+fmt2(sumaPartes());
-    st.amount=sumaPartes().toFixed(2);          // el monto grande muestra la suma
+    /* el monto grande YA NO muestra la suma: muestra la línea que estés editando. La suma
+       vive en el TOTAL de la tarjeta de líneas, como en Money Pro (12-ago-2026). */
   }
-  $('abrirPad').disabled = !!n;                 // con partes, el monto lo mandan ellas
-  $('abrirPad').style.opacity = n ? .5 : 1;
-  renderAmt();
+  renderAmt(); pintaLineas();
+}
+/* ================= líneas de categoría dentro del formulario =================
+   Cada categoría es un renglón con su monto. La ACTIVA es donde escribe el teclado; el
+   total es la suma. Antes esto vivía en la hoja "Dividir entre categorías" y agregar una
+   categoría te sacaba de la captura — que es justo lo que Marco no quería. */
+function lineasDe(){
+  return (st.partes && st.partes.length>1)
+    ? st.partes
+    : [{g:st.cat.g, e:st.cat.e, sub:st.cat.sub, amount:(st.amount==='0'?'':st.amount)}];
+}
+function pintaLineas(){
+  var box=$('lineasBox'); if(!box) return;
+  if(!tipoDe(st.tipo).cat){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='';
+  var L=lineasDe(), multi=!!(st.partes && st.partes.length>1);
+  if(st.li>=L.length) st.li=L.length-1;
+  if(st.li<0) st.li=0;
+  var tot=L.reduce(function(a,p){ return a+(evalua(p.amount)||0); },0);
+  box.innerHTML=L.map(function(p,i){
+    return '<div class="lin'+(i===st.li?' act':'')+'">'+
+      '<button class="lcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
+        '<span class="n">'+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span></button>'+
+      '<button class="lm" data-m="'+i+'">'+fmt2(evalua(p.amount)||0)+'</button>'+
+      (multi?'<button class="x" data-del="'+i+'">✕</button>':'')+'</div>';
+  }).join('')+
+  '<div class="lintot"><span class="k">Total</span><b>'+fmt2(tot)+'</b>'+
+    '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>';
+
+  box.querySelectorAll('[data-cat]').forEach(function(el){
+    el.onclick=function(){ cambiaCatLinea(+el.dataset.cat); }; });
+  box.querySelectorAll('[data-m]').forEach(function(el){
+    el.onclick=function(){ activaLinea(+el.dataset.m); }; });
+  box.querySelectorAll('[data-del]').forEach(function(el){
+    el.onclick=function(){ quitaLinea(+el.dataset.del); }; });
+  $('linMas').onclick=agregaLinea;
+}
+/* tocar el monto de una línea la vuelve la activa y abre el teclado en ella */
+function activaLinea(i){
+  var L=lineasDe();
+  if(st.partes && st.partes.length>1){
+    st.li=i; st.amount=String(L[i].amount||'0');
+  }
+  calcLimpia(); pintaLineas(); renderAmt(); verPad(true);
+}
+function partesDesdeUna(){
+  if(!st.partes || st.partes.length<2){
+    st.partes=[{g:st.cat.g, e:st.cat.e, sub:st.cat.sub, amount:(st.amount==='0'?'':st.amount)}];
+  }
+}
+function agregaLinea(){
+  partesDesdeUna();
+  var vuelve=volverHoja;
+  elegirCatEdit(catsActuales(), function(c){
+    st.partes.push({g:c.g, e:c.e, sub:c.sub, amount:''});
+    st.li=st.partes.length-1; st.amount='0'; calcLimpia();
+    volverHoja=vuelve; cerrarYaPintado();
+    pintaPartes(); renderAmt(); verPad(true);
+  }, '', cualLista());
+}
+function cambiaCatLinea(i){
+  var multi=!!(st.partes && st.partes.length>1), vuelve=volverHoja;
+  elegirCatEdit(catsActuales(), function(c){
+    if(multi){ st.partes[i].g=c.g; st.partes[i].e=c.e; st.partes[i].sub=c.sub; }
+    else pickCat(c.g,c.e,c.sub);
+    volverHoja=vuelve; cerrarYaPintado();
+    pintaPartes(); renderAmt();
+  }, '', cualLista());
+}
+function quitaLinea(i){
+  if(!st.partes || st.partes.length<2) return;
+  st.partes.splice(i,1);
+  if(st.partes.length===1){            // vuelve a ser un movimiento normal de una categoría
+    var p=st.partes[0]; st.partes=null;
+    pickCat(p.g,p.e,p.sub); st.amount=String(p.amount||'0'); st.li=0;
+  } else if(st.li>=st.partes.length) st.li=st.partes.length-1;
+  calcLimpia(); pintaPartes(); renderAmt();
+}
+/* el teclado escribe en `st.amount`; con varias líneas, eso ES el monto de la activa */
+function sincLinea(){
+  if(st.partes && st.partes.length>1 && st.partes[st.li]) st.partes[st.li].amount=st.amount;
+  pintaLineas();
 }
 function dividir(){
   /* arranca con lo que ya hay puesto, para no volver a elegirlo */
@@ -3340,7 +3453,8 @@ $('guardar').onclick=function(){
             : undefined,
     e: dos?T.e:st.cat.e,
     dir: T.dir?(st.dir||-1):null,          // solo el cambio de valor lleva sentido
-    amount:num(), msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
+    amount:((st.partes&&st.partes.length>1)?sumaPartes():num()),
+    msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente,
     ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g) : st.ambito),
     /* el viaje solo tiene sentido en lo que se gasta o se recibe: en transferencias,
@@ -3371,7 +3485,7 @@ $('guardar').onclick=function(){
 };
 function limpiarForm(){
   st.amount="0"; calcLimpia();
-  st.partes=null; $('desc').value=''; st.fotos=[];
+  st.partes=null; st.li=0; $('desc').value=''; st.fotos=[];
   $('interes').value=''; $('negIn').value=''; setAgente(null); verPad(false);
   pintaPartes(); pintaFotos(); pintaAmbChips(); pintaOpts();
   $('extras').classList.remove('vis'); $('msiCard').style.display='none';
