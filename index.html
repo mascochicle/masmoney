@@ -306,6 +306,14 @@ button{font-family:inherit;}
 .vjebar{height:100%;background:var(--vje-ink);border-radius:5px;}
 .vjeval{width:96px;text-align:right;font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;}
 .vjeval small{display:block;color:var(--mut);font-weight:400;font-size:10px;}
+/* ---- pestaña Reportes ---- */
+.repchips{display:flex;gap:7px;flex-wrap:wrap;padding:4px 16px 10px;}
+.reptot{padding:2px 16px 12px;}
+.reptot b{font-size:26px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;}
+.reptot small{display:block;color:var(--mut);font-size:11.5px;margin-top:1px;}
+.vjerow[data-gr]{cursor:pointer;}
+.vjerow[data-gr]:active{background:var(--surface);}
+.cfg-i .val{font-size:13.5px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--mut);}
 /* la lista para marcar/desmarcar movimientos de un viaje */
 .vjepick{display:flex;align-items:center;gap:11px;padding:9px 16px;border-top:1px solid var(--surface);cursor:pointer;}
 .vjepick .tx{flex:1;min-width:0;}
@@ -773,6 +781,15 @@ button{font-family:inherit;}
   </section>
 
   <!-- ============ AJUSTES ============ -->
+  <!-- Cuarta pestaña (11-ago-2026). Nació porque los viajes vivían en Ajustes y nadie va
+       a Ajustes a CONSULTAR un dato — ahí se configura. Contesta las dos preguntas que
+       Marco hace desde el teléfono: cuánto costó un viaje, y en qué se le fue el mes.
+       El análisis a fondo sigue en el tablero de Presupuesto de la web. -->
+  <section class="pane" id="p-rep">
+    <div class="hd"><div class="t">Reportes<span class="brand">MasMoney</span></div></div>
+    <div class="scrollable" id="repBody"></div>
+  </section>
+
   <section class="pane" id="p-cfg">
     <div class="hd"><div class="t">Ajustes<span class="brand">MasMoney</span></div></div>
     <div class="scrollable" id="cfgBody"></div>
@@ -795,6 +812,7 @@ button{font-family:inherit;}
   <nav class="tabbar" id="tabbar">
     <button data-p="cap"><span class="e">☰</span>Movimientos</button>
     <button class="on" data-p="sal"><span class="e">⚖</span>Saldos</button>
+    <button data-p="rep"><span class="e">📊</span>Reportes</button>
     <button data-p="cfg"><span class="e">⚙</span>Ajustes</button>
   </nav>
 
@@ -812,7 +830,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-1751";
+<script>window.MM_VER="20260811-2027";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1551,8 +1569,9 @@ function pestActual(){
 }
 function irA(p){
   $('tabbar').querySelectorAll('button').forEach(function(b){ b.classList.toggle('on',b.dataset.p===p); });
-  ['cap','sal','cfg'].forEach(function(x){ $('p-'+x).classList.toggle('on',x===p); });
-  if(p==='sal') renderSaldos(); if(p==='cap') renderCuenta(); if(p==='cfg') renderCfg();
+  ['cap','sal','rep','cfg'].forEach(function(x){ $('p-'+x).classList.toggle('on',x===p); });
+  if(p==='sal') renderSaldos(); if(p==='cap') renderCuenta();
+  if(p==='rep') renderRep(); if(p==='cfg') renderCfg();
 }
 /* ctaVer = null significa TODAS las cuentas: es la vista global de movimientos */
 $('ctaSel').onclick=function(){
@@ -4346,9 +4365,8 @@ function renderCfg(){
     fila('negs','🏪','Categorías del negocio', negs().length+' grupos',
          'salen cuando el ámbito es Negocio')+
     fila('ambitos','🏷️','Ámbitos', ambitos().length, ambitos().map(function(x){return x.n;}).join(' · '))+
-    fila('viajes','🧳','Viajes', viajes().length||'—',
-         viajes().length ? viajes().map(function(x){return x.n;}).join(' · ')
-                         : 'para sumar aparte lo que gastas en un viaje')+
+    /* Los viajes se fueron a la pestaña Reportes (11-ago-2026): aquí solo se configura,
+       y un viaje es algo que se CONSULTA. No volver a ponerlos en dos lugares. */
     fila('agentes','👤','Agentes', agentes().length, 'comercios y personas')+
     fila('ocultas','🙈','Cuentas ocultas', L.filter(function(x){return x.oculta;}).length,
          'siguen contando, no se listan')+
@@ -4428,7 +4446,6 @@ function renderCfg(){
       else if(a==='ings') verCategorias('ingreso');
       else if(a==='negs') verCategorias('negocio');
       else if(a==='ambitos') verAmbitos();
-      else if(a==='viajes') verViajes();
       else if(a==='centavos'){ setCfg('centavos', cfg().centavos===false); renderCfg(); renderCuenta(); renderSaldos(); }
       else if(a==='semana'){ setCfg('semana', cfg().semana===1?0:1); renderCfg(); renderCal(); }
       else if(a==='letra') elegirLetra();
@@ -4649,6 +4666,117 @@ function editarAmbito(i){
   };
 }
 
+/* ================= PESTAÑA REPORTES (11-ago-2026) =================
+   Dos preguntas, las que Marco hace desde el teléfono: cuánto costó un viaje y en qué se
+   le fue el periodo. El análisis a fondo (presupuesto, tendencias, deuda) sigue viviendo
+   en el tablero de la web; esto NO lo repite. */
+var repPer='mes';
+function repRango(){
+  var h=new Date(), y=h.getFullYear(), m=h.getMonth();
+  if(repPer==='mes')  return {d1:dISO(new Date(y,m,1)), d2:dISO(new Date(y,m+1,0)), lbl:M[m]+' '+y};
+  if(repPer==='90'){  var a=new Date(h); a.setDate(a.getDate()-89);
+                      return {d1:dISO(a), d2:dISO(h), lbl:'últimos 90 días'}; }
+  if(repPer==='anio') return {d1:y+'-01-01', d2:y+'-12-31', lbl:'año '+y};
+  return {d1:'0000-01-01', d2:'9999-12-31', lbl:'toda la historia'};
+}
+/* Solo GASTO: el reporte contesta "en qué se me fue", no el flujo completo. Los ajustes de
+   saldo y los cambios de valor no son gasto de nadie y quedan fuera. */
+function repGastos(){
+  var R=repRango();
+  return movs().filter(function(m){
+    return m.tipo==='Gasto' && !m.ajuste && m.fecha>=R.d1 && m.fecha<=R.d2;
+  });
+}
+function renderRep(){
+  var R=repRango(), G=repGastos();
+  var tot=G.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0);
+  var por={};
+  G.forEach(function(m){ var g=m.grupo||'(sin grupo)'; por[g]=(por[g]||0)+aBase(m.amount,m.mon); });
+  var gs=Object.keys(por).sort(function(a,b){ return por[b]-por[a]; });
+  var max=gs.length?por[gs[0]]:1;
+  var V=viajes();
+  var PERS=[['mes','Este mes'],['90','90 días'],['anio','Este año'],['todo','Todo']];
+
+  $('repBody').innerHTML=
+    /* ---- viajes ---- */
+    '<div class="secttl">Viajes</div>'+
+    (V.length
+      ? V.map(function(v,i){
+          var r=resumenViaje(v.n);
+          return '<div class="cfg-i" data-vje="'+i+'"><div class="ic">'+(v.e||'🧳')+'</div>'+
+            '<div class="nm">'+escAtr(v.n)+'<small>'+rangoViaje(v)+'</small></div>'+
+            '<div class="val">'+(r.n?fmt2(r.total):'—')+'</div><div class="chev">›</div></div>';
+        }).join('')
+      : '<div class="note">Todavía no has creado ningún viaje. Créalo con sus fechas y lo '+
+        'que captures esos días se marca solo; después aquí ves cuánto costó completo.</div>')+
+    '<div class="cfg-i" id="repVjeNuevo"><div class="ic" style="color:var(--nuevo-ink)">＋</div>'+
+      '<div class="nm" style="color:var(--nuevo-ink)">Nuevo viaje</div></div>'+
+
+    /* ---- en qué se te fue ---- */
+    '<div class="secttl">En qué se te fue<span>'+R.lbl+'</span></div>'+
+    '<div class="repchips">'+PERS.map(function(p){
+      return '<button class="chip'+(repPer===p[0]?' on':'')+'" data-per="'+p[0]+'">'+p[1]+'</button>';
+    }).join('')+'</div>'+
+    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' gasto'+(G.length===1?'':'s')+'</small></div>'+
+    (gs.length
+      ? gs.map(function(g){
+          return '<div class="vjerow" data-gr="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
+            '<div class="vjetrack"><div class="vjebar" style="width:'+
+              Math.max(2, Math.round(por[g]/max*100))+'%"></div></div>'+
+            '<div class="vjeval">'+fmt2(por[g])+'<small>'+Math.round(por[g]/tot*100)+'%</small></div></div>';
+        }).join('')
+      : '<div class="note">No hay gastos en este periodo.</div>')+
+    '<div class="note">Toca un grupo para ver sus movimientos. Aquí entra <b>todo</b> lo que '+
+      'capturaste como gasto, también lo del negocio — se distingue por su categoría.</div>';
+
+  $('repBody').querySelectorAll('[data-per]').forEach(function(b){
+    b.onclick=function(){ repPer=b.dataset.per; renderRep(); };
+  });
+  $('repBody').querySelectorAll('[data-vje]').forEach(function(el){
+    el.onclick=function(){ verViaje(+el.dataset.vje); };
+  });
+  $('repVjeNuevo').onclick=function(){
+    nuevoViaje(function(){
+      var i=viajes().length-1, v=viajes()[i];
+      var hay=movs().filter(function(m){
+        return !m.viaje && !m.ajuste && !tipoDe(m.tipo).sinAmb &&
+               v.ini && v.fin && m.fecha>=v.ini && m.fecha<=v.fin; }).length;
+      renderRep();
+      if(hay){ revisarViaje(i); toast(hay+' movimiento'+(hay===1?'':'s')+' en esas fechas'); }
+      else { cerrarYaPintado(); toast('Viaje creado'); }
+    });
+  };
+  $('repBody').querySelectorAll('[data-gr]').forEach(function(el){
+    el.onclick=function(){ verGrupoRep(el.dataset.gr); };
+  });
+}
+/* el detalle de un grupo: sus subcategorías y sus movimientos, dentro del mismo periodo */
+function verGrupoRep(g){
+  var R=repRango();
+  var L=repGastos().filter(function(m){ return (m.grupo||'(sin grupo)')===g; })
+                   .sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  var tot=L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0);
+  var sub={}; L.forEach(function(m){ var s=m.sub||g; sub[s]=(sub[s]||0)+aBase(m.amount,m.mon); });
+  var ss=Object.keys(sub).sort(function(a,b){ return sub[b]-sub[a]; });
+  var max=ss.length?sub[ss[0]]:1;
+  openSheet(g);
+  $('sheetBody').innerHTML=
+    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+L.length+' gasto'+(L.length===1?'':'s')+
+      ' · '+R.lbl+'</small></div>'+
+    /* si el grupo no tiene subcategorías, la lista sería una sola línea igual al total */
+    (ss.length>1 ? ss.map(function(s){
+        return '<div class="vjerow"><div class="vjenm">'+s+'</div>'+
+          '<div class="vjetrack"><div class="vjebar" style="width:'+
+            Math.max(2, Math.round(sub[s]/max*100))+'%"></div></div>'+
+          '<div class="vjeval">'+fmt2(sub[s])+'</div></div>';
+      }).join('')+'<div class="secttl">Movimientos</div>' : '')+
+    filasMov(L, null);
+  /* tocar un movimiento abre su editor, igual que en la lista de siempre */
+  $('sheetBody').querySelectorAll('.mov').forEach(function(el){
+    el.onclick=function(){ editarMov(el.dataset.id); };
+  });
+}
+
 /* ================= VIAJES =================
    Lo que gastó en un viaje sumado aparte, SIN sacarlo de sus categorías: la cena sigue
    contando en Alimentación y también aquí. Por eso los números de esta pantalla no se
@@ -4663,41 +4791,10 @@ function resumenViaje(n){
   });
   return {total:g, ingreso:ing, n:k, grupos:grupos};
 }
-function verViajes(){
-  var L=viajes();
-  openSheet('Viajes');
-  $('sheetBody').innerHTML=
-    L.map(function(v,i){
-      var r=resumenViaje(v.n);
-      return '<div class="acct" data-i="'+i+'"><div class="ic">'+(v.e||'🧳')+'</div>'+
-        '<div class="nm">'+escAtr(v.n)+'<small>'+rangoViaje(v)+'</small></div>'+
-        '<div class="tag">'+(r.n?fmt2(r.total):'sin gastos')+'</div></div>';
-    }).join('')+
-    '<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Nuevo viaje</div></div>'+
-    '<div class="note">Marca un gasto con un viaje y podrás ver cuánto te costó ese viaje '+
-      'completo, juntando el hospedaje y los boletos con la comida y los paseos. '+
-      '<b>No cambia nada más</b>: cada gasto sigue contando en su categoría de siempre.</div>';
-  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
-    el.onclick=function(){
-      if(el.dataset.nuevo){
-        nuevoViaje(function(n){
-          /* La marca automática solo actúa al CAPTURAR, así que lo que ya estaba registrado
-             en esas fechas se queda fuera. Pasa siempre que el viaje se crea a media
-             marcha: Marco creó "Merida" cuando ya llevaba un gasto de ese día y ese se
-             quedó sin chip (11-ago-2026). En vez de que lo tenga que ir a buscar, si hay
-             candidatos se abre directo la pantalla de marcar. */
-          var i=viajes().length-1, v=viajes()[i];
-          var hay=movs().filter(function(m){
-            return !m.viaje && !m.ajuste && !tipoDe(m.tipo).sinAmb &&
-                   v.ini && v.fin && m.fecha>=v.ini && m.fecha<=v.fin; }).length;
-          if(hay){ revisarViaje(i); toast(hay+' movimiento'+(hay===1?'':'s')+' en esas fechas'); }
-          else { verViajes(); toast('Viaje creado'); }
-        });
-      }
-      else verViaje(+el.dataset.i);
-    };
-  });
-}
+/* La lista de viajes vive en la pestaña Reportes (`renderRep`), no en una hoja aparte.
+   La marca automática solo actúa al CAPTURAR, así que lo ya registrado en esas fechas se
+   queda fuera; por eso al crear un viaje con candidatos se abre directo la pantalla de
+   marcarlos (le pasó a Marco con "Merida" el 11-ago-2026). */
 function verViaje(i){
   var V=viajes(), v=V[i]; if(!v) return;
   var r=resumenViaje(v.n), dias=diasViaje(v);
@@ -4804,7 +4901,7 @@ function editarViaje(i){
       if(k) saveMovs(m);
       if(st.viaje===viejo) st.viaje=nom;
     }
-    pintaViaje(); verViajes(); renderCuenta(); toast('Guardado');
+    pintaViaje(); renderRep(); renderCuenta(); verViaje(i); toast('Guardado');
   };
   $('veDel').onclick=function(){
     var uso=movs().filter(function(m){ return m.viaje===v.n; }).length;
@@ -4814,7 +4911,7 @@ function editarViaje(i){
         if(uso){ var m=movs(); m.forEach(function(x){ if(x.viaje===v.n) x.viaje=null; }); saveMovs(m); }
         var B=viajes(); B.splice(i,1); guardaViajes(B);
         if(st.viaje===v.n){ st.viaje=null; }
-        pintaViaje(); verViajes(); renderCuenta(); toast('Borrado');
+        pintaViaje(); renderRep(); renderCuenta(); cerrarYaPintado(); toast('Borrado');
       });
   };
 }
