@@ -847,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2208";
+<script>window.MM_VER="20260811-2211";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4917,8 +4917,16 @@ function renderRep(){
     return {n:x.n, e:x.e, t:x.n}; }));
 
   $('repBody').innerHTML=
-    /* ---- en qué se te fue: es LO PRIMORDIAL y por eso va primero (Marco, 11-ago-2026:
-           "los viajes me los pusiste primero como si fuera lo primordial, pero no") ---- */
+    /* ---- El interruptor va HASTA ARRIBA, primero (Marco, 11-ago-2026): es lo que manda
+           sobre todo lo demás —el título, qué ámbitos se ofrecen, qué se suma—, así que
+           primero decides si ves gastos o ingresos y luego afinas. Enseña los DOS totales,
+           para que el lado que no estás viendo también informe. ---- */
+    '<div class="segbtn" style="margin:12px 16px 12px" id="repModoSeg">'+
+      '<button data-modo="gasto"'+(repModo==='gasto'?' class="on"':'')+
+        '>Gastos<small>'+fmt2s(totG)+'</small></button>'+
+      '<button data-modo="ingreso"'+(repModo==='ingreso'?' class="on"':'')+
+        '>Ingresos<small>'+fmt2s(totI)+'</small></button>'+
+    '</div>'+
     '<div class="secttl">'+(repModo==='ingreso'?'De dónde vino':'En qué se te fue')+
       '<span>'+R.lbl+'</span></div>'+
     '<div class="repchips">'+PERS.map(function(p){
@@ -4929,14 +4937,6 @@ function renderRep(){
       return '<button class="chip'+(A===a.n?' on':'')+'" data-amb="'+escAtr(a.n)+'">'+
              a.e+' '+a.t+'</button>';
     }).join('')+'</div>'+
-    /* El interruptor enseña LOS DOS totales: así el de al lado también informa, y de paso
-       se ve de un vistazo si el periodo cerró arriba o abajo. */
-    '<div class="segbtn" style="margin:2px 16px 10px" id="repModoSeg">'+
-      '<button data-modo="gasto"'+(repModo==='gasto'?' class="on"':'')+
-        '>Gastos<small>'+fmt2s(totG)+'</small></button>'+
-      '<button data-modo="ingreso"'+(repModo==='ingreso'?' class="on"':'')+
-        '>Ingresos<small>'+fmt2s(totI)+'</small></button>'+
-    '</div>'+
     '<div class="reptot"><b>'+fmt2s(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
