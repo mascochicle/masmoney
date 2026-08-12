@@ -325,7 +325,6 @@ button{font-family:inherit;}
 .reptot{padding:2px 16px 12px;}
 .reptot b{font-size:26px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;}
 .reptot small{display:block;color:var(--mut);font-size:11.5px;margin-top:1px;}
-.reptot small.oculto{color:var(--op);margin-top:3px;}
 .vjerow[data-gr]{cursor:pointer;}
 .vjerow[data-gr]:active{background:var(--surface);}
 .cfg-i .val{font-size:13.5px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--mut);}
@@ -848,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2113";
+<script>window.MM_VER="20260811-2126";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4863,7 +4862,6 @@ function renderRep(){
 
   /* Todos + los ámbitos que él tenga. "Todos" primero porque es el default. */
   var A=repAmb();
-  var ocultos = (A==='todos') ? 0 : Math.max(0, repSuma(repMovs(repModo,'todos')) - tot);
   var AMBS=[{n:'todos', e:'☰', t:'Todos'}].concat(ambitos().map(function(x){
     return {n:x.n, e:x.e, t:x.n}; }));
 
@@ -4890,10 +4888,7 @@ function renderRep(){
     '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
-      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small>'+
-      /* cuánto deja fuera el filtro: sin esto una cifra filtrada se lee como si fuera todo */
-      (ocultos>0?'<small class="oculto">El filtro deja fuera <b>'+fmt2(ocultos)+
-        '</b> · toca ☰ Todos para verlo</small>':'')+'</div>'+
+      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small></div>'+
     (gs.length
       ? gs.map(function(g){
           return '<div class="vjerow" data-gr="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
