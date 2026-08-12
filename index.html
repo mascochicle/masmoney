@@ -747,6 +747,13 @@ body.capturando .tabbar{display:none;}
         <button class="row" id="rowTipo"><div class="ic" id="tipoIc">🛒</div>
           <div class="lb"><div class="t" id="tipoNm">Gasto</div><div class="s">Tipo de operación</div></div></button>
       </div>
+      <!-- El ÁMBITO en chips y no en un renglón que abre hoja: es un toque en vez de tres, y
+           sobre todo SE QUEDA A LA VISTA. Es el campo que no se puede esconder — es lo único
+           que separa la mercancía de la tienda de la despensa de la casa (12-ago-2026).
+           Va ARRIBA, pegado a Cuenta/Tipo (Marco, 12-ago-2026), donde además le toca por
+           lógica: el ámbito decide QUÉ lista de categorías se ofrece, así que se contesta
+           antes de elegirlas. -->
+      <div class="ambchips" id="ambChips"></div>
       <!-- bloque aparte: lo que SÍ hay que llenar. El hueco entre los dos cuadros es a
            propósito, para que se lean como cosas distintas (Marco, 6-ago-2026: "sepáralos,
            que sean partes independientes, déjales un espacio entre partes, así sé que ya
@@ -775,10 +782,6 @@ body.capturando .tabbar{display:none;}
         <div class="equiv" id="equiv" style="display:none"></div>
         <button class="cur" id="fechaBtn"><u id="fechaLbl">hoy</u></button>
       </div>
-      <!-- El ÁMBITO en chips y no en un renglón que abre hoja: es un toque en vez de tres, y
-           sobre todo SE QUEDA A LA VISTA. Es el campo que no se puede esconder — es lo único
-           que separa la mercancía de la tienda de la despensa de la casa (12-ago-2026). -->
-      <div class="ambchips" id="ambChips"></div>
       <!-- Agente, viaje, nota, foto y MSI dejan de ser renglones fijos: son iconos que se
            encienden cuando tienen valor y abren lo suyo al tocarlos. Debajo se resume lo que
            llevas puesto, así no hay que abrirlos para saber qué tienen. -->
@@ -936,7 +939,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1205";
+<script>window.MM_VER="20260812-1210";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2091,15 +2094,22 @@ function verPad(v){
   $('pad').classList.toggle('off',!v);
   if(!v) return;
   var sc=document.querySelector('#vForm .capscroll');
-  var obj=document.querySelector('#lineasBox') || document.querySelector('#vForm .amount');
+  var obj=document.querySelector('#lineasBox .lin.act') || document.querySelector('#lineasBox')
+          || document.querySelector('#vForm .amount');
   if(!sc||!obj) return;
   requestAnimationFrame(function(){ requestAnimationFrame(function(){
-    /* Se deja arriba lo que estás EDITANDO, que ahora son las LÍNEAS: el monto vive en
-       ellas desde que se quitó el número grande. Antes se anclaba al bloque `.amount`, que
-       quedó por DEBAJO de las líneas, y al abrir el teclado las empujaba fuera de pantalla
-       — Marco veía solo el TOTAL cortado (12-ago-2026). Casi siempre todo cabe y esto no
-       mueve nada; solo actúa con la letra grande, que es cuando no cabe. */
-    var y = sc.scrollTop + (obj.getBoundingClientRect().top - sc.getBoundingClientRect().top) - 8;
+    /* Se desplaza LO MÍNIMO y solo si la línea que estás editando no se ve. Antes se
+       llevaba el bloque de líneas hasta arriba siempre, aunque todo cupiera; desde que el
+       ámbito subió a la primera posición (Marco, 12-ago-2026) eso lo sacaba de pantalla, y
+       el ámbito es justo el campo que no se puede esconder. Con muchas categorías ya no
+       cabe todo y el ámbito se sube igual: ahí se recupera desplazando, pero con dos o tres
+       líneas —lo normal— nada se mueve.
+       Se ancla a la línea ACTIVA, no al bloque: con varias, lo que importa es ver la que
+       estás capturando. */
+    var ro=obj.getBoundingClientRect(), rs=sc.getBoundingClientRect(), y=null;
+    if(ro.bottom > rs.bottom-8)      y = sc.scrollTop + (ro.bottom - rs.bottom) + 8;
+    else if(ro.top < rs.top+8)       y = sc.scrollTop - (rs.top - ro.top) - 8;
+    if(y===null) return;                       // ya se ve: no lo muevas
     var max = Math.max(0, sc.scrollHeight - sc.clientHeight);
     sc.scrollTo({top:Math.max(0, Math.min(y, max)), behavior:'smooth'});
   });});
