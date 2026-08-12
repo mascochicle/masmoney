@@ -102,9 +102,11 @@ button{font-family:inherit;}
 .lin.act .e{background:var(--accent-soft);}
 .lin .x{width:24px;height:24px;border-radius:50%;background:var(--ground);color:var(--mut2);
   display:grid;place-items:center;font-size:11px;flex:none;margin-left:2px;}
-.lintot{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--ground);}
-.lintot .k{flex:1;font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;}
-.lintot b{font-size:17px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
+/* El total va PEGADO a la izquierda ("Total: $130"), no alineado con la columna de montos
+   de las líneas (Marco, 12-ago-2026). El ＋ se queda en la orilla derecha. */
+.lintot{display:flex;align-items:center;gap:7px;padding:11px 14px;border-top:1px solid var(--ground);}
+.lintot .k{flex:none;font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;}
+.lintot b{margin-right:auto;font-size:17px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
 .linmas{width:28px;height:28px;border-radius:50%;border:1px solid var(--accent-ink);background:transparent;
   color:var(--accent-ink);font-size:16px;line-height:1;cursor:pointer;font-family:inherit;flex:none;}
 /* ---- captura compacta (12-ago-2026) ---- */
@@ -474,6 +476,7 @@ button{font-family:inherit;}
   line-height:1;display:grid;place-items:center;flex:none;}
 
 /* ---------- tab bar ---------- */
+body.capturando .tabbar{display:none;}
 .tabbar{display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);}
 .tabbar button{flex:1;border:0;background:transparent;color:var(--mut2);padding:10px 0 12px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:650;}
@@ -933,7 +936,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1059";
+<script>window.MM_VER="20260812-1126";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1683,7 +1686,7 @@ var PERIODOS=[
   {n:'Este año',        f:function(){per={t:'anio',y:new Date().getFullYear()};}},
   {n:'Escoger año…',    f:null}
 ];
-function _formCerrarYa(){ $('vForm').classList.remove('on'); $('vCta').classList.add('on'); verPad(false); renderCuenta(); }
+function _formCerrarYa(){ $('vForm').classList.remove('on'); $('vCta').classList.add('on'); capturando(false); verPad(false); renderCuenta(); }
 /* ¿hay algo escrito que se perdería al salir? */
 function formSucio(){
   return num()>0 || $('desc').value.trim()!=='' || st.fotos.length>0 || !!st.agente ||
@@ -1696,8 +1699,13 @@ function _formFuera(){
   ask('¿Seguro que quieres cancelar?<br>Se pierde lo que llevas capturado.','Sí, cancelar',
       function(){ _forzarSalir=true; cerrarCapa(); }, 'No, continuar');
 }
+/* La barra de pestañas se esconde mientras se captura: en un teléfono se come ~60px que
+   hacen falta con el teclado abierto, y desde el formulario no se puede cambiar de pestaña
+   de todos modos (Marco, 12-ago-2026). No sirve un selector CSS de hermanos: el formulario
+   vive dentro de `.pane` y la barra es tía suya. */
+function capturando(si){ document.body.classList.toggle('capturando', !!si); }
 function verForm(si){
-  if(si){ $('vForm').classList.add('on'); $('vCta').classList.remove('on'); abrirCapa(_formFuera); }
+  if(si){ $('vForm').classList.add('on'); $('vCta').classList.remove('on'); capturando(true); abrirCapa(_formFuera); }
   else if($('vForm').classList.contains('on')) cerrarCapa();
 }
 function verCuenta(id){
@@ -2276,7 +2284,7 @@ function pintaLineas(){
       '<button class="lm" data-m="'+i+'">'+fmt2(evalua(p.amount)||0)+'</button>'+
       (multi?'<button class="x" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+
-  '<div class="lintot"><span class="k">Total</span><b>'+fmt2(tot)+'</b>'+
+  '<div class="lintot"><span class="k">Total:</span><b>'+fmt2(tot)+'</b>'+
     '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>';
 
   box.querySelectorAll('[data-cat]').forEach(function(el){
