@@ -933,7 +933,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1024";
+<script>window.MM_VER="20260812-1041";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2072,13 +2072,16 @@ function renderAmt(){
 function verPad(v){
   $('pad').classList.toggle('off',!v);
   if(!v) return;
-  var sc=document.querySelector('#vForm .capscroll'), am=document.querySelector('#vForm .amount');
-  if(!sc||!am) return;
+  var sc=document.querySelector('#vForm .capscroll');
+  var obj=document.querySelector('#lineasBox') || document.querySelector('#vForm .amount');
+  if(!sc||!obj) return;
   requestAnimationFrame(function(){ requestAnimationFrame(function(){
-    /* se deja el MONTO pegado arriba, no el final del área. Deslizar hasta el fondo
-       empujaba el monto fuera de la pantalla cuando lo de abajo (descripción + MSI) no
-       cabía: "me sale comido el 200" (3-ago-2026). */
-    var y = sc.scrollTop + (am.getBoundingClientRect().top - sc.getBoundingClientRect().top);
+    /* Se deja arriba lo que estás EDITANDO, que ahora son las LÍNEAS: el monto vive en
+       ellas desde que se quitó el número grande. Antes se anclaba al bloque `.amount`, que
+       quedó por DEBAJO de las líneas, y al abrir el teclado las empujaba fuera de pantalla
+       — Marco veía solo el TOTAL cortado (12-ago-2026). Casi siempre todo cabe y esto no
+       mueve nada; solo actúa con la letra grande, que es cuando no cabe. */
+    var y = sc.scrollTop + (obj.getBoundingClientRect().top - sc.getBoundingClientRect().top) - 8;
     var max = Math.max(0, sc.scrollHeight - sc.clientHeight);
     sc.scrollTo({top:Math.max(0, Math.min(y, max)), behavior:'smooth'});
   });});
