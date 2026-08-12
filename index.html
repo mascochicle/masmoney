@@ -972,7 +972,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1347";
+<script>window.MM_VER="20260812-1356";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2751,6 +2751,12 @@ function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('
      lista encima se veía como "sube, se frena y vuelve a subir" (Marco, 8-ago-2026, video).
      Ahora todo espera al transitionend, con reloj de respaldo por si no dispara. */
   trasElegirCat=null;   // si cerró la rejilla sin elegir, la captura se abandona
+  /* El "regresar" muere con la hoja, se cierre POR DONDE SE CIERRE. `closeSheet` ya lo
+     limpiaba, pero Escape y el gesto del teléfono entran por `cerrarCapa` y se lo
+     saltaban: la siguiente hoja heredaba un regreso ajeno y su "Cerrar" brincaba a una
+     pantalla que no venía al caso. Antes solo despistaba a la flecha ‹; desde que
+     "Cerrar" es el que regresa (12-ago-2026) le pegaba al botón principal. */
+  volverHoja=null;
   var limpio=false;
   function limpia(){
     if(limpio || sheet.classList.contains('show')) return;
@@ -2808,16 +2814,20 @@ function closeSheet(){
   modoOrdenar=false;      /* el modo ordenar no se hereda a la próxima hoja */
   if(sheet.classList.contains('show')) cerrarCapa();
 }
-/* La flecha ‹ regresa UN nivel cuando la pantalla registró a dónde volver; si no, cierra.
-   Antes siempre cerraba todo: elegir grupo en un movimiento dividido y tocar ‹ te aventaba
-   hasta la pantalla del movimiento ("me debería regresar a la anterior", 5-ago-2026).
-   "Cerrar" y tocar afuera sí cierran todo, esos son para eso. */
+/* Un solo botón arriba a la derecha: "Cerrar" REGRESA un nivel cuando la pantalla registró
+   a dónde volver, y cierra cuando no hay a dónde. La flecha ‹ se va — hacía lo mismo y
+   sobraba (Marco, 12-ago-2026: "al darle cerrar que me regrese la pantalla anterior, en
+   lugar de hacerlo con el ‹, ese mejor quítalo").
+   Esto INVIERTE lo del 5-ago-2026, cuando el ‹ era el que regresaba y Cerrar cerraba todo.
+   Para cerrar de un jalón desde una hoja anidada quedan tocar afuera, el gesto de retroceso
+   y Escape: esos siguen cerrando todo. */
 var volverHoja=null;
-scrim.onclick=closeSheet; $('sheetX').onclick=closeSheet;
-$('sheetBack').onclick=function(){
+scrim.onclick=closeSheet;
+$('sheetX').onclick=function(){
   if(volverHoja){ var f=volverHoja; volverHoja=null; f(); }
   else closeSheet();
 };
+$('sheetBack').style.display='none';
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') cerrarCapa(); });
 
 /* El gesto de retroceder del teléfono lo atrapa el sistema antes que la página, así que
