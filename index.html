@@ -128,6 +128,8 @@ button{font-family:inherit;}
 .optres{padding:7px 16px 0;font-size:11.5px;color:var(--mut);line-height:1.45;}
 .optres b{color:var(--ink);font-weight:600;}
 .optres:empty{display:none;}
+.amount.chico{padding:10px 16px 0;min-height:0;}
+.amount.chico .calcln:empty{display:none;}
 .extras{padding:0 16px;display:flex;gap:9px;align-items:stretch;}
 .extras.vis{display:flex !important;padding-top:11px;}
 .desc{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);
@@ -759,6 +761,17 @@ button{font-family:inherit;}
            ahí mismo se agrega, yo la quiero igual"). El teclado escribe en la línea que
            tengas activa; el total es la suma. -->
       <div class="lineas" id="lineasBox"></div>
+      <!-- El monto grande se fue (Marco, 12-ago-2026: "tú sigues poniendo en grande la
+           cantidad y eso es lo que estorba"). Como en Money Pro, la cantidad vive en su
+           renglón, a la derecha de la categoría. Aquí solo queda la operación pendiente de
+           la calculadora y la fecha. `disp`, `monLbl` y `equiv` se quedan ocultos porque
+           `renderAmt` les escribe. -->
+      <div class="amount chico">
+        <div class="calcln" id="calcLn"></div>
+        <div class="montoln" style="display:none"><div class="big zero" id="disp">0</div><span class="moneda" id="monLbl">MXN</span></div>
+        <div class="equiv" id="equiv" style="display:none"></div>
+        <button class="cur" id="fechaBtn"><u id="fechaLbl">hoy</u></button>
+      </div>
       <!-- El ÁMBITO en chips y no en un renglón que abre hoja: es un toque en vez de tres, y
            sobre todo SE QUEDA A LA VISTA. Es el campo que no se puede esconder — es lo único
            que separa la mercancía de la tienda de la despensa de la casa (12-ago-2026). -->
@@ -801,12 +814,6 @@ button{font-family:inherit;}
       </div>
     </div>
 
-    <div class="amount">
-      <div class="calcln" id="calcLn"></div>
-      <div class="montoln"><div class="big zero" id="disp">0</div><span class="moneda" id="monLbl">MXN</span></div>
-      <div class="equiv" id="equiv"></div>
-      <button class="cur" id="fechaBtn"><u id="fechaLbl">hoy</u></button>
-    </div>
 
     <!-- La descripción ya no está siempre a la vista: se abre con el icono 💬 de la barra.
          `fotoBtn` se queda oculto porque `pintaFotos` lo usa para marcar que hay archivos. -->
@@ -926,7 +933,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1002";
+<script>window.MM_VER="20260812-1024";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
