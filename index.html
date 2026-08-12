@@ -325,6 +325,7 @@ button{font-family:inherit;}
 .reptot{padding:2px 16px 12px;}
 .reptot b{font-size:26px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;}
 .reptot small{display:block;color:var(--mut);font-size:11.5px;margin-top:1px;}
+.reptot small.oculto{color:var(--op);margin-top:3px;}
 .vjerow[data-gr]{cursor:pointer;}
 .vjerow[data-gr]:active{background:var(--surface);}
 .cfg-i .val{font-size:13.5px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--mut);}
@@ -847,7 +848,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2057";
+<script>window.MM_VER="20260811-2106";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1100,7 +1101,7 @@ function diasViaje(v){
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=17;
+var MIG_V=18;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1399,6 +1400,23 @@ function migrar(){
         if(m.ambito!==amb){ m.ambito=amb; n17++; }
       });
       if(n17) sv(K_MOV,M17);
+    }
+  }
+
+  if(hecho<18){
+    /* 18) Se vuelve a recalcular el ámbito de los ingresos, ahora con la regla corregida:
+           lo que el NEGOCIO le paga (pago de tarjetas, retiro del negocio) es dinero suyo
+           y va a Personal, no a Negocio. La 17 lo había mandado a Negocio y eso le borraba
+           $589,151 —su mayor entrada— del reporte personal. Ver `ambDeIngreso`. */
+    var M18=ld(K_MOV,null);
+    if(M18 && M18.length){
+      var n18=0;
+      M18.forEach(function(m){
+        if(m.tipo!=='Ingreso') return;
+        var amb=ambDeIngreso(m.grupo);
+        if(m.ambito!==amb){ m.ambito=amb; n18++; }
+      });
+      if(n18) sv(K_MOV,M18);
     }
   }
 
@@ -2607,8 +2625,17 @@ var AMB_INGRESO=['Negocio','Propiedades','Personal'];
    redundante... en Money Pro solo pedía categoría y agente". En GASTOS se queda: ahí el
    mismo agente sirve a los dos mundos (Costco puede ser mercancía de la tienda o despensa
    de la familia) y el ámbito es lo único que los separa. */
+/* ⚠️ CORREGIDO el 11-ago-2026: `Negocio` ya NO manda el ingreso a ámbito Negocio, va a
+   PERSONAL. Marco: "son gastos personales pero pagados con mi negocio, sí son ingresos y
+   van en el personal; pero si son gastos del negocio pagados con ingresos del negocio, ahí
+   sí no van en personal". El ámbito de un INGRESO contesta *de quién es ese dinero ahora*,
+   y cuando la tienda le paga la tarjeta o le hace un retiro, ese dinero es suyo.
+   Medido en sus datos: de $589,151.87 que el negocio pagó a sus tarjetas, solo $12,259.27
+   —el 2.1%— corresponden a compras del negocio hechas con tarjeta personal. El otro 97.9%
+   es gasto suyo. Mandarlo todo a Negocio le borraba su mayor entrada del reporte personal.
+   Ese 2% queda contado de más en el ingreso personal, pero sale marcado como Negocio del
+   lado del GASTO, que es donde importa que no se cuele. */
 function ambDeIngreso(g){
-  if(g==='Negocio') return 'Negocio';
   if(g==='Arrendamiento') return 'Propiedades';
   return 'Personal';
 }
@@ -4765,7 +4792,18 @@ function hojaPeriodoRep(){
    todo junto y la compra de mercancía del negocio le tapaba el resto (Marco, 11-ago-2026:
    "si me domina el reporte la compra de mercancías"). Arranca en Todos porque prefiere ver
    el dato completo y decidir él qué esconder, pero basta un toque y se queda así. */
-function repAmb(){ var v=cfg().repAmb; return v==null?'todos':v; }
+/* Un filtro POR MODO, no uno compartido: son dos preguntas distintas y el ajuste que hace
+   legible el gasto arruina el ingreso. A Marco le pasó el 11-ago-2026: dejó Personal para
+   que la compra de mercancía no le dominara los gastos, y al ver Ingresos desaparecieron
+   los $589,151 de "Negocio · Pago de tarjetas", que tienen ámbito Negocio y son su mayor
+   entrada. Cada modo recuerda el suyo. */
+function repAmb(modo){
+  var k='repAmb_'+(modo||repModo), v=cfg()[k];
+  if(v!=null) return v;
+  /* los que capturó antes de que existiera el filtro por modo conservan su elección */
+  if((modo||repModo)==='gasto' && cfg().repAmb!=null) return cfg().repAmb;
+  return 'todos';
+}
 var repModo='gasto';        // 'gasto' | 'ingreso'
 /* Un pago de préstamo SÍ es gasto. Es la misma regla que Marco fijó para el tablero de la
    web el 1-ago-2026 ("mete todo en el gasto real, hipoteca, panel, camioneta y pago prima,
@@ -4781,8 +4819,8 @@ function repSubDe(m){
 }
 /* Quedan fuera los ajustes de saldo, las transferencias y los cambios de valor: no son
    dinero que entró ni salió, solo mueven cifras entre cuentas. */
-function repMovs(modo){
-  var R=repRango(), A=repAmb(), MO=modo||repModo;
+function repMovs(modo, ambFijo){
+  var MO=modo||repModo, R=repRango(), A=ambFijo||repAmb(MO);
   return movs().filter(function(m){
     if(m.ajuste) return false;
     var ok = (MO==='ingreso') ? (m.tipo==='Ingreso')
@@ -4811,7 +4849,9 @@ function renderRep(){
             ['sel', (repPer==='sel'||repPer==='todo') ? R.lbl : 'Seleccionar…']];
 
   /* Todos + los ámbitos que él tenga. "Todos" primero porque es el default. */
-  var A=repAmb(), AMBS=[{n:'todos', e:'☰', t:'Todos'}].concat(ambitos().map(function(x){
+  var A=repAmb();
+  var ocultos = (A==='todos') ? 0 : Math.max(0, repSuma(repMovs(repModo,'todos')) - tot);
+  var AMBS=[{n:'todos', e:'☰', t:'Todos'}].concat(ambitos().map(function(x){
     return {n:x.n, e:x.e, t:x.n}; }));
 
   $('repBody').innerHTML=
@@ -4837,7 +4877,10 @@ function renderRep(){
     '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
-      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small></div>'+
+      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small>'+
+      /* cuánto deja fuera el filtro: sin esto una cifra filtrada se lee como si fuera todo */
+      (ocultos>0?'<small class="oculto">El filtro deja fuera <b>'+fmt2(ocultos)+
+        '</b> · toca ☰ Todos para verlo</small>':'')+'</div>'+
     (gs.length
       ? gs.map(function(g){
           return '<div class="vjerow" data-gr="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
@@ -4873,7 +4916,7 @@ function renderRep(){
     };
   });
   $('repBody').querySelectorAll('[data-amb]').forEach(function(b){
-    b.onclick=function(){ setCfg('repAmb', b.dataset.amb); renderRep(); };
+    b.onclick=function(){ setCfg('repAmb_'+repModo, b.dataset.amb); renderRep(); };
   });
   $('repBody').querySelectorAll('[data-modo]').forEach(function(b){
     b.onclick=function(){ repModo=b.dataset.modo; renderRep(); };
