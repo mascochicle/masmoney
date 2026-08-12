@@ -860,7 +860,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2241";
+<script>window.MM_VER="20260811-2246";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3256,7 +3256,10 @@ function ordenados(){ return movs().slice().sort(function(a,b){return (b.ts||0)-
 
 /* un renglón de movimiento. Si viene `cid`, se pinta desde el punto de vista de esa
    cuenta: lo que le entra sale en verde con +, lo que le sale en rojo con −. */
-function filaMov(m,cid){
+/* `neto` lo pide el REPORTE: ahí un pago de tarjeta se enseña ya sin la parte del negocio,
+   para que los renglones sumen lo que dice el encabezado. En la pestaña de Movimientos NO
+   se usa: ahí tiene que salir el monto que de verdad entró a la cuenta. */
+function filaMov(m,cid,neto){
   var lab = m.ajuste ? ('Ajuste de saldo · '+m.cuenta)
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : m.sub;
   if(m.partes && m.partes.length>1) lab += ' +'+(m.partes.length-1)+' más';
@@ -3287,6 +3290,7 @@ function filaMov(m,cid){
         : m.tipo==='Cambio de valor' ? (m.dir>0?' i':'')
         : m.tipo==='Ingreso'?' i':esTransf?' tr':dosCuentas(m.tipo)?' t':'';
   }
+  if(neto && m.negocio) monto = monto - m.negocio;
   /* con varias fotos el clip lleva el número, para saber cuántas trae sin abrirlo */
   var nf=fotosDe(m).length;
   return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+
@@ -3295,11 +3299,11 @@ function filaMov(m,cid){
     '<div class="d">'+meta+'</div></div>'+
     '<div class="amt'+cls+'">'+sig+fmtM(monto,mn)+'</div></div>';
 }
-function filasMov(L,c){
+function filasMov(L,c,neto){
   var dias={}, orden=[];
   L.forEach(function(m){ if(!dias[m.fecha]){dias[m.fecha]=[];orden.push(m.fecha);} dias[m.fecha].push(m); });
   return orden.map(function(f){
-    return '<div class="daylb">'+dlargo(f)+'</div>'+dias[f].map(function(m){return filaMov(m,c&&c.id);}).join('');
+    return '<div class="daylb">'+dlargo(f)+'</div>'+dias[f].map(function(m){return filaMov(m,c&&c.id,neto);}).join('');
   }).join('');
 }
 /* ================= calendario, como la pestaña "Hoy" de Money Pro =================
@@ -4908,7 +4912,14 @@ function repMovs(modo, ambFijo){
     return A==='todos' || ambRep(m)===A;
   });
 }
-function repSuma(L){ return L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0); }
+/* Lo que de verdad te quedó de un movimiento: en un pago de tarjeta se le quita la parte
+   que era del negocio. Todo el reporte —total, grupos y renglones— habla en NETO, para que
+   los renglones sumen lo que dice el encabezado (Marco, 11-ago-2026: "¿podrías mostrar
+   estas operaciones pero restadas?"). El monto REAL del movimiento no se toca: en la
+   pestaña de Movimientos y en los saldos sigue saliendo completo, que es lo que entró
+   a la cuenta. */
+function repMonto(m){ return aBase(m.amount,m.mon) - aBase(m.negocio||0,m.mon); }
+function repSuma(L){ return L.reduce(function(a,m){ return a+repMonto(m); },0); }
 /* Lo que el negocio le paga a las tarjetas entra como ingreso suyo, pero una parte de esos
    pagos está cubriendo COMPRAS DEL NEGOCIO que hizo con tarjeta personal, y eso no es suyo
    (Marco, 11-ago-2026: "es parte del negocio, no es mío, habría que restar eso").
@@ -4918,21 +4929,18 @@ function repSuma(L){ return L.reduce(function(a,m){ return a+aBase(m.amount,m.mo
    ésas te las reponen en septiembre. Con los datos de Marco daba $23,836.27 cuando lo
    correcto eran $13,725.81 (él lo saca de su Excel, por corte). Ahora se lee el campo
    `negocio` que él captura en cada pago de tarjeta: exacto y sin adivinar. */
-function repNeg(L){ return L.reduce(function(a,m){ return a+aBase(m.negocio||0,m.mon); },0); }
+/* la resta ya no se calcula aparte: va dentro de `repMonto`, así todo el reporte cuadra */
 function renderRep(){
   var R=repRango(), G=repMovs();
   /* El otro lado se mide con el MISMO filtro de ámbito que tienes puesto. Si cada uno usara
      el suyo, la "diferencia" restaría dos cosas de alcance distinto y no significaría nada. */
   var Lg=(repModo==='gasto')  ? G : repMovs('gasto',   repAmb(repModo));
   var Li=(repModo==='ingreso')? G : repMovs('ingreso', repAmb(repModo));
-  /* El ingreso va NETO de la parte que era del negocio; el gasto va tal cual. Como la resta
-     sale de los propios movimientos filtrados, no hay que tratar Propiedades aparte: sus
-     rentas no traen `negocio` y por eso no se les descuenta nada. */
-  var bruto=repSuma(G), desc=(repModo==='ingreso')?repNeg(G):0;
-  var totG=repSuma(Lg), totI=repSuma(Li)-repNeg(Li);
-  var tot=bruto-desc;
+  /* Todo en NETO (ver `repMonto`), así que ya no hay una resta aparte que explicar: los
+     grupos suman exactamente el total y los porcentajes cuadran solos. */
+  var totG=repSuma(Lg), totI=repSuma(Li), tot=repSuma(G), bruto=tot;
   var por={};
-  G.forEach(function(m){ var g=repGrupoDe(m); por[g]=(por[g]||0)+aBase(m.amount,m.mon); });
+  G.forEach(function(m){ var g=repGrupoDe(m); por[g]=(por[g]||0)+repMonto(m); });
   var gs=Object.keys(por).sort(function(a,b){ return por[b]-por[a]; });
   var max=gs.length?por[gs[0]]:1;
   var V=viajes();
@@ -5032,7 +5040,7 @@ function verGrupoRep(g){
   var L=repMovs().filter(function(m){ return repGrupoDe(m)===g; })
                  .sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
   var tot=repSuma(L);
-  var sub={}; L.forEach(function(m){ var s=repSubDe(m); sub[s]=(sub[s]||0)+aBase(m.amount,m.mon); });
+  var sub={}; L.forEach(function(m){ var s=repSubDe(m); sub[s]=(sub[s]||0)+repMonto(m); });
   var ss=Object.keys(sub).sort(function(a,b){ return sub[b]-sub[a]; });
   var max=ss.length?sub[ss[0]]:1;
   openSheet(g);
@@ -5047,7 +5055,7 @@ function verGrupoRep(g){
             Math.max(2, Math.round(sub[s]/max*100))+'%"></div></div>'+
           '<div class="vjeval">'+fmt2(sub[s])+'</div></div>';
       }).join('')+'<div class="secttl">Movimientos</div>' : '')+
-    filasMov(L, null);
+    filasMov(L, null, true);
   /* tocar un movimiento abre su editor, igual que en la lista de siempre */
   $('sheetBody').querySelectorAll('.mov').forEach(function(el){
     el.onclick=function(){ editarMov(el.dataset.id); };
