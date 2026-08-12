@@ -847,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2126";
+<script>window.MM_VER="20260811-2141";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4811,10 +4811,28 @@ function hojaPeriodoRep(){
    entrada. Cada modo recuerda el suyo. */
 function repAmb(modo){
   var k='repAmb_'+(modo||repModo), v=cfg()[k];
-  if(v!=null) return v;
-  /* los que capturó antes de que existiera el filtro por modo conservan su elección */
-  if((modo||repModo)==='gasto' && cfg().repAmb!=null) return cfg().repAmb;
-  return 'todos';
+  if(v==null && (modo||repModo)==='gasto' && cfg().repAmb!=null) v=cfg().repAmb;
+  if(v==null) return 'todos';
+  return v==='Casa Sol' ? 'Personal' : v;    // por si quedó guardado de antes
+}
+/* CASA SOL CUENTA COMO PERSONAL en el reporte (Marco, 11-ago-2026: "casa sol es donde yo
+   vivo, hay que meterlo a personal"). Sigue existiendo como ámbito al capturar —le sirve
+   para saber qué es de la casa y el tablero de la web lo usa— pero para "¿en qué se me
+   fue?" es su gasto: 417 movimientos, $290,250.45. */
+function ambRep(m){
+  var a=m.ambito||'Personal';
+  return a==='Casa Sol' ? 'Personal' : a;
+}
+/* El orden lo pidió él: Personal, Negocio, Propiedades. Lo que no esté en la lista se
+   agrega al final, para que un ámbito nuevo siga apareciendo solo. */
+var REP_ORDEN=['Personal','Negocio','Propiedades'];
+function ambitosRep(){
+  var L=ambitos().filter(function(x){ return x.n!=='Casa Sol'; });
+  L.sort(function(a,b){
+    var i=REP_ORDEN.indexOf(a.n), j=REP_ORDEN.indexOf(b.n);
+    return (i<0?99:i)-(j<0?99:j);
+  });
+  return L;
 }
 var repModo='gasto';        // 'gasto' | 'ingreso'
 /* Un pago de préstamo SÍ es gasto. Es la misma regla que Marco fijó para el tablero de la
@@ -4841,8 +4859,8 @@ function repMovs(modo, ambFijo){
     if(m.fecha<R.d1 || m.fecha>R.d2) return false;
     /* meses sueltos: el rango deja pasar los de en medio, hay que checar pertenencia */
     if(R.meses && R.meses.indexOf(m.fecha.slice(0,7))<0) return false;
-    /* los movimientos viejos sin ámbito se leen como Personal, igual que en la lista */
-    return A==='todos' || (m.ambito||'Personal')===A;
+    /* sin ámbito y Casa Sol se leen como Personal (ver `ambRep`) */
+    return A==='todos' || ambRep(m)===A;
   });
 }
 function repSuma(L){ return L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0); }
@@ -4862,7 +4880,7 @@ function renderRep(){
 
   /* Todos + los ámbitos que él tenga. "Todos" primero porque es el default. */
   var A=repAmb();
-  var AMBS=[{n:'todos', e:'☰', t:'Todos'}].concat(ambitos().map(function(x){
+  var AMBS=[{n:'todos', e:'☰', t:'Todos'}].concat(ambitosRep().map(function(x){
     return {n:x.n, e:x.e, t:x.n}; }));
 
   $('repBody').innerHTML=
