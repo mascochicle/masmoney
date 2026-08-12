@@ -140,9 +140,15 @@ button{font-family:inherit;}
    arriba más el margen de `.lineas` sumaban 19px de aire desperdiciado alrededor de los
    chips (Marco, 12-ago-2026: "hay mucho espacio es un desperdicio"). En una sola fila no
    caben —piden 403px y hay 361—, así que se quedan en dos, pero pegadas. */
-.ambchips{display:flex;gap:4px;flex-wrap:wrap;padding:0 16px;}
-.ambchips .chip{font-size:11.5px;padding:6px 10px;border:0;background:var(--surface);}
-.ambchips .chip.on{background:var(--accent-soft);color:var(--accent-ink);}
+.ambchips{display:flex;gap:0;padding:0 8px;}
+.ambchips .amb{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;
+  border:0;background:transparent;padding:2px 2px 0;cursor:pointer;font-family:inherit;}
+.ambchips .amb .o{width:42px;height:42px;border-radius:50%;background:var(--surface);
+  display:grid;place-items:center;font-size:19px;border:1px solid transparent;}
+.ambchips .amb .t{font-size:10.5px;line-height:1.15;color:var(--mut);text-align:center;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ambchips .amb.on .o{background:var(--accent-soft);border-color:var(--accent-ink);}
+.ambchips .amb.on .t{color:var(--accent-ink);font-weight:700;}
 .optbar{display:flex;gap:6px;padding:10px 16px 0;}
 .optbar button{flex:1;height:38px;border-radius:11px;border:0;background:var(--surface);
   color:var(--mut);font-size:16px;cursor:pointer;font-family:inherit;display:grid;place-items:center;}
@@ -964,7 +970,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1323";
+<script>window.MM_VER="20260812-1330";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2968,9 +2974,12 @@ function pintaAmbChips(){
   /* en ingreso el ámbito se deriva de la categoría, y en transferencias no aplica */
   if(T.sinAmb || st.tipo==='Ingreso'){ b.innerHTML=''; b.style.display='none'; return; }
   b.style.display='';
+  /* Círculos, no píldoras (Marco, 12-ago-2026): en una fila caben los cuatro, y es el mismo
+     lenguaje de la rejilla de categorías. En píldoras se iban a dos renglones porque pedían
+     403px de ancho y hay 361. */
   b.innerHTML=ambitosPara(st.tipo).map(function(A){
-    return '<button class="chip'+(A.n===st.ambito?' on':'')+'" data-a="'+escAtr(A.n)+'">'+
-           A.e+' '+A.n+'</button>'; }).join('');
+    return '<button class="amb'+(A.n===st.ambito?' on':'')+'" data-a="'+escAtr(A.n)+'">'+
+           '<span class="o">'+A.e+'</span><span class="t">'+A.n+'</span></button>'; }).join('');
   b.querySelectorAll('[data-a]').forEach(function(x){
     x.onclick=function(){ setAmbito(x.dataset.a); }; });
 }
