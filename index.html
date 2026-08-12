@@ -81,7 +81,19 @@ button{font-family:inherit;}
 .amount .cur{font-size:14px;color:var(--ink);letter-spacing:.06em;margin-top:9px;text-transform:uppercase;
   background:transparent;border:0;cursor:pointer;font-family:inherit;font-weight:600;}
 .amount .cur u{text-decoration:none;border-bottom:1px dashed var(--mut);padding-bottom:2px;}
+/* ---- captura compacta (12-ago-2026) ---- */
+.ambchips{display:flex;gap:6px;flex-wrap:wrap;padding:11px 16px 0;}
+.ambchips .chip{font-size:12.5px;padding:7px 12px;}
+.optbar{display:flex;gap:8px;padding:12px 16px 0;}
+.optbar button{flex:1;height:46px;border-radius:12px;border:1px solid var(--line);background:transparent;
+  color:var(--mut2);font-size:18px;cursor:pointer;font-family:inherit;display:grid;place-items:center;}
+.optbar button.on{border-color:var(--accent-ink);color:var(--accent-ink);background:var(--accent-soft);}
+.optbar button:active{background:var(--surface);}
+.optres{padding:9px 16px 0;font-size:12px;color:var(--mut);line-height:1.5;}
+.optres b{color:var(--ink);font-weight:600;}
+.optres:empty{display:none;}
 .extras{padding:0 16px;display:flex;gap:9px;align-items:stretch;}
+.extras.vis{display:flex !important;padding-top:11px;}
 .desc{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);
   padding:11px 13px;font-size:14px;resize:none;height:44px;font-family:inherit;}
 .desc::placeholder{color:var(--mut2);}
@@ -701,19 +713,22 @@ button{font-family:inherit;}
       <div class="rows">
         <!-- El ámbito sigue antes de la CATEGORÍA: es lo que decide si se ofrecen las
              categorías personales o las del negocio. -->
-        <button class="row" id="rowAmb"><div class="ic" id="ambIc">🙋</div>
-          <div class="lb"><div class="t" id="ambNm">Personal</div><div class="s" id="ambLb">¿De quién es este gasto?</div></div><div class="chev">›</div></button>
         <button class="row" id="rowCat"><div class="ic" id="catIc">🧺</div>
           <div class="lb"><div class="t" id="catNm">Víveres</div><div class="s" id="catSub">Alimentación</div></div><div class="chev">›</div></button>
-        <button class="row" id="rowAg"><div class="ic" id="agIc">👤</div>
-          <div class="lb"><div class="t" id="agNm">Sin agente</div><div class="s" id="agLb">Comercio o persona</div></div><div class="chev">›</div></button>
-        <!-- El renglón de VIAJE solo existe si ya hay algún viaje creado: mientras no haya,
-             sería un campo vacío estorbando en cada captura. Cuando la fecha cae dentro del
-             rango de un viaje se pone solo; si no, queda en "Sin viaje" y se toca nada más
-             cuando haga falta (el boleto que compras un mes antes). -->
-        <button class="row" id="rowVje" style="display:none"><div class="ic" id="vjeIc">🧳</div>
-          <div class="lb"><div class="t" id="vjeNm">Sin viaje</div><div class="s" id="vjeLb">Viaje</div></div><div class="chev">›</div></button>
       </div>
+      <!-- El ÁMBITO en chips y no en un renglón que abre hoja: es un toque en vez de tres, y
+           sobre todo SE QUEDA A LA VISTA. Es el campo que no se puede esconder — es lo único
+           que separa la mercancía de la tienda de la despensa de la casa (12-ago-2026). -->
+      <div class="ambchips" id="ambChips"></div>
+      <!-- Agente, viaje, nota, foto y MSI dejan de ser renglones fijos: son iconos que se
+           encienden cuando tienen valor y abren lo suyo al tocarlos. Debajo se resume lo que
+           llevas puesto, así no hay que abrirlos para saber qué tienen. -->
+      <div class="optbar" id="optBar"></div>
+      <div class="optres" id="optRes"></div>
+      <!-- se quedan por compatibilidad: el código viejo los lee, pero ya no se ven -->
+      <button id="rowAg" style="display:none"><span id="agIc"></span><span id="agNm"></span><span id="agLb"></span></button>
+      <button id="rowVje" style="display:none"><span id="vjeIc"></span><span id="vjeNm"></span><span id="vjeLb"></span></button>
+      <button id="rowAmb" style="display:none"><span id="ambIc"></span><span id="ambNm"></span><span id="ambLb"></span></button>
       <div class="rows" id="intBox" style="display:none">
         <div class="row" style="cursor:default"><div class="ic">%</div>
           <div class="lb"><div class="t">Interés incluido</div><div class="s">El resto es capital y es lo que baja la deuda</div></div>
@@ -750,9 +765,11 @@ button{font-family:inherit;}
       <button class="cur" id="fechaBtn"><u id="fechaLbl">hoy</u></button>
     </div>
 
-    <div class="extras">
+    <!-- La descripción ya no está siempre a la vista: se abre con el icono 💬 de la barra.
+         `fotoBtn` se queda oculto porque `pintaFotos` lo usa para marcar que hay archivos. -->
+    <div class="extras" id="extras" style="display:none">
       <textarea class="desc" id="desc" placeholder="Descripción o comentario…"></textarea>
-      <button class="fotobtn" id="fotoBtn" title="Foto de la nota">📷</button>
+      <button class="fotobtn" id="fotoBtn" style="display:none" title="Foto de la nota">📷</button>
       <!-- TRES entradas, y cada `accept` es a propósito: Android arma el menú que te
            ofrece a partir de él, así que un solo input no puede dar las tres cosas.
              · fotoIn — `capture` fuerza la CÁMARA, sin preguntar nada.
@@ -866,7 +883,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-0910";
+<script>window.MM_VER="20260812-0920";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2118,10 +2135,11 @@ function setTipo(t){
   $('ambLb').textContent = T.amb || '¿De quién es?';
   $('agLb').textContent  = T.ag  || 'Comercio o persona';
   acomodaAmbito(); acomodaCat();
-  $('msiCard').style.display = (t==='Gasto')?'block':'none';
+  /* la tarjeta de MSI ya no vive abierta: se despliega con el icono % de la barra */
+  $('msiCard').style.display = (t==='Gasto' && st.msi) ? 'block' : 'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
-  acomodaNegocio();
+  acomodaNegocio(); pintaAmbChips(); pintaOpts();
   $('dirBox').style.display  = T.dir?'block':'none';
   if(!T.dir) st.dir=null; else if(!st.dir) setDir(-1);
   $('rowAg').style.display  = T.sinAg?'none':'flex';
@@ -2294,7 +2312,7 @@ function verDividir(op){
 
 /* ================= MSI ================= */
 $('msiSw').onclick=function(){ st.msi=!st.msi; this.classList.toggle('on',st.msi);
-  $('msiBody').classList.toggle('show',st.msi); renderMsiPrev(); };
+  $('msiBody').classList.toggle('show',st.msi); renderMsiPrev(); pintaOpts(); };
 $('msiMinus').onclick=function(){st.meses=Math.max(2,st.meses-1);$('msiN').textContent=st.meses;renderMsiPrev();};
 $('msiPlus').onclick=function(){st.meses=Math.min(48,st.meses+1);$('msiN').textContent=st.meses;renderMsiPrev();};
 
@@ -2367,7 +2385,7 @@ function pintaFotos(){
   if(!st.fotos.length){
     P.classList.remove('show'); P.innerHTML=''; $('fotoBtn').classList.remove('has'); return;
   }
-  P.classList.add('show'); $('fotoBtn').classList.add('has');
+  P.classList.add('show'); $('fotoBtn').classList.add('has'); pintaOpts();
   var peso=st.fotos.reduce(function(a,F){ return a+(F.peso||0); },0);
   var pdfs=st.fotos.filter(function(F){ return F.tipo==='pdf'; }).length;
   P.innerHTML='<div class="ftlist">'+
@@ -2403,6 +2421,7 @@ function tomarFoto(e){
   if(fotoPara){ var g=fotoPara; fotoPara=null; g(f); return; }
   leerFoto(f, function(F){ st.fotos.push(F); pintaFotos(); });
 }
+$('desc').oninput=function(){ pintaOpts(); };
 $('fotoIn').onchange=tomarFoto;
 $('galIn').onchange=tomarFoto;
 $('archIn').onchange=tomarFoto;
@@ -2722,7 +2741,60 @@ $('rowAmb').onclick=function(){
 function setAmbito(n){
   var A=ambitos().filter(function(x){return x.n===n;})[0]||ambitos()[0];
   st.ambito=A.n; $('ambNm').textContent=A.n; $('ambIc').textContent=A.e;
-  acomodaCat();
+  acomodaCat(); pintaAmbChips();
+}
+/* ---- captura compacta: el ámbito en chips y lo opcional en iconos (12-ago-2026) ----
+   Marco comparó con Money Pro y tenía razón: seis renglones de texto antes del monto pesan.
+   El ámbito NO se esconde —es lo único que separa la tienda de la casa— pero pasa a chips:
+   un toque en vez de abrir una hoja. Lo demás se vuelve iconos que se encienden solos. */
+function pintaAmbChips(){
+  var b=$('ambChips'); if(!b) return;
+  var T=tipoDe(st.tipo);
+  /* en ingreso el ámbito se deriva de la categoría, y en transferencias no aplica */
+  if(T.sinAmb || st.tipo==='Ingreso'){ b.innerHTML=''; b.style.display='none'; return; }
+  b.style.display='';
+  b.innerHTML=ambitosPara(st.tipo).map(function(A){
+    return '<button class="chip'+(A.n===st.ambito?' on':'')+'" data-a="'+escAtr(A.n)+'">'+
+           A.e+' '+A.n+'</button>'; }).join('');
+  b.querySelectorAll('[data-a]').forEach(function(x){
+    x.onclick=function(){ setAmbito(x.dataset.a); }; });
+}
+function pintaOpts(){
+  var bar=$('optBar'), res=$('optRes'); if(!bar) return;
+  var T=tipoDe(st.tipo), desc=$('desc').value.trim();
+  var O=[{k:'nota',  e:'💬', on:!!desc,            si:true},
+         {k:'foto',  e:'🖼', on:st.fotos.length>0, si:true},
+         {k:'agente',e:'👤', on:!!st.agente,       si:!T.sinAg},
+         {k:'viaje', e:'🧳', on:!!st.viaje,        si:viajes().length>0 && !T.sinAmb},
+         {k:'msi',   e:'%',  on:!!st.msi,          si:st.tipo==='Gasto'}]
+        .filter(function(x){ return x.si; });
+  bar.innerHTML=O.map(function(x){
+    return '<button data-o="'+x.k+'"'+(x.on?' class="on"':'')+'>'+x.e+'</button>'; }).join('');
+  /* el resumen evita tener que abrir cada icono para saber qué trae */
+  var r=[];
+  if(st.agente)       r.push('<b>'+escAtr(st.agente)+'</b>');
+  if(st.viaje)        r.push(icoViaje(st.viaje)+' '+escAtr(st.viaje));
+  if(st.msi)          r.push(st.meses+' MSI');
+  if(st.fotos.length) r.push(st.fotos.length+(st.fotos.length===1?' archivo':' archivos'));
+  if(desc)            r.push('«'+escAtr(desc.slice(0,38))+(desc.length>38?'…':'')+'»');
+  res.innerHTML=r.join(' · ');
+  bar.querySelectorAll('[data-o]').forEach(function(b2){
+    b2.onclick=function(){ abreOpt(b2.dataset.o); }; });
+}
+function abreOpt(k){
+  if(k==='agente') return abrirAgentes();
+  if(k==='viaje')  return abrirViajes();
+  if(k==='foto')   return hojaFoto(null);
+  if(k==='nota'){
+    var e=$('extras');
+    e.classList.toggle('vis');
+    if(e.classList.contains('vis')) setTimeout(function(){ try{ $('desc').focus(); }catch(x){} },60);
+    return;
+  }
+  if(k==='msi'){
+    var c=$('msiCard');
+    c.style.display = (c.style.display==='none' || !c.style.display) ? 'block' : 'none';
+  }
 }
 
 /* ================= viajes: el renglón de la captura =================
@@ -2747,6 +2819,7 @@ function pintaViaje(){
   $('vjeLb').textContent = st.viaje
       ? ((sug && sug.n===st.viaje && !st.viajeManual) ? 'Viaje · puesto por las fechas' : 'Viaje')
       : (sug ? 'Viaje · toca para marcarlo' : 'Viaje · opcional');
+  pintaOpts();
 }
 /* La sugerencia por fechas NO pisa lo que él ya decidió a mano: si lo puso —o lo quitó—
    manda su decisión aunque después mueva la fecha. */
@@ -2755,7 +2828,7 @@ function sugiereViaje(){
   var v=viajeEn(st.fecha);
   st.viaje = v ? v.n : null;
 }
-function setViaje(n){ st.viaje=n||null; st.viajeManual=true; pintaViaje(); }
+function setViaje(n){ st.viaje=n||null; st.viajeManual=true; pintaViaje(); pintaOpts(); }
 $('rowVje').onclick=function(){ abrirViajes(); };
 
 /* `cb` la usa el EDITOR de un movimiento: en vez de escribir en `st`, devuelve el elegido. */
@@ -2994,7 +3067,8 @@ function borrarAgente(n){
 }
 function setAgente(n){ st.agente=n||null;
   $('agNm').textContent=n||'Sin agente';
-  $('agNm').style.color=n?'var(--ink)':'var(--mut2)'; }
+  $('agNm').style.color=n?'var(--ink)':'var(--mut2)';
+  pintaOpts(); }
 
 /* Reordenar la rejilla DEJANDO PULSADO. Un toque normal elige el grupo; medio segundo
    sin soltar levanta la celda y la sigue el dedo. Se hace aquí, en la pantalla de captura,
@@ -3286,7 +3360,8 @@ function limpiarForm(){
   st.amount="0"; calcLimpia();
   st.partes=null; $('desc').value=''; st.fotos=[];
   $('interes').value=''; $('negIn').value=''; setAgente(null); verPad(false);
-  pintaPartes(); pintaFotos();
+  pintaPartes(); pintaFotos(); pintaAmbChips(); pintaOpts();
+  $('extras').classList.remove('vis'); $('msiCard').style.display='none';
   st.viajeManual=false;   // el siguiente movimiento vuelve a decidirse por las fechas
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
   $('fotoPrev').classList.remove('show'); $('fotoBtn').classList.remove('has');
