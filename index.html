@@ -847,7 +847,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2204";
+<script>window.MM_VER="20260811-2208";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4940,12 +4940,7 @@ function renderRep(){
     '<div class="reptot"><b>'+fmt2s(tot)+'</b><small>'+G.length+' '+
       (repModo==='ingreso'?('ingreso'+(G.length===1?'':'s')):('gasto'+(G.length===1?'':'s')))+
       (A==='todos'?'':' · solo '+A)+
-      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small>'+
-      /* la resta se enseña, no se esconde: es la única cifra del reporte que no sale
-         directo de sus movimientos */
-      ((repModo==='ingreso'&&desc>0)
-        ? '<small>'+fmt2(bruto)+' − <b>'+fmt2(desc)+'</b> de compras del negocio con tus tarjetas</small>'
-        : '')+'</div>'+
+      ' · diferencia '+(totI-totG>=0?'+':'−')+fmt2(Math.abs(totI-totG))+'</small></div>'+
     (gs.length
       ? gs.map(function(g){
           return '<div class="vjerow" data-gr="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
@@ -4954,8 +4949,7 @@ function renderRep(){
             /* el % va sobre el BRUTO: las barras suman el bruto, no el neto */
             '<div class="vjeval">'+fmt2(por[g])+'<small>'+Math.round(por[g]/bruto*100)+'%</small></div></div>';
         }).join('')
-      : '<div class="note">No hay '+(repModo==='ingreso'?'ingresos':'gastos')+
-        ' en este periodo'+(A==='todos'?'':' para '+A)+'.</div>')+
+      : '<div class="note">Sin '+(repModo==='ingreso'?'ingresos':'gastos')+' en este periodo.</div>')+
     /* Sin leyendas explicativas: Marco las pidió fuera dos veces (11-ago-2026). Los datos
        se explican solos y el texto largo estorba en una pantalla de consulta. */
 
@@ -4968,8 +4962,7 @@ function renderRep(){
             '<div class="nm">'+escAtr(v.n)+'<small>'+rangoViaje(v)+'</small></div>'+
             '<div class="val">'+(r.n?fmt2(r.total):'—')+'</div><div class="chev">›</div></div>';
         }).join('')
-      : '<div class="note">Todavía no has creado ningún viaje. Créalo con sus fechas y lo '+
-        'que captures esos días se marca solo; después aquí ves cuánto costó completo.</div>')+
+      : '<div class="note">Sin viajes.</div>')+
     '<div class="cfg-i" id="repVjeNuevo"><div class="ic" style="color:var(--nuevo-ink)">＋</div>'+
       '<div class="nm" style="color:var(--nuevo-ink)">Nuevo viaje</div></div>';
 
