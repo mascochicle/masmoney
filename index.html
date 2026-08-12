@@ -107,6 +107,13 @@ button{font-family:inherit;}
 .lintot{display:flex;align-items:center;gap:7px;padding:11px 14px;border-top:1px solid var(--ground);}
 .lintot .k{flex:none;font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;}
 .lintot b{margin-right:auto;font-size:17px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
+/* La fecha va DENTRO de la tarjeta, en su renglón debajo del TOTAL y alineada a la
+   izquierda, como Money Pro (Marco, 12-ago-2026, con foto de su pantalla). Antes iba
+   centrada y suelta más abajo. */
+.linfec{border-top:1px solid var(--ground);padding:2px 14px 4px;}
+.linfec .cur{margin:0;padding:8px 0;font-size:13px;color:var(--accent-ink);letter-spacing:.04em;
+  text-transform:uppercase;background:transparent;border:0;font-family:inherit;cursor:pointer;}
+.linfec .cur u{text-decoration:none;border-bottom:0;}
 .linmas{width:28px;height:28px;border-radius:50%;border:1px solid var(--accent-ink);background:transparent;
   color:var(--accent-ink);font-size:16px;line-height:1;cursor:pointer;font-family:inherit;flex:none;}
 /* ---- captura compacta (12-ago-2026) ---- */
@@ -270,7 +277,7 @@ button{font-family:inherit;}
 .b-monto:active{background:var(--surface2);}
 .b-monto b{font-size:17px;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:750;}
 .b-monto b.zero{color:var(--mut2);}
-.b-guardar{background:var(--accent);color:#fff;font-size:15.5px;font-weight:700;min-width:132px;}
+.b-guardar{flex:1;background:var(--accent);color:#fff;font-size:15.5px;font-weight:700;min-width:132px;}
 .b-guardar:active{background:#2f3aa5;}
 
 /* ---------- listas ---------- */
@@ -870,7 +877,11 @@ body.capturando .tabbar{display:none;}
       <button class="key">.</button><button class="key">0</button><button class="key op listo" data-op="cerrar">Listo</button><button class="key calc" data-op="/">÷</button>
     </div>
     <div class="barra">
-      <button class="b-monto" id="abrirPad"><span>Monto</span><b id="miniMonto">$0</b></button>
+      <!-- El pie "Monto" sobra desde que cada categoría trae su monto y el TOTAL está a la
+           vista (Marco, 12-ago-2026: "siento que este total ya está sobrando"). Se queda
+           OCULTO, no borrado: `renderAmt` le escribe y el teclado se reabre tocando el monto
+           de la línea. Guardar se queda con todo el ancho. -->
+      <button class="b-monto" id="abrirPad" style="display:none"><span>Monto</span><b id="miniMonto">$0</b></button>
       <button class="b-guardar" id="guardar">Guardar</button>
     </div>
    </div>
@@ -943,7 +954,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1222";
+<script>window.MM_VER="20260812-1241";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2115,7 +2126,10 @@ function verPad(v){
        capturar la tercera categoría el total se escondía tras el teclado (Marco, 12-ago-2026,
        "aquí hay que ir corriendo hacia arriba el panel"). El total es el borde de abajo de
        la caja, así que se desplaza hasta asomarlo. */
-    var tot=document.querySelector('#lineasBox .lintot') || obj;
+    /* el renglón de la fecha ya es parte de la tarjeta y va DEBAJO del total: se asoma
+       ese, que es el borde de abajo real. */
+    var tot=document.querySelector('#lineasBox .linfec')
+         || document.querySelector('#lineasBox .lintot') || obj;
     var rt=tot.getBoundingClientRect();
     if(rt.bottom > rs.bottom-8) y += (rt.bottom - rs.bottom) + 8;
     /* …pero sin tapar la línea que se está capturando: si al subir el panel se saldría por
@@ -2305,6 +2319,12 @@ function lineasDe(){
 }
 function pintaLineas(){
   var box=$('lineasBox'); if(!box) return;
+  /* La fecha vive DENTRO de esta caja (abajo del total, como Money Pro), y aquí se reescribe
+     todo el innerHTML: hay que sacar el botón antes o se destruye con su onclick. Se aparca
+     en `.amount`, que es de donde salió, y se vuelve a meter al final. En Transferencia no
+     hay caja de líneas y se queda aparcado, así que la fecha sigue existiendo. */
+  var fb=$('fechaBtn'), cuna=document.querySelector('#vForm .amount');
+  if(fb && cuna) cuna.appendChild(fb);
   if(!tipoDe(st.tipo).cat){ box.style.display='none'; box.innerHTML=''; return; }
   box.style.display='';
   var L=lineasDe(), multi=!!(st.partes && st.partes.length>1);
@@ -2319,7 +2339,9 @@ function pintaLineas(){
       (multi?'<button class="x" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+
   '<div class="lintot"><span class="k">Total:</span><b>'+fmt2(tot)+'</b>'+
-    '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>';
+    '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>'+
+  '<div class="linfec" id="linFec"></div>';
+  if(fb) $('linFec').appendChild(fb);
 
   box.querySelectorAll('[data-cat]').forEach(function(el){
     el.onclick=function(){ cambiaCatLinea(+el.dataset.cat); }; });
