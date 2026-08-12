@@ -342,6 +342,16 @@ button{font-family:inherit;}
 .calpie button{margin-left:auto;border:1px solid var(--line);background:var(--surface2);color:var(--accent-ink);
   border-radius:11px;padding:5px 12px;font-size:12px;font-weight:650;cursor:pointer;font-family:inherit;}
 .daylb{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut2);font-weight:700;padding:11px 16px 6px;}
+/* Deslizar un movimiento para BORRARLO, como Gmail (Marco, 12-ago-2026, con video). El
+   panel rojo con el bote se queda quieto detrás y el renglón se desliza encima. Los dos
+   lados borran: aquí no hay "archivar", así que no hay por qué distinguirlos. El renglón
+   necesita fondo propio o el rojo se vería a través. */
+.swp{position:relative;overflow:hidden;}
+.swp .swpbg{position:absolute;inset:3px 8px;background:var(--gasto);border-radius:12px;
+  display:none;align-items:center;justify-content:space-between;padding:0 22px;font-size:18px;}
+.swp.act .swpbg{display:flex;}
+.swp .mov{position:relative;background:var(--ground);}
+.swp.anim .mov{transition:transform .17s ease-out;}
 .mov{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--surface);cursor:pointer;}
 .mov:active{background:var(--surface);}
 .mov .ic{width:31px;height:31px;border-radius:9px;background:var(--surface2);display:grid;place-items:center;font-size:15px;flex:none;position:relative;}
@@ -690,6 +700,11 @@ body.capturando .tabbar{display:none;}
   color:#fff;font-size:13.5px;font-weight:650;padding:10px 19px;border-radius:24px;opacity:0;transition:.25s;z-index:80;
   pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.45);max-width:88%;text-align:center;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+/* el aviso con Deshacer SÍ se toca (el toast normal es `pointer-events:none`), y va oscuro
+   en los dos temas, como el de Gmail */
+.toast.acc{pointer-events:auto;display:flex;align-items:center;gap:16px;padding:9px 12px 9px 18px;}
+.toast.acc button{border:0;background:transparent;color:#8f9bff;font-family:inherit;
+  font-size:13.5px;font-weight:750;cursor:pointer;padding:5px 8px;}
 .hint{font-size:11px;color:var(--mut2);text-align:center;padding:0 22px 16px;line-height:1.55;}
 /* ---- Ajustes ---- */
 .cfg-i{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--surface);cursor:pointer;}
@@ -972,7 +987,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1356";
+<script>window.MM_VER="20260812-1411";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1670,6 +1685,11 @@ var st={tipo:"Gasto", cuentaId:'c1', cuenta2Id:'c2',
         hora:new Date().toTimeString().slice(0,5)};
 
 /* ================= tabs ================= */
+/* Solo en la lista de la cuenta. En las hojas (grupo de Reportes, categoría de un viaje)
+   NO se activa: ahí el contenido no se vuelve a pintar al borrar y el renglón se quedaría
+   como un hueco. Es una llamada única —lleva su propio candado— y va por delegación, así
+   que sobrevive a todos los re-render de la lista. */
+activaDeslizar($('ctaMovs'));
 $('tabbar').addEventListener('click',function(e){
   var b=e.target.closest('button'); if(b) irA(b.dataset.p);
 });
@@ -3606,8 +3626,22 @@ function limpiarForm(){
   renderAmt();
 }
 function toast(msg,warn){
-  var t=$('toast'); t.textContent=msg; t.style.background=warn?'var(--op)':'var(--ingreso)';
+  var t=$('toast'); t.classList.remove('acc');
+  t.textContent=msg; t.style.background=warn?'var(--op)':'var(--ingreso)';
   t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove('show');},1700);
+}
+/* Aviso con botón, para lo que se deshace. Dura 5s y no 1.7: hay que alcanzar a leerlo y
+   tocarlo. Oscuro en los dos temas, como el de Gmail. */
+function toastDeshacer(msg, cb){
+  var t=$('toast');
+  t.innerHTML='<span></span><button type="button">Deshacer</button>';
+  t.querySelector('span').textContent=msg;
+  t.style.background='#1f2226';
+  t.classList.add('show','acc');
+  t.querySelector('button').onclick=function(){
+    clearTimeout(t._h); t.classList.remove('show','acc'); cb();
+  };
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.classList.remove('show','acc'); },5000);
 }
 
 /* ================= lista de movimientos ================= */
@@ -3618,6 +3652,9 @@ function ordenados(){ return movs().slice().sort(function(a,b){return (b.ts||0)-
 /* `neto` lo pide el REPORTE: ahí un pago de tarjeta se enseña ya sin la parte del negocio,
    para que los renglones sumen lo que dice el encabezado. En la pestaña de Movimientos NO
    se usa: ahí tiene que salir el monto que de verdad entró a la cuenta. */
+/* El renglón va envuelto en `.swp` para poder deslizarlo. La envoltura no cambia el
+   layout —`.mov` sigue siendo el flex de siempre— y el `querySelectorAll('.mov')` de los
+   sitios que enganchan el clic sigue encontrándolo igual. */
 function filaMov(m,cid,neto){
   var lab = m.ajuste ? ('Ajuste de saldo · '+m.cuenta)
           : dosCuentas(m.tipo) ? (m.cuenta+' → '+m.destino) : m.sub;
@@ -3652,11 +3689,82 @@ function filaMov(m,cid,neto){
   if(neto && m.negocio) monto = monto - m.negocio;
   /* con varias fotos el clip lleva el número, para saber cuántas trae sin abrirlo */
   var nf=fotosDe(m).length;
-  return '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+
+  return '<div class="swp"><div class="swpbg"><span>🗑</span><span>🗑</span></div>'+
+    '<div class="mov" data-id="'+m.id+'"><div class="ic">'+m.e+
     (nf?'<span class="pin">'+(nf>1?'<b>'+nf+'</b>':'📎')+'</span>':'')+'</div>'+
     '<div class="info"><div class="c"><span class="lb">'+lab+'</span>'+(m.msi?'<span class="msi-b">'+m.meses+' MSI</span>':'')+extra+'</div>'+
     '<div class="d">'+meta+'</div></div>'+
-    '<div class="amt'+cls+'">'+sig+fmtM(monto,mn)+'</div></div>';
+    '<div class="amt'+cls+'">'+sig+fmtM(monto,mn)+'</div></div></div>';
+}
+/* ---- deslizar para borrar ----
+   Va por delegación en el contenedor, así que sirve igual en la lista de la cuenta y en las
+   hojas (grupo de Reportes, categoría de un viaje) sin volver a engancharlo en cada re-render.
+   Se decide en el primer movimiento del dedo si el gesto es HORIZONTAL; si no, no se toca
+   nada y la lista sigue desplazándose normal. */
+var DESLIZ_MIN=88;                       // píxeles para que cuente como "borrar"
+function activaDeslizar(cont){
+  if(!cont || cont._desliz) return;
+  cont._desliz=true;
+  var fila=null, wrap=null, x0=0, y0=0, dx=0, horizontal=false, decidido=false;
+  function suelta(){
+    if(wrap){ wrap.classList.remove('act'); wrap.classList.add('anim'); }
+    if(fila) fila.style.transform='';
+    fila=null; wrap=null; horizontal=false; decidido=false; dx=0;
+  }
+  cont.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1) return;
+    var m=e.target.closest && e.target.closest('.mov');
+    var w=m && m.parentElement && m.parentElement.classList.contains('swp') ? m.parentElement : null;
+    if(!w) return;
+    fila=m; wrap=w; x0=e.touches[0].clientX; y0=e.touches[0].clientY;
+    dx=0; horizontal=false; decidido=false;
+    wrap.classList.remove('anim');
+  },{passive:true});
+  cont.addEventListener('touchmove',function(e){
+    if(!fila) return;
+    var t=e.touches[0], ax=t.clientX-x0, ay=t.clientY-y0;
+    if(!decidido){
+      if(Math.abs(ax)<9 && Math.abs(ay)<9) return;
+      decidido=true;
+      horizontal = Math.abs(ax) > Math.abs(ay)*1.4;   // con holgura: el pulgar nunca va recto
+      if(horizontal) wrap.classList.add('act'); else { suelta(); return; }
+    }
+    if(!horizontal) return;
+    e.preventDefault();                               // que no se desplace la lista a la vez
+    dx=ax; fila.style.transform='translateX('+dx+'px)';
+  },{passive:false});
+  cont.addEventListener('touchend',function(){
+    if(!fila || !horizontal){ suelta(); return; }
+    if(Math.abs(dx)>=DESLIZ_MIN){
+      var f=fila, w=wrap, id=f.dataset.id, hacia=(dx>0?1:-1);
+      w.classList.add('anim');
+      f.style.transform='translateX('+(hacia*Math.max(w.offsetWidth,320))+'px)';
+      fila=null; wrap=null;
+      setTimeout(function(){ borraConDeshacer(id); }, 170);
+      return;
+    }
+    suelta();
+  });
+  cont.addEventListener('touchcancel', suelta);
+}
+/* Borra al instante y ofrece Deshacer, como Gmail: no hay diálogo de confirmación porque el
+   propio aviso es la red de seguridad. Guarda el movimiento entero para poder reponerlo tal
+   cual, con su id, para que nada que lo referencie se rompa. */
+function borraConDeshacer(id){
+  var A=movs(), m=null;
+  A.forEach(function(x){ if(x.id===id) m=x; });
+  if(!m) return;
+  var resto=A.filter(function(x){ return x.id!==id; });
+  olvidaAuto(id);                         // si era automático, que no lo reponga al abrir
+  if(!saveMovs(resto)) return;
+  renderCuenta(); renderSaldos(); if(typeof renderRep==='function') renderRep();
+  toastDeshacer('1 movimiento borrado', function(){
+    var B=movs();
+    if(!B.some(function(x){ return x.id===m.id; })){ B.push(m); saveMovs(B); }
+    recuerdaAuto(id);                   // si era automático, que vuelva a poder generarse
+    renderCuenta(); renderSaldos(); if(typeof renderRep==='function') renderRep();
+    toast('Repuesto');
+  });
 }
 function filasMov(L,c,neto){
   var dias={}, orden=[];
@@ -4196,6 +4304,12 @@ var K_AUTOX='appcaptura_autoborrados_v1';
 function olvidaAuto(id){
   if(String(id).slice(0,5)!=='auto-') return;
   var x=ld(K_AUTOX,{}); x[id]=1; sv(K_AUTOX,x);
+}
+/* y al deshacer ese borrado hay que quitar la anotación, o el automático quedaría vetado
+   para siempre: volvería el movimiento pero no se regeneraría nunca más (12-ago-2026) */
+function recuerdaAuto(id){
+  if(String(id).slice(0,5)!=='auto-') return;
+  var x=ld(K_AUTOX,{}); delete x[id]; sv(K_AUTOX,x);
 }
 
 /* la lista completa de periodos de una regla, del primero después de `desde` hasta hoy */
