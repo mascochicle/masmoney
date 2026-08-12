@@ -713,6 +713,15 @@ button{font-family:inherit;}
           <div class="lb"><div class="t">Interés incluido</div><div class="s">El resto es capital y es lo que baja la deuda</div></div>
           <input class="intIn" id="interes" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
       </div>
+      <!-- Cuando el negocio le paga una tarjeta, una parte de ese pago está cubriendo
+           compras de la tienda que él hizo con su plástico, y esa parte NO es ingreso suyo.
+           Lo captura él porque lo tiene exacto por corte en su Excel: la app no puede
+           deducirlo sola sin saber qué corte cubre cada pago (Marco, 11-ago-2026). -->
+      <div class="rows" id="negBox" style="display:none">
+        <div class="row" style="cursor:default"><div class="ic">🏪</div>
+          <div class="lb"><div class="t">¿Cuánto era del negocio?</div><div class="s">La parte que cubre compras de la tienda</div></div>
+          <input class="intIn" id="negIn" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
+      </div>
       <!-- para qué lado va el cambio de valor. El teclado no tiene signo, así que el
            sentido se elige aquí y no tecleando un negativo. -->
       <div class="rows" id="dirBox" style="display:none">
@@ -847,7 +856,7 @@ button{font-family:inherit;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260811-2211";
+<script>window.MM_VER="20260811-2229";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2076,6 +2085,7 @@ function setTipo(t){
   $('msiCard').style.display = (t==='Gasto')?'block':'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes) $('interes').value='';
+  acomodaNegocio();
   $('dirBox').style.display  = T.dir?'block':'none';
   if(!T.dir) st.dir=null; else if(!st.dir) setDir(-1);
   $('rowAg').style.display  = T.sinAg?'none':'flex';
@@ -3152,7 +3162,19 @@ function pickCat(g,e,sub){ st.cat={g:g,e:e,sub:sub};
     if(V && V.d) setDir(V.d);
   }
   if(st.partes&&st.partes.length<2) st.partes=null;
-  $('catNm').textContent=sub; $('catSub').textContent=g; $('catIc').textContent=e; }
+  $('catNm').textContent=sub; $('catSub').textContent=g; $('catIc').textContent=e;
+  acomodaNegocio(); }
+/* El campo "¿cuánto era del negocio?" depende de la CATEGORÍA, no del tipo: solo aparece
+   en el ingreso "Negocio · Pago de tarjetas", que es el único donde entra dinero mezclado. */
+function esPagoDeTarjetas(){
+  return st.tipo==='Ingreso' && st.cat && st.cat.sub==='Pago de tarjetas';
+}
+function acomodaNegocio(){
+  var b=$('negBox'); if(!b) return;
+  var si=esPagoDeTarjetas();
+  b.style.display = si?'block':'none';
+  if(!si) $('negIn').value='';
+}
 
 /* ================= guardar movimiento ================= */
 $('guardar').onclick=function(){
@@ -3186,6 +3208,9 @@ $('guardar').onclick=function(){
     /* el viaje solo tiene sentido en lo que se gasta o se recibe: en transferencias,
        ajustes y cambios de valor no se guarda (`T.sinAmb` son justo esos) */
     viaje:(T.sinAmb?null:(st.viaje||null)),
+    /* la parte del pago que cubría compras de la tienda: se guarda en el movimiento para
+       que el reporte pueda restarla sin adivinar */
+    negocio:(esPagoDeTarjetas() ? (evalua($('negIn').value)||0)||null : null),
     desc:$('desc').value.trim(),
     fecha:st.fecha, hora:st.hora, ts:new Date(st.fecha+'T'+st.hora+':00').getTime()};
   /* cada foto completa se baja como archivo (va a Descargas y de ahí a Drive) y en el
@@ -3209,7 +3234,7 @@ $('guardar').onclick=function(){
 function limpiarForm(){
   st.amount="0"; calcLimpia();
   st.partes=null; $('desc').value=''; st.fotos=[];
-  $('interes').value=''; setAgente(null); verPad(false);
+  $('interes').value=''; $('negIn').value=''; setAgente(null); verPad(false);
   pintaPartes(); pintaFotos();
   st.viajeManual=false;   // el siguiente movimiento vuelve a decidirse por las fechas
   st.fecha=hoyISO(); st.hora=new Date().toTimeString().slice(0,5); pintaFecha();
@@ -3468,6 +3493,11 @@ function editarMov(id, pre){
     /* en un Ingreso el ámbito se deriva de la categoría: ni se pregunta ni se edita */
     ((m.ajuste||m.tipo==='Ingreso')?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
       '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
+    /* la parte del pago que era del negocio, solo en "Negocio · Pago de tarjetas" */
+    ((m.tipo==='Ingreso' && (editable?cat.sub:m.sub)==='Pago de tarjetas')
+      ? '<div class="fld"><div class="k">Del negocio</div>'+
+        '<input id="eNeg" type="text" inputmode="decimal" value="'+(m.negocio||'')+'" placeholder="0.00"></div>'
+      : '')+
     /* el viaje solo se ofrece si ya hay viajes creados, y no en transferencias ni ajustes */
     ((m.ajuste||T.sinAmb||!viajes().length)?'':
       '<button class="fld tocable" id="eVje"><div class="k">Viaje</div>'+
@@ -3682,6 +3712,7 @@ function editarMov(id, pre){
       b[i].amount=v; b[i].desc=$('eDesc').value.trim(); b[i].agente=(agN||'').trim()||null;
       if($('eAmb')) b[i].ambito=amb.n;
       if($('eVje')) b[i].viaje=vjeN||null;
+      if($('eNeg')) b[i].negocio=(evalua($('eNeg').value)||0)||null;
       /* el ámbito de un Ingreso sigue a la categoría, también al editarla */
       if(b[i].tipo==='Ingreso') b[i].ambito=ambDeIngreso(editable?cat.g:b[i].grupo);
       if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
@@ -4878,29 +4909,24 @@ function repSuma(L){ return L.reduce(function(a,m){ return a+aBase(m.amount,m.mo
    pagos está cubriendo COMPRAS DEL NEGOCIO que hizo con tarjeta personal, y eso no es suyo
    (Marco, 11-ago-2026: "es parte del negocio, no es mío, habría que restar eso").
    Se resta del ingreso. Medido en sus datos: $12,259.27 de $589,151.87 — el 2.1%. */
-function repDescNegocio(){
-  var R=repRango();
-  return repSuma(movs().filter(function(m){
-    if(m.ajuste || m.tipo!=='Gasto') return false;
-    if((m.ambito||'')!=='Negocio') return false;
-    if(m.fecha<R.d1 || m.fecha>R.d2) return false;
-    return !(R.meses && R.meses.indexOf(m.fecha.slice(0,7))<0);
-  }));
-}
+/* ⚠️ Antes esto sumaba los GASTOS con ámbito Negocio del periodo, y estaba mal por TIEMPOS:
+   el pago que llega en agosto está cubriendo el corte anterior, no las compras de agosto —
+   ésas te las reponen en septiembre. Con los datos de Marco daba $23,836.27 cuando lo
+   correcto eran $13,725.81 (él lo saca de su Excel, por corte). Ahora se lee el campo
+   `negocio` que él captura en cada pago de tarjeta: exacto y sin adivinar. */
+function repNeg(L){ return L.reduce(function(a,m){ return a+aBase(m.negocio||0,m.mon); },0); }
 function renderRep(){
   var R=repRango(), G=repMovs();
-  /* El ingreso se enseña NETO de las compras del negocio; el gasto va tal cual.
-     ⚠️ La resta SOLO aplica a Personal (o Todos, que lo incluye): lo que el negocio le paga
-     a las tarjetas es ingreso personal, así que la parte que era del negocio se descuenta
-     de ahí. Restarla también de Propiedades daba $5,500 − $12,259 = negativo (11-ago-2026). */
-  var desc=(repAmb('ingreso')==='todos'||repAmb('ingreso')==='Personal') ? repDescNegocio() : 0;
   /* El otro lado se mide con el MISMO filtro de ámbito que tienes puesto. Si cada uno usara
      el suyo, la "diferencia" restaría dos cosas de alcance distinto y no significaría nada. */
-  var bruto=repSuma(G);
-  var otro=repSuma(repMovs(repModo==='gasto'?'ingreso':'gasto', repAmb(repModo)));
-  var totG=(repModo==='gasto')?bruto:otro;
-  var totI=((repModo==='ingreso')?bruto:otro)-desc;
-  var tot=(repModo==='ingreso')?(bruto-desc):bruto;
+  var Lg=(repModo==='gasto')  ? G : repMovs('gasto',   repAmb(repModo));
+  var Li=(repModo==='ingreso')? G : repMovs('ingreso', repAmb(repModo));
+  /* El ingreso va NETO de la parte que era del negocio; el gasto va tal cual. Como la resta
+     sale de los propios movimientos filtrados, no hay que tratar Propiedades aparte: sus
+     rentas no traen `negocio` y por eso no se les descuenta nada. */
+  var bruto=repSuma(G), desc=(repModo==='ingreso')?repNeg(G):0;
+  var totG=repSuma(Lg), totI=repSuma(Li)-repNeg(Li);
+  var tot=bruto-desc;
   var por={};
   G.forEach(function(m){ var g=repGrupoDe(m); por[g]=(por[g]||0)+aBase(m.amount,m.mon); });
   var gs=Object.keys(por).sort(function(a,b){ return por[b]-por[a]; });
