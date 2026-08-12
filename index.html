@@ -936,7 +936,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1126";
+<script>window.MM_VER="20260812-1205";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1828,6 +1828,16 @@ function arrancaCaptura(t, c){
   }
 }
 $('formX').onclick=function(){ verForm(false); renderCuenta(); };
+
+/* Tocar el vacío del formulario esconde el teclado (Marco, 12-ago-2026). El teclado tapa
+   media pantalla y para verla no había más que darle a "Listo". Se excluye todo lo que sea
+   control: los botones reaccionan por su cuenta y varios (los montos de las líneas) ABREN
+   el teclado — si el vacío no se filtrara, el mismo toque lo abriría y lo cerraría. */
+document.querySelector('#vForm .capscroll').addEventListener('click', function(e){
+  if(e.target.closest('button,input,select,textarea,a,label,.lin,.chip')) return;
+  if($('pad').classList.contains('off')) return;
+  verPad(false);
+});
 
 /* ---- buscador de movimientos ----
    Busca en la cuenta que estás viendo, o en TODAS si estás en "Todas las cuentas",
