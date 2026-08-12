@@ -404,8 +404,10 @@ button{font-family:inherit;}
 .reptot{padding:2px 16px 12px;}
 .reptot b{font-size:26px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;}
 .reptot small{display:block;color:var(--mut);font-size:11.5px;margin-top:1px;}
-.vjerow[data-gr]{cursor:pointer;}
-.vjerow[data-gr]:active{background:var(--surface);}
+.vjerow[data-gr],.vjerow[data-g]{cursor:pointer;}
+.vjerow[data-gr]:active,.vjerow[data-g]:active{background:var(--surface);}
+/* el chevrón avisa que el renglón abre algo; los de solo lectura no lo llevan */
+.vjechev{color:var(--mut2);font-size:15px;flex:none;margin-left:-2px;}
 .cfg-i .val{font-size:13.5px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--mut);}
 /* la lista para marcar/desmarcar movimientos de un viaje */
 .vjepick{display:flex;align-items:center;gap:11px;padding:9px 16px;border-top:1px solid var(--surface);cursor:pointer;}
@@ -970,7 +972,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1330";
+<script>window.MM_VER="20260812-1347";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5447,11 +5449,13 @@ function verViaje(i){
       'con este viaje (reembolsos, devoluciones). No se restan del gastado.</div>':'')+
     (gs.length
       ? '<div class="secttl">En qué se fue</div>'+gs.map(function(g){
-          return '<div class="vjerow"><div class="vjenm">'+g+'</div>'+
+          /* cada categoría abre sus movimientos, igual que en Reportes (Marco, 12-ago-2026) */
+          return '<div class="vjerow tocable" data-g="'+escAtr(g)+'"><div class="vjenm">'+g+'</div>'+
             '<div class="vjetrack"><div class="vjebar" style="width:'+
               Math.max(2, Math.round(r.grupos[g]/max*100))+'%"></div></div>'+
             '<div class="vjeval">'+fmt2(r.grupos[g])+
-              '<small>'+Math.round(r.grupos[g]/r.total*100)+'%</small></div></div>';
+              '<small>'+Math.round(r.grupos[g]/r.total*100)+'%</small></div>'+
+            '<div class="vjechev">›</div></div>';
         }).join('')
       : '<div class="note">Todavía no hay ningún gasto marcado con este viaje. '+
         'Dale a <b>Revisar movimientos</b> y marca los que sean.</div>')+
@@ -5461,6 +5465,35 @@ function verViaje(i){
     '</div>';
   $('vjeRev').onclick=function(){ revisarViaje(i); };
   $('vjeEd').onclick=function(){ editarViaje(i); };
+  $('sheetBody').querySelectorAll('.vjerow[data-g]').forEach(function(el){
+    el.onclick=function(){ verViajeGrupo(i, el.dataset.g); }; });
+}
+/* Los movimientos de UNA categoría dentro del viaje. Mismo patrón que el modal de grupo de
+   Reportes: lista con `filasMov` y tocar uno abre su editor. Los montos van COMPLETOS, no
+   netos, para que sumen el número que se ve arriba en el viaje (`resumenViaje` tampoco
+   descuenta la parte del negocio). */
+function verViajeGrupo(i,g){
+  var V=viajes(), v=V[i]; if(!v) return;
+  var L=movs().filter(function(m){ return m.viaje===v.n && m.tipo==='Gasto' && m.grupo===g; })
+              .sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  var tot=L.reduce(function(a,m){ return a+aBase(m.amount,m.mon); },0);
+  var sub={}; L.forEach(function(m){ var s=m.sub||m.grupo; sub[s]=(sub[s]||0)+aBase(m.amount,m.mon); });
+  var ss=Object.keys(sub).sort(function(a,b){ return sub[b]-sub[a]; });
+  var max=ss.length?sub[ss[0]]:1;
+  openSheet(g);
+  volverHoja=function(){ verViaje(i); };     // la flechita regresa al viaje, no cierra todo
+  $('sheetBody').innerHTML=
+    '<div class="reptot"><b>'+fmt2(tot)+'</b><small>'+L.length+' movimiento'+(L.length===1?'':'s')+
+      ' · '+(v.e||'🧳')+' '+v.n+'</small></div>'+
+    (ss.length>1 ? ss.map(function(s){
+        return '<div class="vjerow"><div class="vjenm">'+s+'</div>'+
+          '<div class="vjetrack"><div class="vjebar" style="width:'+
+            Math.max(2, Math.round(sub[s]/max*100))+'%"></div></div>'+
+          '<div class="vjeval">'+fmt2(sub[s])+'</div></div>';
+      }).join('')+'<div class="secttl">Movimientos</div>' : '')+
+    filasMov(L, null, false);
+  $('sheetBody').querySelectorAll('.mov').forEach(function(el){
+    el.onclick=function(){ editarMov(el.dataset.id); }; });
 }
 /* Marcar en bloque. Trae DOS cosas: lo que cae dentro de las fechas (aunque no esté
    marcado) y lo que ya está marcado con este viaje aunque caiga fuera — que es el caso
