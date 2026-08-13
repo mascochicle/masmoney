@@ -990,7 +990,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0718";
+<script>window.MM_VER="20260813-0732";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2376,13 +2376,26 @@ function pintaLineas(){
        linea, que abre el teclado. `sincLinea` repinta en cada tecla, asi que se actualiza
        solo. */
     box.style.display='';
-    box.innerHTML='<div class="lin act">'+
+    /* El DESTINO (a que deuda/activo va) se escribia en el renglon viejo de categoria, que
+       quedo oculto en el rediseno: al capturar el pago de Cetelem no habia donde ver ni
+       cambiar el credito (Marco, 13-ago-2026, con la pantalla de Money Pro al lado, donde
+       si sale). Va como primer renglon, antes del monto, y al tocarlo abre la lista de
+       cuentas — el mismo camino que ya tenia `rowCat`. */
+    var _c2 = _T.d ? cta(st.cuenta2Id) : null;
+    box.innerHTML=
+      (_c2 ? '<div class="lin"><button class="lcat" data-dest="1"><span class="e">'+_c2.e+'</span>'+
+               '<span class="n">'+escAtr(_c2.n)+'</span></button>'+
+             '<button class="lm" data-dest="1" style="color:var(--mut2);font-weight:600">'+
+               ($('catSub').textContent||'Cuenta destino')+'</button></div>' : '')+
+      '<div class="lin act">'+
       '<button class="lcat" data-mon="1"><span class="e">'+(_T.e||'💵')+'</span>'+
         '<span class="n">Monto</span></button>'+
       '<button class="lm" data-mon="1">'+fmt2(num())+'</button></div>'+
       '<div class="linfec" id="linFec"></div>';
     box.querySelectorAll('[data-mon]').forEach(function(el){
       el.onclick=function(){ verPad(true); }; });
+    box.querySelectorAll('[data-dest]').forEach(function(el){
+      el.onclick=function(){ $('rowCat').onclick(); }; });
     if(fb) $('linFec').appendChild(fb);
     return;
   }
@@ -2941,7 +2954,10 @@ $('rowCat').onclick=function(){
   var T=tipoDe(st.tipo);
   if(T.d){ openSheet($('catSub').textContent);
     listaCuentas(st.cuenta2Id,function(c){ st.cuenta2Id=c.id;
-      $('catNm').textContent=c.n; $('catIc').textContent=c.e; renderAmt(); },
+      $('catNm').textContent=c.n; $('catIc').textContent=c.e;
+      /* el destino tambien se pinta como renglon en la caja de lineas: hay que repintarla o
+         se queda con el credito anterior aunque el estado ya cambio (13-ago-2026) */
+      pintaLineas(); renderAmt(); },
       filtro(T.d,st.cuentaId)); return; }
   /* un cambio de valor no se divide entre categorías: es el motivo y ya */
   if(T.cat==='valor'){ openSheet('Motivo'); showCatGrid(); return; }
