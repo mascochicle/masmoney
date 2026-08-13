@@ -783,6 +783,7 @@ body.capturando .tabbar{display:none;}
    <div class="vista on" id="vCta">
      <div class="hd">
        <button class="ctaNom" id="ctaSel"><span id="ctaNomT">Efectivo</span></button>
+       <button class="lupa ojo" title="Ocultar las cantidades">👁</button>
        <button class="lupa" id="btnBuscar" title="Buscar movimientos">🔍</button>
        <button class="mas" id="btnMas" title="Nuevo movimiento">+</button>
      </div>
@@ -955,7 +956,9 @@ body.capturando .tabbar{display:none;}
 
   <!-- ============ SALDOS ============ -->
   <section class="pane on" id="p-sal">
-    <div class="hd"><div class="t">Saldos<span class="brand">MasMoney</span></div><button class="act" id="edBtn">Editar</button></div>
+    <div class="hd"><div class="t">Saldos<span class="brand">MasMoney</span></div>
+      <button class="lupa ojo" title="Ocultar las cantidades">👁</button>
+      <button class="act" id="edBtn">Editar</button></div>
     <div class="scrollable" id="salScroll">
       <div class="bars">
         <button class="bar pos" id="barPos">$0</button>
@@ -973,12 +976,14 @@ body.capturando .tabbar{display:none;}
        Marco hace desde el teléfono: cuánto costó un viaje, y en qué se le fue el mes.
        El análisis a fondo sigue en el tablero de Presupuesto de la web. -->
   <section class="pane" id="p-rep">
-    <div class="hd"><div class="t">Reportes<span class="brand">MasMoney</span></div></div>
+    <div class="hd"><div class="t">Reportes<span class="brand">MasMoney</span></div>
+      <button class="lupa ojo" title="Ocultar las cantidades">👁</button></div>
     <div class="scrollable" id="repBody"></div>
   </section>
 
   <section class="pane" id="p-cfg">
-    <div class="hd"><div class="t">Ajustes<span class="brand">MasMoney</span></div></div>
+    <div class="hd"><div class="t">Ajustes<span class="brand">MasMoney</span></div>
+      <button class="lupa ojo" title="Ocultar las cantidades">👁</button></div>
     <div class="scrollable" id="cfgBody"></div>
     <!-- El `accept` de aquí está peleado entre dos problemas, y esta lista es el punto medio
          (5-ago-2026, los dos vistos en video):
@@ -1020,7 +1025,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0824";
+<script>window.MM_VER="20260813-1633";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1135,6 +1140,7 @@ function mon(c){ for(var i=0;i<MONEDAS.length;i++) if(MONEDAS[i].c===c) return M
   return MONEDAS[0]; }
 function aBase(v,c){ return v*tc(c); }
 function fmtM(v,c){ var m=mon(c), d=(m.dec>2)?m.dec:_dec();
+  if(typeof PRIV!=='undefined' && PRIV) return m.s+'****';
   return m.s+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:(m.dec>2?0:d),maximumFractionDigits:d}); }
 
 var EMOJIS=['💵','💳','🏦','🪙','📈','🏠','🚗','🧾','☀️','🤝','🟦','⬛','🟣','🟥','🔵','🏢','🐷','🟩','💼','❓'];
@@ -1684,8 +1690,35 @@ function colorDeuda(pend){
   var t=Math.pow(1-Math.min(1,pend/100), 1.6);
   return 'hsl('+Math.round(145*t)+' 70% 47%)';
 }
-function fmt(n){return '$'+Math.round(Math.abs(n)).toLocaleString('en-US');}
-function fmt2(n){var d=_dec();
+/* la version redondeada (patrimonio, totales grandes). Tambien se tapa: se escapaba y
+   dejaba el patrimonio a la vista con el modo prendido (medido, 13-ago-2026). */
+function fmt(n){ if(typeof PRIV!=='undefined' && PRIV) return '$****';
+  return '$'+Math.round(Math.abs(n)).toLocaleString('en-US');}
+/* ===== MODO PRIVACIDAD (13-ago-2026) =====
+   Marco lo pidió con un ojo en todas las pestañas: apagado, las cantidades salen en
+   asteriscos. Se tapa en los DOS formateadores de dinero —`fmt2` y `fmtM`— porque por ahí
+   pasa todo lo que se pinta; tapar pantalla por pantalla habría dejado huecos.
+   El monto que se está ESCRIBIENDO no se tapa (ver `fmt2raw`): con el modo prendido no se
+   vería lo que uno teclea y la captura quedaría inservible. */
+var PRIV = false;
+function _mask(){ return '$'+'*'.repeat(4); }
+function privado(){ return PRIV; }
+function togglePriv(){
+  PRIV=!PRIV; setCfg('privado',PRIV); pintaOjos();
+  renderCuenta(); renderSaldos();
+  if(typeof renderRep==='function' && pestActual()==='rep') renderRep();
+  if(typeof renderCfg==='function' && pestActual()==='cfg') renderCfg();
+}
+function pintaOjos(){
+  document.querySelectorAll('.ojo').forEach(function(b){
+    b.textContent = PRIV ? '\uD83D\uDE48' : '\uD83D\uDC41';   // 🙈 / 👁
+    b.classList.toggle('on', PRIV);
+    b.title = PRIV ? 'Mostrar las cantidades' : 'Ocultar las cantidades';
+  });
+}
+function fmt2(n){ if(PRIV) return _mask(); return fmt2raw(n); }
+/* el mismo formato pero SIN tapar: para el monto que se está capturando */
+function fmt2raw(n){var d=_dec();
   return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
 /* `fmt2` se come el signo A PROPÓSITO: casi todos los que la llaman ponen el suyo (el − del
    gasto, el + del ingreso). Pero en un total que PUEDE salir negativo eso es peligroso —
@@ -1722,6 +1755,7 @@ var st={tipo:"Gasto", cuentaId:'c1', cuenta2Id:'c2',
    NO se activa: ahí el contenido no se vuelve a pintar al borrar y el renglón se quedaría
    como un hueco. Es una llamada única —lleva su propio candado— y va por delegación, así
    que sobrevive a todos los re-render de la lista. */
+document.querySelectorAll('.ojo').forEach(function(b){ b.onclick=togglePriv; });
 activaDeslizar($('ctaMovs'));
 $('tabbar').addEventListener('click',function(e){
   var b=e.target.closest('button'); if(b) irA(b.dataset.p);
@@ -2452,7 +2486,7 @@ function pintaLineas(){
       '<div class="lin act">'+
         '<button class="lcat" data-mon="1"><span class="e">'+(_T.e||'💵')+'</span>'+
           '<span class="n">'+(_T.interes?'Capital':'Monto')+'</span></button>'+
-        '<button class="lm" data-mon="1">'+fmt2(_cap)+'</button></div>'+
+        '<button class="lm" data-mon="1">'+fmt2raw(_cap)+'</button></div>'+
       (_T.interes
         ? '<div class="lin"><span class="lcat"><span class="e">%</span>'+
             '<span class="n">Interés</span></span><span class="lm" id="slotInt"></span></div>'+
@@ -2472,7 +2506,7 @@ function pintaLineas(){
       $('slotInt').appendChild($('interes'));
       $('slotAbo').appendChild($('abono'));
       [$('interes'),$('abono')].forEach(function(inp){
-        inp.oninput=function(){ var t=$('linTot'); if(t) t.textContent=fmt2(totalPasivo()); };
+        inp.oninput=function(){ var t=$('linTot'); if(t) t.textContent=fmt2raw(totalPasivo()); };
       });
     }
     if(fb) $('linFec').appendChild(fb);
@@ -2488,10 +2522,10 @@ function pintaLineas(){
     return '<div class="lin'+(i===st.li?' act':'')+'">'+
       '<button class="lcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
         '<span class="n">'+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span></button>'+
-      '<button class="lm" data-m="'+i+'">'+fmt2(evalua(p.amount)||0)+'</button>'+
+      '<button class="lm" data-m="'+i+'">'+fmt2raw(evalua(p.amount)||0)+'</button>'+
       (multi?'<button class="x" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+
-  '<div class="lintot"><span class="k">Total:</span><b>'+fmt2(tot)+'</b>'+
+  '<div class="lintot"><span class="k">Total:</span><b>'+fmt2raw(tot)+'</b>'+
     '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>'+
   '<div class="linfec" id="linFec"></div>';
   if(fb) $('linFec').appendChild(fb);
@@ -6212,6 +6246,7 @@ function exportarTodo(){
 /* ================= init ================= */
 (function(){
   migrar(); aplicaTema(); aplicaLetra();
+  PRIV=!!cfg().privado; pintaOjos();   // el modo privacidad se recuerda
   var autoN=corridaAuto();          // deprecia / revalúa lo que se haya vencido
   if(primeraVez()){ pantallaInicio(); return; }
   var c=cta(st.cuentaId)||ctas()[0]; st.cuentaId=c.id;
