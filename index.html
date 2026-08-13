@@ -655,8 +655,15 @@ body.capturando .tabbar{display:none;}
   touch-action:none;user-select:none;-webkit-user-select:none;flex:none;}
 .sub-i.arrastrando{position:relative;z-index:30;background:var(--surface2);border-radius:10px;}
 .sub-i.deslizando,.sub-i.asentando{transition:transform .2s cubic-bezier(.3,.9,.4,1);}
-.edit-b{display:flex;flex-direction:column;gap:9px;padding:2px 4px;}
-.fld{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:11px;}
+/* Igual que la lista de captura: sin cajas, puras lineas horizontales y mas apretado
+   (Marco, 13-ago-2026: "esas cajas no me gustan, quitalas y usa puras linea horizontales
+   y reduce el espaciado"). Cada renglon pasa de ~55px a ~38px. La linea va METIDA 16px de
+   cada lado, asi que no puede ser un `border` del renglon: va en un pseudo-elemento. */
+.edit-b{display:flex;flex-direction:column;gap:0;padding:0;}
+.fld{position:relative;background:transparent;border:0;border-radius:0;padding:9px 16px;
+  display:flex;align-items:center;gap:11px;}
+.fld + .fld::before{content:'';position:absolute;left:16px;right:16px;top:0;
+  border-top:1px solid var(--line);}
 .fld .k{font-size:12px;color:var(--mut);width:78px;flex:none;}
 .fld input,.fld select{flex:1;background:transparent;border:0;color:var(--ink);font-size:15px;font-family:inherit;
   font-variant-numeric:tabular-nums;min-width:0;}
@@ -699,8 +706,9 @@ body.capturando .tabbar{display:none;}
 .ptot{display:flex;align-items:baseline;margin-top:16px;padding:12px 2px 0;border-top:1px solid var(--line);font-size:11px;color:var(--mut2);
   text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
 .ptot b{margin-left:auto;font-size:19px;color:var(--ink);letter-spacing:0;font-variant-numeric:tabular-nums;}
-.edit-b img.big{width:100%;border-radius:12px;border:1px solid var(--line);}
-.edit-acts{display:flex;gap:9px;margin-top:5px;}
+.edit-b img.big{width:calc(100% - 32px);margin:10px 16px 0;border-radius:12px;border:1px solid var(--line);}
+/* los botones si conservan su forma; solo se alinean con el nuevo margen de 16px */
+.edit-acts{display:flex;gap:9px;margin:16px 16px 0;}
 .edit-acts button{flex:1;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);}
 .b-save{background:var(--accent);color:#fff;border-color:var(--accent);}
 .b-del{background:transparent;color:var(--gasto);border-color:var(--del-line);}
@@ -1012,7 +1020,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0804";
+<script>window.MM_VER="20260813-0811";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
