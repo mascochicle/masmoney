@@ -994,7 +994,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0744";
+<script>window.MM_VER="20260813-0749";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2296,6 +2296,10 @@ function setTipo(t){
   $('msiCard').style.display = (t==='Gasto' && st.msi) ? 'block' : 'none';
   $('intBox').style.display  = T.interes?'block':'none';
   if(!T.interes){ $('interes').value=''; $('abono').value=''; }
+  /* al cambiar de tipo hay que re-evaluar el viaje: si venia de un gasto con viaje puesto
+     y pasa a un pago de credito, se queda pegado en el resumen aunque el icono ya no este
+     (13-ago-2026). `sugiereViaje` lo limpia solo cuando el tipo no lo lleva. */
+  sugiereViaje(); pintaViaje();
   acomodaNegocio(); pintaAmbChips(); pintaOpts();
   $('dirBox').style.display  = T.dir?'block':'none';
   if(!T.dir) st.dir=null; else if(!st.dir) setDir(-1);
@@ -3096,7 +3100,7 @@ function pintaOpts(){
   var O=[{k:'nota',  e:'💬', on:!!desc,            si:true},
          {k:'foto',  e:'🖼', on:st.fotos.length>0, si:true},
          {k:'agente',e:'👤', on:!!st.agente,       si:!T.sinAg},
-         {k:'viaje', e:'🧳', on:!!st.viaje,        si:viajes().length>0 && !T.sinAmb},
+         {k:'viaje', e:'🧳', on:!!st.viaje,        si:viajes().length>0 && llevaViaje()},
          {k:'msi',   e:'%',  on:!!st.msi,          si:st.tipo==='Gasto'}]
         .filter(function(x){ return x.si; });
   bar.innerHTML=O.map(function(x){
@@ -3154,7 +3158,13 @@ function pintaViaje(){
 }
 /* La sugerencia por fechas NO pisa lo que él ya decidió a mano: si lo puso —o lo quitó—
    manda su decisión aunque después mueva la fecha. */
+/* El viaje es cosa de GASTOS y nada mas (Marco, 13-ago-2026: "todas las operaciones que no
+   sean gasto no deben llevar la opcion de viaje, ni aunque este dentro de las fechas"). Le
+   salio marcado "Merida" en el pago del credito de Cetelem solo porque cayo en las fechas.
+   Un pago a un credito, una transferencia o un ingreso no son gasto del viaje. */
+function llevaViaje(){ return st.tipo==='Gasto'; }
 function sugiereViaje(){
+  if(!llevaViaje()){ st.viaje=null; return; }   // ni siquiera se propone
   if(st.viajeManual) return;
   var v=viajeEn(st.fecha);
   st.viaje = v ? v.n : null;
@@ -3666,9 +3676,9 @@ $('guardar').onclick=function(){
     msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente,
     ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g) : st.ambito),
-    /* el viaje solo tiene sentido en lo que se gasta o se recibe: en transferencias,
-       ajustes y cambios de valor no se guarda (`T.sinAmb` son justo esos) */
-    viaje:(T.sinAmb?null:(st.viaje||null)),
+    /* el viaje solo tiene sentido en un GASTO: ni ingresos, ni transferencias, ni pagos a
+       creditos, ni cambios de valor (13-ago-2026) */
+    viaje:(llevaViaje()?(st.viaje||null):null),
     /* la parte del pago que cubría compras de la tienda: se guarda en el movimiento para
        que el reporte pueda restarla sin adivinar */
     negocio:(esPagoDeTarjetas() ? (evalua($('negIn').value)||0)||null : null),
