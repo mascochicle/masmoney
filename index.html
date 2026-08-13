@@ -300,6 +300,12 @@ button{font-family:inherit;}
 .pad.mini .key{font-size:19px;padding:12px 0;}
 .pad.mini .key.listo{font-size:13px;}
 .pad.mini.oculto{display:none;}
+/* El cursor de los campos del editor. Son <input readonly> —así no sale el teclado de
+   Android— y un readonly NO dibuja cursor: se veía el recuadro azul pero nada parpadeando
+   (Marco, 13-ago-2026). Se dibuja a mano, colocado donde termina el texto. */
+.carcampo{position:absolute;width:2px;background:var(--accent-ink);border-radius:1px;
+  animation:parpadeo 1.06s steps(1,end) infinite;pointer-events:none;}
+@media (prefers-reduced-motion: reduce){ .carcampo{animation:none} }
 /* el campo o renglón al que le está escribiendo el teclado */
 .parte.act .pmonto,
 .calcin.act{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-soft);}
@@ -1025,7 +1031,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-1633";
+<script>window.MM_VER="20260813-1705";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4242,9 +4248,33 @@ function editarMov(id, pre){
   /* el pad de la app en vez del de Android: aparece al tocar Monto o Interés y escribe
      en el que se haya tocado */
   var campo=null;
+  /* Coloca el cursor justo donde acaba el texto. Hay que MEDIR: el input es readonly, así
+     que el sistema no pinta ninguno, y el texto va alineado a la izquierda. */
+  function cursorCampo(el){
+    var v=document.querySelector('.carcampo');
+    if(v && v.parentNode) v.parentNode.removeChild(v);
+    if(!el) return;
+    var cs=getComputedStyle(el);
+    var med=document.createElement('span');
+    med.style.cssText='position:absolute;visibility:hidden;white-space:pre;font:'+cs.font;
+    med.textContent=el.value||'';
+    document.body.appendChild(med);
+    var w=med.getBoundingClientRect().width;
+    med.parentNode.removeChild(med);
+    var alto=Math.round(parseFloat(cs.fontSize)*1.15);
+    var c=document.createElement('span');
+    c.className='carcampo';
+    c.style.left  = (el.offsetLeft + parseFloat(cs.paddingLeft||0) + parseFloat(cs.borderLeftWidth||0) + w + 2) + 'px';
+    c.style.top   = (el.offsetTop + (el.offsetHeight - alto)/2) + 'px';
+    c.style.height= alto + 'px';
+    var casa = el.offsetParent || el.parentNode;
+    if(getComputedStyle(casa).position==='static') casa.style.position='relative';
+    casa.appendChild(c);
+  }
   function enfoca(el){
     campo=el;
     $('sheetBody').querySelectorAll('.calcin').forEach(function(x){ x.classList.toggle('act', x===el); });
+    cursorCampo(el);
     $('padHoja').classList.remove('oculto');
     /* Se lleva a la vista el CAMPO, no el teclado: el teclado ya se pega solo al fondo
        (.pad.mini es sticky). Antes se hacía scrollIntoView del teclado y, si el campo era
@@ -4257,11 +4287,12 @@ function editarMov(id, pre){
   });
   conectaPadHoja(
     function(){ return campo?campo.value:''; },
-    function(s){ if(campo) campo.value=s; },
+    function(s){ if(campo){ campo.value=s; cursorCampo(campo); } },
     function(){ if(campo){ var v=evalua(campo.value);       // Listo resuelve y guarda el pad
                            if(v!==null) campo.value=String(v); }
                 $('padHoja').classList.add('oculto');
                 $('sheetBody').querySelectorAll('.calcin').forEach(function(x){ x.classList.remove('act'); });
+                cursorCampo(null);                          // se va con el teclado
                 campo=null; }
   );
   if($('eDir')) $('eDir').querySelectorAll('button').forEach(function(b){
