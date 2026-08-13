@@ -45,6 +45,14 @@ button{font-family:inherit;}
 .intIn{width:110px;flex:none;background:var(--surface2);border:1px solid var(--line);border-radius:9px;
   color:var(--ink);font-size:15px;font-family:inherit;padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;}
 .intIn::placeholder{color:var(--mut2);}
+/* Dentro de un renglon de la caja, el input NO se ve como campo: se ve igual que el monto
+   de Capital, que es como se lee la tabla de amortizacion (Marco, 13-ago-2026: "esta
+   horrible que no se vean los campos... asi como esta capital"). Sigue siendo editable. */
+.lin .intIn{width:auto;max-width:140px;background:transparent;border:0;border-radius:0;
+  padding:2px 0;text-align:right;font-size:15px;font-weight:700;color:var(--ink);}
+.lin .intIn::placeholder{color:var(--mut2);font-weight:700;}
+.lin .intIn:focus{outline:0;color:var(--accent-ink);}
+.lin .lm:has(.intIn){padding:0;}
 .rows{display:flex;flex-direction:column;gap:1px;background:var(--line);border-radius:14px;overflow:hidden;}
 .row{background:var(--surface);display:flex;align-items:center;gap:13px;padding:13px 15px;cursor:pointer;
   border:0;width:100%;text-align:left;color:inherit;}
@@ -994,7 +1002,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0749";
+<script>window.MM_VER="20260813-0757";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2294,7 +2302,11 @@ function setTipo(t){
   acomodaAmbito(); acomodaCat();
   /* la tarjeta de MSI ya no vive abierta: se despliega con el icono % de la barra */
   $('msiCard').style.display = (t==='Gasto' && st.msi) ? 'block' : 'none';
-  $('intBox').style.display  = T.interes?'block':'none';
+  /* Nunca se muestra: desde que los campos de interes y abono viven en la caja de lineas,
+     este bloque solo es su bodega cuando no hay caja. Si se mostraba quedaba abajo una
+     nota suelta de "Interes incluido" sin campos (Marco, 13-ago-2026: "no hace falta,
+     quitala"). */
+  $('intBox').style.display  = 'none';
   if(!T.interes){ $('interes').value=''; $('abono').value=''; }
   /* al cambiar de tipo hay que re-evaluar el viaje: si venia de un gasto con viaje puesto
      y pasa a un pago de credito, se queda pegado en el resumen aunque el icono ya no este
