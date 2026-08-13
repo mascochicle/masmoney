@@ -990,7 +990,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-1437";
+<script>window.MM_VER="20260812-2002";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4957,8 +4957,11 @@ function renderCfg(){
     fila('negs','🏪','Categorías del negocio', negs().length+' grupos',
          'salen cuando el ámbito es Negocio')+
     fila('ambitos','🏷️','Ámbitos', ambitos().length, ambitos().map(function(x){return x.n;}).join(' · '))+
-    /* Los viajes se fueron a la pestaña Reportes (11-ago-2026): aquí solo se configura,
-       y un viaje es algo que se CONSULTA. No volver a ponerlos en dos lugares. */
+    /* Los viajes se ADMINISTRAN en Reportes (11-ago-2026: "un viaje es algo que se
+       consulta"), pero faltaban en esta lista y Marco los buscó aquí (12-ago-2026). El
+       renglón está, con su cuenta, y lleva allá — así la lista queda completa sin que haya
+       dos pantallas haciendo lo mismo, que es lo que él no quiere. */
+    fila('viajes','🧳','Viajes', viajes().length, 'se crean y editan en Reportes')+
     fila('agentes','👤','Agentes', agentes().length, 'comercios y personas')+
     fila('ocultas','🙈','Cuentas ocultas', L.filter(function(x){return x.oculta;}).length,
          'siguen contando, no se listan')+
@@ -5034,6 +5037,7 @@ function renderCfg(){
       else if(a.indexOf('tc:')===0) editarTC(a.slice(3));
       else if(a==='agentes'){ agEdit=true; abrirAgentes(); }
       else if(a==='ocultas') verOcultas();
+      else if(a==='viajes') irAViajes();
       else if(a==='cats') verCategorias('gasto');
       else if(a==='ings') verCategorias('ingreso');
       else if(a==='negs') verCategorias('negocio');
@@ -5571,6 +5575,27 @@ function verGrupoRep(g){
   });
 }
 
+/* Desde Ajustes › Viajes: cambia a Reportes y deja la seccion de viajes a la vista. No
+   abre otra pantalla de administracion — la buena es la de alla. */
+function _subeAViajes(){
+  var sc=document.getElementById('repBody'); if(!sc) return false;
+  var t=[].filter.call(sc.querySelectorAll('.secttl'),
+           function(e){ return e.textContent.trim().toLowerCase().indexOf('viajes')===0; })[0];
+  if(!t) return false;
+  /* leer scrollHeight/clientHeight fuerza el calculo del layout: en el rAF todavia no lo
+     tenia y `max` salia 0, asi que el desplazamiento se quedaba en 0 (12-ago-2026). */
+  var max=Math.max(0, sc.scrollHeight - sc.clientHeight);
+  if(max<=0) return false;
+  var y=sc.scrollTop + (t.getBoundingClientRect().top - sc.getBoundingClientRect().top) - 6;
+  /* SIN animacion: `scrollTo({behavior:'smooth'})` no mueve este `.scrollable` — medido, se
+     queda en 0, mientras que asignar scrollTop si funciona. */
+  sc.scrollTop=Math.max(0, Math.min(y, max));
+  return true;
+}
+function irAViajes(){
+  irA('rep');
+  if(!_subeAViajes()) setTimeout(_subeAViajes, 80);   // reintento por si aun no hay layout
+}
 /* ================= VIAJES =================
    Lo que gastó en un viaje sumado aparte, SIN sacarlo de sus categorías: la cena sigue
    contando en Alimentación y también aquí. Por eso los números de esta pantalla no se
