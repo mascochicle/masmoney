@@ -52,6 +52,16 @@ button{font-family:inherit;}
   padding:2px 0;text-align:right;font-size:15px;font-weight:700;color:var(--ink);}
 .lin .intIn::placeholder{color:var(--mut2);font-weight:700;}
 .lin .intIn:focus{outline:0;color:var(--accent-ink);}
+/* CURSOR PARPADEANTE. El monto no es un input: es texto que dibuja la app, asi que el
+   telefono no pinta ningun cursor y no se sabe donde se esta escribiendo (Marco,
+   13-ago-2026). Se dibuja a mano en el renglon activo mientras el teclado esta abierto.
+   En interes y abono, que si son inputs, basta con darle color al cursor del sistema. */
+.car{display:inline-block;width:2px;height:1.05em;background:var(--accent-ink);
+  margin-left:3px;vertical-align:-2px;border-radius:1px;
+  animation:parpadeo 1.06s steps(1,end) infinite;}
+@keyframes parpadeo{0%,50%{opacity:1} 50.01%,100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){ .car{animation:none} }
+.intIn{caret-color:var(--accent-ink);}
 .lin .lm:has(.intIn){padding:0;}
 .rows{display:flex;flex-direction:column;gap:1px;background:var(--line);border-radius:14px;overflow:hidden;}
 .row{background:var(--surface);display:flex;align-items:center;gap:13px;padding:13px 15px;cursor:pointer;
@@ -1002,7 +1012,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0757";
+<script>window.MM_VER="20260813-0804";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2160,6 +2170,7 @@ function renderAmt(){
    encoge, así que la deslizo para que el monto quede a la vista y no lo tape. */
 function verPad(v){
   $('pad').classList.toggle('off',!v);
+  pintaCursor();
   if(!v) return;
   var sc=document.querySelector('#vForm .capscroll');
   var obj=document.querySelector('#lineasBox .lin.act') || document.querySelector('#lineasBox')
@@ -2198,6 +2209,15 @@ function verPad(v){
 $('abrirPad').onclick=function(){ verPad($('pad').classList.contains('off')); };
 $('disp').onclick=function(){ verPad(true); };
 $('desc').addEventListener('focus',function(){ verPad(false); });   // deja lugar al teclado del teléfono
+/* Igual con interes y abono: son inputs de verdad y abren el teclado del telefono. Si el
+   de la app se quedaba abierto habia DOS teclados y no se sabia cual escribia donde
+   (13-ago-2026). Al bajarlo, el cursor dibujado se apaga y queda solo el del sistema. */
+['interes','abono'].forEach(function(id){
+  var el=document.getElementById(id); if(!el) return;
+  /* `verPad(false)` ya apaga el cursor dibujado (via pintaCursor) sin repintar la caja:
+     repintarla despegaria este mismo input y perderia el foco que acaba de tomar */
+  el.addEventListener('focus',function(){ verPad(false); });
+});
 /* Un cargo del banco suele traer comisión + IVA en UNA sola línea del estado de cuenta.
    Money Pro deja partirlo por categorías dentro de la misma ficha y aquí igual: el
    movimiento sigue siendo UNO (por eso el monto cuadra contra el banco) y por dentro
@@ -2442,6 +2462,7 @@ function pintaLineas(){
       });
     }
     if(fb) $('linFec').appendChild(fb);
+    pintaCursor();
     return;
   }
   box.style.display='';
@@ -2460,6 +2481,7 @@ function pintaLineas(){
     '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>'+
   '<div class="linfec" id="linFec"></div>';
   if(fb) $('linFec').appendChild(fb);
+  pintaCursor();
 
   box.querySelectorAll('[data-cat]').forEach(function(el){
     el.onclick=function(){ cambiaCatLinea(+el.dataset.cat); }; });
@@ -2518,6 +2540,19 @@ function quitaLinea(i){
 /* el teclado escribe en `st.amount`; con varias líneas, eso ES el monto de la activa */
 /* Capital + interes + abono. Vive aparte porque lo usan el renglon TOTAL, el guardado y
    la validacion, y tienen que dar lo mismo. */
+/* Pone o quita el cursor en el renglon que esta recibiendo lo que se teclea. Se llama al
+   repintar Y al abrir/cerrar el teclado: si solo se pintara al repintar, tocar el monto
+   abria el teclado sin cursor y no aparecia hasta la primera tecla (13-ago-2026).
+   Mueve UN nodo, no repinta la caja: repintarla despegaria los inputs de interes y abono
+   y les quitaria el foco. */
+function pintaCursor(){
+  var box=document.getElementById('lineasBox'); if(!box) return;
+  var v=box.querySelector('.car'); if(v) v.parentNode.removeChild(v);
+  var pad=document.getElementById('pad');
+  if(!pad || pad.classList.contains('off')) return;   // teclado cerrado: nada que señalar
+  var lm=box.querySelector('.lin.act .lm');
+  if(lm && !lm.querySelector('input')) lm.insertAdjacentHTML('beforeend','<span class="car"></span>');
+}
 function totalPasivo(){
   var T=tipoDe(st.tipo);
   var cap=(st.partes&&st.partes.length>1)?sumaPartes():num();
