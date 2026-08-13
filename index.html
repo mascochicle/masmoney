@@ -838,10 +838,14 @@ body.capturando .tabbar{display:none;}
       <button id="rowAg" style="display:none"><span id="agIc"></span><span id="agNm"></span><span id="agLb"></span></button>
       <button id="rowVje" style="display:none"><span id="vjeIc"></span><span id="vjeNm"></span><span id="vjeLb"></span></button>
       <button id="rowAmb" style="display:none"><span id="ambIc"></span><span id="ambNm"></span><span id="ambLb"></span></button>
+      <!-- Los dos campos viven aqui pero se MUEVEN a la caja de lineas, debajo del capital
+           (Marco, 13-ago-2026: "eso de intereses hasta abajo esta fuera de lugar"). Se
+           quedan en este bloque oculto porque es su casa cuando no hay caja donde meterlos. -->
       <div class="rows" id="intBox" style="display:none">
         <div class="row" style="cursor:default"><div class="ic">%</div>
           <div class="lb"><div class="t">Interés incluido</div><div class="s">El resto es capital y es lo que baja la deuda</div></div>
-          <input class="intIn" id="interes" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
+          <input class="intIn" id="interes" type="number" inputmode="decimal" step="0.01" placeholder="0.00">
+          <input class="intIn" id="abono" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
       </div>
       <!-- Cuando el negocio le paga una tarjeta, una parte de ese pago está cubriendo
            compras de la tienda que él hizo con su plástico, y esa parte NO es ingreso suyo.
@@ -990,7 +994,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0732";
+<script>window.MM_VER="20260813-0744";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2291,7 +2295,7 @@ function setTipo(t){
   /* la tarjeta de MSI ya no vive abierta: se despliega con el icono % de la barra */
   $('msiCard').style.display = (t==='Gasto' && st.msi) ? 'block' : 'none';
   $('intBox').style.display  = T.interes?'block':'none';
-  if(!T.interes) $('interes').value='';
+  if(!T.interes){ $('interes').value=''; $('abono').value=''; }
   acomodaNegocio(); pintaAmbChips(); pintaOpts();
   $('dirBox').style.display  = T.dir?'block':'none';
   if(!T.dir) st.dir=null; else if(!st.dir) setDir(-1);
@@ -2366,36 +2370,61 @@ function pintaLineas(){
      hay caja de líneas y se queda aparcado, así que la fecha sigue existiendo. */
   var fb=$('fechaBtn'), cuna=document.querySelector('#vForm .amount');
   if(fb && cuna) cuna.appendChild(fb);
+  /* Lo mismo con los inputs de interes y abono, que tambien viven DENTRO de esta caja: si
+     no se aparcan antes, el innerHTML de abajo los destruye y a la siguiente pasada
+     `$('interes')` ya es null (13-ago-2026). Su casa es la fila oculta de #intBox. */
+  var _casaInt=document.querySelector('#intBox .row');
+  if(_casaInt){ var _i=$('interes'), _a=$('abono');
+                if(_i) _casaInt.appendChild(_i); if(_a) _casaInt.appendChild(_a); }
   var _T=tipoDe(st.tipo);
   if(!_T.cat){
     /* Sin categoria —transferencias, pagos a credito, compra/venta de activos— no hay
        lineas que pintar, pero el MONTO tiene que poder escribirse. Al quitar el numero
        grande y esconder el pie "Monto" estos tipos se quedaron sin ningun lugar donde
-       tocarlo: Marco fue a capturar el pago de Cetelem y la app le decia "Escribe un
-       monto" sin haber donde (13-ago-2026). Se pinta un renglon unico, igual que una
-       linea, que abre el teclado. `sincLinea` repinta en cada tecla, asi que se actualiza
-       solo. */
+       tocarlo (Marco, 13-ago-2026). Se pinta a mano la estructura de Money Pro:
+
+           Credito Cetelem            (el destino; sin etiqueta, se entiende solo)
+           Capital          4,513.81  <- lo que escribe el teclado
+           Interes          3,805.26
+           Abono a capital      0.00  <- pago extra, casi siempre 0
+           TOTAL:           8,319.07  <- la suma, no se escribe
+
+       Se escribe CAPITAL y el total sale solo, al reves de como estaba (escribir el total
+       y restarle el interes). Lo guardado no cambia: `amount` sigue siendo el total y
+       `amount2` = total − interes = capital + abono, que es lo que baja la deuda. */
     box.style.display='';
-    /* El DESTINO (a que deuda/activo va) se escribia en el renglon viejo de categoria, que
-       quedo oculto en el rediseno: al capturar el pago de Cetelem no habia donde ver ni
-       cambiar el credito (Marco, 13-ago-2026, con la pantalla de Money Pro al lado, donde
-       si sale). Va como primer renglon, antes del monto, y al tocarlo abre la lista de
-       cuentas — el mismo camino que ya tenia `rowCat`. */
     var _c2 = _T.d ? cta(st.cuenta2Id) : null;
+    var _cap = num();
     box.innerHTML=
       (_c2 ? '<div class="lin"><button class="lcat" data-dest="1"><span class="e">'+_c2.e+'</span>'+
                '<span class="n">'+escAtr(_c2.n)+'</span></button>'+
-             '<button class="lm" data-dest="1" style="color:var(--mut2);font-weight:600">'+
-               ($('catSub').textContent||'Cuenta destino')+'</button></div>' : '')+
+             '<button class="lm" data-dest="1" style="color:var(--mut2)">\u203A</button></div>' : '')+
       '<div class="lin act">'+
-      '<button class="lcat" data-mon="1"><span class="e">'+(_T.e||'💵')+'</span>'+
-        '<span class="n">Monto</span></button>'+
-      '<button class="lm" data-mon="1">'+fmt2(num())+'</button></div>'+
+        '<button class="lcat" data-mon="1"><span class="e">'+(_T.e||'💵')+'</span>'+
+          '<span class="n">'+(_T.interes?'Capital':'Monto')+'</span></button>'+
+        '<button class="lm" data-mon="1">'+fmt2(_cap)+'</button></div>'+
+      (_T.interes
+        ? '<div class="lin"><span class="lcat"><span class="e">%</span>'+
+            '<span class="n">Interés</span></span><span class="lm" id="slotInt"></span></div>'+
+          '<div class="lin"><span class="lcat"><span class="e">\u2795</span>'+
+            '<span class="n">Abono a capital</span></span><span class="lm" id="slotAbo"></span></div>'+
+          '<div class="lintot"><span class="k">Total:</span><b id="linTot">'+fmt2(totalPasivo())+'</b></div>'
+        : '')+
       '<div class="linfec" id="linFec"></div>';
     box.querySelectorAll('[data-mon]').forEach(function(el){
       el.onclick=function(){ verPad(true); }; });
     box.querySelectorAll('[data-dest]').forEach(function(el){
       el.onclick=function(){ $('rowCat').onclick(); }; });
+    if(_T.interes){
+      /* se MUEVEN los inputs de verdad, no se copian: asi `guardar` los sigue leyendo de
+         un solo lugar. Y el total se actualiza escribiendo SIN repintar la caja, porque
+         repintarla despegaria el input y se perderia el foco a media tecla. */
+      $('slotInt').appendChild($('interes'));
+      $('slotAbo').appendChild($('abono'));
+      [$('interes'),$('abono')].forEach(function(inp){
+        inp.oninput=function(){ var t=$('linTot'); if(t) t.textContent=fmt2(totalPasivo()); };
+      });
+    }
     if(fb) $('linFec').appendChild(fb);
     return;
   }
@@ -2471,6 +2500,14 @@ function quitaLinea(i){
   calcLimpia(); pintaPartes(); renderAmt();
 }
 /* el teclado escribe en `st.amount`; con varias líneas, eso ES el monto de la activa */
+/* Capital + interes + abono. Vive aparte porque lo usan el renglon TOTAL, el guardado y
+   la validacion, y tienen que dar lo mismo. */
+function totalPasivo(){
+  var T=tipoDe(st.tipo);
+  var cap=(st.partes&&st.partes.length>1)?sumaPartes():num();
+  if(!T.interes) return cap;
+  return cap + (parseFloat($('interes').value)||0) + (parseFloat($('abono').value)||0);
+}
 function sincLinea(){
   if(st.partes && st.partes.length>1 && st.partes[st.li]) st.partes[st.li].amount=st.amount;
   pintaLineas();
@@ -3598,14 +3635,18 @@ function acomodaNegocio(){
 /* ================= guardar movimiento ================= */
 $('guardar').onclick=function(){
   calcResuelve(); renderAmt();     // si dejó una operación a medias, se cierra
-  if(num()<=0){ toast('Escribe un monto',true); return; }
   var T=tipoDe(st.tipo), dos=!!T.d;
+  /* En un pago a pasivo se escribe el CAPITAL y el total es capital+interes+abono; en todo
+     lo demas lo que se escribe YA es el total. */
+  var inte  = T.interes?(parseFloat($('interes').value)||0):0;
+  var abono = T.interes?(parseFloat($('abono').value)||0):0;
+  var total = totalPasivo();
+  if(total<=0){ toast('Escribe un monto',true); return; }
+  if(T.interes && total-inte<=0){ toast('El interés no puede ser todo el pago',true); return; }
   var c=cta(st.cuentaId), c2=cta(st.cuenta2Id);
   var mc=(c&&c.mon)||BASE, m2=(c2&&c2.mon)||BASE;
-  /* interés: lo que se paga de más. Solo el CAPITAL baja la deuda. */
-  var inte=T.interes?(parseFloat($('interes').value)||0):0;
-  if(inte>=num()){ toast('El interés no puede ser todo el pago',true); return; }
-  var llega = dos ? (num()-inte)*tc(mc)/tc(m2) : null;
+  /* lo que baja la deuda = capital + abono = total − interes */
+  var llega = dos ? (total-inte)*tc(mc)/tc(m2) : null;
   var mv={id:'m'+Date.now()+Math.floor(Math.random()*1000),
     tipo:st.tipo, cuentaId:st.cuentaId, cuenta:c?c.n:'', mon:mc,
     amount2: (dos&&(m2!==mc||inte>0)) ? +llega.toFixed(6) : null,
@@ -3621,7 +3662,7 @@ $('guardar').onclick=function(){
             : undefined,
     e: dos?T.e:st.cat.e,
     dir: T.dir?(st.dir||-1):null,          // solo el cambio de valor lleva sentido
-    amount:((st.partes&&st.partes.length>1)?sumaPartes():num()),
+    amount: total,
     msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente,
     ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g) : st.ambito),
@@ -3654,7 +3695,7 @@ $('guardar').onclick=function(){
 function limpiarForm(){
   st.amount="0"; calcLimpia();
   st.partes=null; st.li=0; $('desc').value=''; st.fotos=[];
-  $('interes').value=''; $('negIn').value=''; setAgente(null); verPad(false);
+  $('interes').value=''; $('abono').value=''; $('negIn').value=''; setAgente(null); verPad(false);
   pintaPartes(); pintaFotos(); pintaAmbChips(); pintaOpts();
   $('extras').classList.remove('vis'); $('msiCard').style.display='none';
   st.viajeManual=false;   // el siguiente movimiento vuelve a decidirse por las fechas
