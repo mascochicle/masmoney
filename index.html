@@ -1020,7 +1020,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-0811";
+<script>window.MM_VER="20260813-0824";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1950,7 +1950,13 @@ var FILTROS=[
   /* solo aparece cuando ya hay viajes creados: si no, sería un chip que nunca encuentra nada */
   {k:'viaje', n:'De un viaje', d:'los que marcaste con algún viaje',
    solo:function(){ return viajes().length>0; },
-   ok:function(m){ return !!m.viaje; }}
+   ok:function(m){ return !!m.viaje; }},
+  /* Lo que se compró para la TIENDA con una tarjeta suya (Marco, 13-ago-2026). Es lo que
+     hay que separar al conciliar un corte: el ámbito es lo único que distingue la despensa
+     de la casa de la mercancía del negocio, y en la lista solo se ve como una etiqueta
+     chiquita. */
+  {k:'negocio', n:'Del negocio', d:'gastos con ámbito Negocio',
+   ok:function(m){ return m.ambito==='Negocio'; }}
 ];
 var buscando=false, buscTodo=false, buscFil=null;
 function abreBusqueda(v){
