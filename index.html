@@ -990,7 +990,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260812-2002";
+<script>window.MM_VER="20260813-0718";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2366,7 +2366,26 @@ function pintaLineas(){
      hay caja de líneas y se queda aparcado, así que la fecha sigue existiendo. */
   var fb=$('fechaBtn'), cuna=document.querySelector('#vForm .amount');
   if(fb && cuna) cuna.appendChild(fb);
-  if(!tipoDe(st.tipo).cat){ box.style.display='none'; box.innerHTML=''; return; }
+  var _T=tipoDe(st.tipo);
+  if(!_T.cat){
+    /* Sin categoria —transferencias, pagos a credito, compra/venta de activos— no hay
+       lineas que pintar, pero el MONTO tiene que poder escribirse. Al quitar el numero
+       grande y esconder el pie "Monto" estos tipos se quedaron sin ningun lugar donde
+       tocarlo: Marco fue a capturar el pago de Cetelem y la app le decia "Escribe un
+       monto" sin haber donde (13-ago-2026). Se pinta un renglon unico, igual que una
+       linea, que abre el teclado. `sincLinea` repinta en cada tecla, asi que se actualiza
+       solo. */
+    box.style.display='';
+    box.innerHTML='<div class="lin act">'+
+      '<button class="lcat" data-mon="1"><span class="e">'+(_T.e||'💵')+'</span>'+
+        '<span class="n">Monto</span></button>'+
+      '<button class="lm" data-mon="1">'+fmt2(num())+'</button></div>'+
+      '<div class="linfec" id="linFec"></div>';
+    box.querySelectorAll('[data-mon]').forEach(function(el){
+      el.onclick=function(){ verPad(true); }; });
+    if(fb) $('linFec').appendChild(fb);
+    return;
+  }
   box.style.display='';
   var L=lineasDe(), multi=!!(st.partes && st.partes.length>1);
   if(st.li>=L.length) st.li=L.length-1;
