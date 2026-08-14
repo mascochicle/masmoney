@@ -1046,7 +1046,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-2157";
+<script>window.MM_VER="20260814-1008";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5371,39 +5371,73 @@ function guardaLista(cual,L){ if(cual==='valor') return true;
   return cual==='ingreso'?saveIngs(L):cual==='negocio'?saveNegs(L):saveCats(L); }
 function tituloLista(cual){ return cual==='ingreso'?'Categorías de ingreso':
   cual==='negocio'?'Categorías del negocio':'Categorías de gasto'; }
-function verCategorias(cual){
-  var L=lista(cual);
+/* La pantalla de categorías se ve y se busca IGUAL que la rejilla de captura (Marco,
+   14-ago-2026: "me falta una lupa para buscar alguna categoría o subcategoría y no estar
+   revisando una por una... esta parte la quiero en forma de círculos, no de lista").
+   Con 28 grupos y 105 subcategorías, encontrar una a ojo era imposible.
+
+   Se reusa lo que ya existe para capturar: el buscador mira grupos Y subcategorías —una
+   sub enterrada en otro grupo se alcanza de un toque—, los círculos son los mismos
+   mosaicos, y el reorden sigue detrás del botón "Ordenar", que es como él lo pidió en su
+   momento (no pulsado largo, no un asa por mosaico). */
+function verCategorias(cual, q){
+  var L=lista(cual), b=$('sheetBody');
   openSheet(tituloLista(cual));
-  $('sheetBody').innerHTML=
-    '<div class="agbar"><span>'+L.length+' grupos · '+
-      L.reduce(function(s,c){return s+c.subs.length;},0)+' subcategorías</span></div>'+
-    L.map(function(c,i){
-      return '<div class="acct catrow" data-i="'+i+'" data-n="'+c.n.replace(/"/g,'&quot;')+'">'+
-        '<div class="ic">'+c.e+'</div>'+
-        '<div class="nm">'+c.n+'<small>'+c.subs.length+' subcategoría'+(c.subs.length===1?'':'s')+'</small></div>'+
-        '<div class="asa" title="Arrastra para reordenar">≡</div></div>';}).join('')+
-    '<div class="acct nuevo" data-nuevo="1"><div class="ic">＋</div><div class="nm">Nuevo grupo</div></div>'+
-    '<div class="note">Toca un grupo para editarlo. Arrastra el ≡ para cambiar el orden: '+
-      'es el mismo en el que aparecen al capturar.</div>';
-  $('sheetBody').querySelectorAll('.acct').forEach(function(el){
-    el.onclick=function(){
-      if(el.dataset.nuevo){ editarGrupo(cual,-1); return; }
-      if(arr) return;                       // venía de un arrastre, no de un toque
-      editarGrupo(cual,+el.dataset.i);
-    };
-  });
-  /* al soltar, el orden nuevo sale del DOM y se guarda */
-  $('sheetBody').querySelectorAll('.catrow .asa').forEach(function(h){
-    arrastrable(h,'catrow',function(){
-      var por={}; lista(cual).forEach(function(c){ por[c.n]=c; });
-      var nuevo=[];
-      $('sheetBody').querySelectorAll('.catrow').forEach(function(x){
-        if(por[x.dataset.n]) nuevo.push(por[x.dataset.n]);
+  q=q||'';
+  var caja='<div class="busca"><span>🔍</span><input id="qcatEd" '+
+           'placeholder="Buscar grupo o subcategoría" autocomplete="off" value="'+escAtr(q)+'"></div>';
+
+  if(llano(q).trim()){
+    var t=llano(q).trim(), hits=[];
+    L.forEach(function(c,gi){
+      if(llano(c.n).indexOf(t)>=0) hits.push({tipo:'g', gi:gi, c:c, txt:c.n, via:''});
+      (c.subs||[]).forEach(function(s,k){
+        if(llano(s).indexOf(t)>=0) hits.push({tipo:'s', gi:gi, c:c, k:k, txt:s, via:c.n});
       });
-      if(nuevo.length===lista(cual).length){ guardaLista(cual,nuevo); toast('Orden guardado'); }
-      setTimeout(function(){ verCategorias(cual); },260);
     });
-  });
+    b.innerHTML=caja+(hits.length
+      ? '<div class="sublist">'+hits.map(function(x,i){
+          return '<div class="sub-i" data-i="'+i+'"><span class="e">'+
+                 (x.tipo==='g'? x.c.e : icoSub(x.c.n,x.txt,x.c.e))+'</span>'+escAtr(x.txt)+
+                 (x.via?'<span class="via">'+escAtr(x.via)+'</span>':'')+'</div>'; }).join('')+'</div>'
+        + '<div class="note">'+hits.length+' coincidencia'+(hits.length===1?'':'s')+
+          '. Toca para editarla.</div>'
+      : '<div class="note">Nada con «'+escAtr(q)+'».</div>');
+    b.querySelectorAll('.sub-i').forEach(function(el){
+      el.onclick=function(){
+        var x=hits[+el.dataset.i];
+        if(x.tipo==='g') editarGrupo(cual, x.gi);
+        else editarSub(cual, x.gi, x.c, x.c.subs, x.k, x.c.e);
+      };
+    });
+  } else {
+    b.innerHTML=caja+
+      '<div class="agbar"><span>'+L.length+' grupos · '+
+        L.reduce(function(s,c){return s+(c.subs||[]).length;},0)+' subcategorías</span></div>'+
+      btnOrdenar()+
+      '<div class="grid'+(modoOrdenar?' ordenando':'')+'">'+
+        L.map(function(c,i){
+          return '<div class="gcell" data-i="'+i+'"><div class="e">'+c.e+'</div>'+
+                 '<div class="n">'+escAtr(c.n)+'</div></div>'; }).join('')+
+        '<div class="gcell nuevo" data-nuevo="1"><div class="e">＋</div><div class="n">Nuevo grupo</div></div>'+
+      '</div>'+
+      '<div class="note">Toca un grupo para editarlo. Con <b>Ordenar</b> los arrastras para '+
+        'cambiar el orden: es el mismo en el que aparecen al capturar.</div>';
+    conectaBtnOrdenar(function(){ verCategorias(cual, q); });
+    b.querySelectorAll('.gcell').forEach(function(el){
+      el.onclick=function(){
+        if(modoOrdenar || rej) return;      // en modo ordenar el toque no abre nada
+        if(el.dataset.nuevo){ editarGrupo(cual,-1); return; }
+        editarGrupo(cual, +el.dataset.i);
+      };
+    });
+    arrastrarRejilla(b.querySelector('.grid'), cual, function(){ verCategorias(cual, q); });
+  }
+
+  var qi=$('qcatEd');
+  qi.oninput=function(){ var v=this.value, pos=this.selectionStart;
+    verCategorias(cual, v); var n=$('qcatEd'); n.focus();
+    try{ n.setSelectionRange(pos,pos); }catch(e){} };
 }
 function editarGrupo(cual,i){
   var L=lista(cual);
