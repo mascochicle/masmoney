@@ -687,6 +687,8 @@ body.capturando .tabbar{display:none;}
   font-size:17px;cursor:pointer;}
 .emojis button.on{border-color:var(--accent-ink);background:var(--accent-soft);}
 /* escribir cualquier emoji: la rejilla siempre se queda corta */
+.lnk{border:0;background:transparent;color:var(--accent-ink);font:inherit;cursor:pointer;
+  padding:0;text-decoration:underline;}
 .emoin{width:56px;height:36px;border-radius:10px;border:1px dashed var(--line);
   background:var(--surface);color:var(--ink);font-size:15px;text-align:center;font-family:inherit;outline:none;}
 .emoin:focus{border-color:var(--accent-ink);border-style:solid;}
@@ -1037,7 +1039,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-1950";
+<script>window.MM_VER="20260813-2024";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3364,6 +3366,22 @@ var K_AG='appcaptura_agentes_v2', agEdit=false;
      1. el emoji que Marco le haya puesto a mano
      2. el de una marca conocida, por palabra en el nombre
      3. sus INICIALES sobre un color sacado del nombre — automático para los 249 */
+/* ===== ICONO PROPIO DE UNA SUBCATEGORIA (13-ago-2026) =====
+   Marco: "no puedo editar los iconos de las subcategorias". No se podia porque no lo
+   tenian: heredaban el del grupo, y `subs` es una lista de NOMBRES, no de objetos.
+   Cambiar eso obligaria a migrar las tres listas de categorias; en vez de eso se guarda
+   un mapa aparte `grupo|sub -> emoji`, igual que ya se hace con las caras de los agentes.
+   Sin icono propio se sigue usando el del grupo, que es como estaba. */
+var K_SUBICO='appcaptura_subicos_v1';
+function subIcos(){ return ld(K_SUBICO,{}); }
+function _sk(g,s){ return String(g)+'|'+String(s); }
+function subIco(g,s){ return subIcos()[_sk(g,s)] || null; }
+function icoSub(g,s,eGrupo){ return subIco(g,s) || eGrupo; }
+function setSubIco(g,s,e){ var m=subIcos(); if(e) m[_sk(g,s)]=e; else delete m[_sk(g,s)]; sv(K_SUBICO,m); }
+function renombraSubIco(g,viejo,nuevo){
+  var m=subIcos(), k=_sk(g,viejo);
+  if(m[k]!==undefined && viejo!==nuevo){ m[_sk(g,nuevo)]=m[k]; delete m[k]; sv(K_SUBICO,m); }
+}
 var K_AGICO='appcaptura_agicos_v1';
 function agIcos(){ return ld(K_AGICO,{}); }
 function setAgIco(n,e){ var m=agIcos(); if(e) m[n]=e; else delete m[n]; sv(K_AGICO,m); }
@@ -3711,7 +3729,7 @@ function showSubs(c){
   $('sheetTit').textContent='Subcategoría';
   var b=$('sheetBody'), cual=cualLista();
   b.innerHTML='<div class="gback" id="gback">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
-    c.subs.map(function(s){return '<div class="sub-i" data-s="'+s.replace(/"/g,'&quot;')+'"><span class="e">'+c.e+'</span>'+s+'</div>';}).join('')+
+    c.subs.map(function(s){return '<div class="sub-i" data-s="'+s.replace(/"/g,'&quot;')+'"><span class="e">'+icoSub(c.n,s,c.e)+'</span>'+s+'</div>';}).join('')+
     filaNuevaSub(cual)+'</div>';
   $('gback').onclick=showCatGrid;
   if($('subNueva')) $('subNueva').onclick=function(){
@@ -3727,7 +3745,9 @@ function setDir(d){
 $('dirSeg').querySelectorAll('button').forEach(function(b){
   b.onclick=function(){ setDir(+b.dataset.d); renderAmt(); };
 });
-function pickCat(g,e,sub){ st.cat={g:g,e:e,sub:sub};
+function pickCat(g,e,sub){
+  /* si la subcategoría tiene ícono propio, ES el del movimiento; si no, el del grupo */
+  st.cat={g:g, e:icoSub(g,sub,e), sub:sub};
   /* el motivo propone el sentido: Depreciación baja, Apreciación y Rendimiento suben.
      "Ajuste de avalúo" trae 0 y no lo toca, porque puede ir para cualquier lado. */
   if(tipoDe(st.tipo).dir){
@@ -4136,7 +4156,7 @@ function elegirCatEdit(L, listo, q, cual){
       $('sheetTit').textContent='Subcategoría';
       b.innerHTML='<div class="gback" id="gb2">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
         c.subs.map(function(x){ return '<div class="sub-i" data-s="'+x.replace(/"/g,'&quot;')+'">'+
-          '<span class="e">'+c.e+'</span>'+x+'</div>'; }).join('')+
+          '<span class="e">'+icoSub(c.n,x,c.e)+'</span>'+x+'</div>'; }).join('')+
         filaNuevaSub(cual)+'</div>';
       $('gb2').onclick=function(){ elegirCatEdit(L, listo, '', cual); };
       if($('subNueva')) $('subNueva').onclick=function(){
@@ -5350,7 +5370,7 @@ function editarGrupo(cual,i){
       'Arrastra el ≡ para cambiar el orden en que aparecen.</div>'+
     '<div class="sublist" id="gSubs">'+c.subs.map(function(s,k){
       return '<div class="sub-i subrow" data-k="'+k+'" data-n="'+s.replace(/"/g,'&quot;')+'">'+
-             '<span class="e">'+c.e+'</span>'+s+
+             '<span class="e">'+icoSub(c.n,s,c.e)+'</span>'+s+
              '<span class="tag" style="margin-left:auto">editar</span>'+
              '<span class="asa" title="Arrastra para cambiar el orden">≡</span></div>';}).join('')+
       '<div class="sub-i nuevo" data-add="1"><span class="e">＋</span>Agregar subcategoría</div></div>'+
@@ -5409,17 +5429,53 @@ function editarGrupo(cual,i){
 function editarSub(cual,gi,c,subs,k,emoji){
   var nuevo=(k<0), val=nuevo?'':subs[k];
   openSheet(nuevo?'Nueva subcategoría':'Subcategoría');
+  var eSub = nuevo ? null : subIco(c.n, val);      // null = usa el del grupo
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="fld"><div class="k">Nombre</div><input id="sN" type="text" value="'+val.replace(/"/g,'&quot;')+'" placeholder="Veterinario"></div>'+
+    '<div class="fld fld-ico"><div class="k">Ícono</div>'+
+      '<div class="emojis" id="sE">'+EMOJIS_CAT.map(function(x){
+        return '<button data-e="'+x+'"'+(x===eSub?' class="on"':'')+'>'+x+'</button>'; }).join('')+
+        '<input class="emoin" id="sEotro" maxlength="4" placeholder="otro" value="'+
+          ((eSub && EMOJIS_CAT.indexOf(eSub)<0)?eSub:'')+'">'+
+      '</div></div>'+
+    '<div class="note" id="sEnota"></div>'+
     '<div class="note">Dentro del grupo '+emoji+' '+(c.n||'nuevo')+'</div>'+
     '<div class="edit-acts">'+(nuevo?'':'<button class="b-del" id="sDel">Quitar</button>')+
       '<button class="b-save" id="sOk">Listo</button></div></div>';
+  /* Sin icono propio hereda el del grupo, y hay que poder VOLVER a eso: el aviso de abajo
+     dice cuál está usando y trae el botón para soltar el suyo. */
+  function pintaNota(){
+    $('sEnota').innerHTML = eSub
+      ? 'Ícono propio '+eSub+' · <button class="lnk" id="sEclr">usar el del grupo ('+emoji+')</button>'
+      : 'Sin ícono propio: usa el del grupo '+emoji+'. Toca uno de arriba para cambiarlo.';
+    if($('sEclr')) $('sEclr').onclick=function(){
+      eSub=null; $('sEotro').value='';
+      $('sE').querySelectorAll('[data-e]').forEach(function(b2){ b2.classList.remove('on'); });
+      pintaNota(); };
+  }
+  pintaNota();
+  $('sE').querySelectorAll('[data-e]').forEach(function(b2){
+    b2.onclick=function(){
+      eSub=b2.dataset.e; $('sEotro').value='';
+      $('sE').querySelectorAll('[data-e]').forEach(function(x){ x.classList.toggle('on', x===b2); });
+      pintaNota(); };
+  });
+  $('sEotro').oninput=function(){
+    var v=this.value.trim();
+    eSub = v || null;
+    $('sE').querySelectorAll('[data-e]').forEach(function(x){ x.classList.remove('on'); });
+    pintaNota();
+  };
   $('sOk').onclick=function(){
     var v=$('sN').value.trim(); if(!v){ toast('Ponle nombre',true); return; }
-    if(nuevo) subs.push(v); else subs[k]=v;
+    if(nuevo) subs.push(v);
+    else { renombraSubIco(c.n, val, v); subs[k]=v; }   // si la renombró, su ícono la sigue
+    setSubIco(c.n, v, eSub);
     volverAlGrupo(cual,gi,c,subs,emoji);
   };
-  if(!nuevo) $('sDel').onclick=function(){ subs.splice(k,1); volverAlGrupo(cual,gi,c,subs,emoji); };
+  if(!nuevo) $('sDel').onclick=function(){
+    setSubIco(c.n, val, null);                          // que no quede el ícono huérfano
+    subs.splice(k,1); volverAlGrupo(cual,gi,c,subs,emoji); };
 }
 function volverAlGrupo(cual,gi,c,subs,emoji){
   c.subs=subs; c.e=emoji;                       // se refleja al reabrir el grupo
@@ -6244,6 +6300,12 @@ function aplicarImport(d,reemplazar,cuantos){
     if(K.cats_gasto)   saveCats(    junta(cats(),     K.cats_gasto, 'n'));
     if(K.cats_ingreso) saveIngs(    junta(ings(),     K.cats_ingreso, 'n'));
     if(K.cats_negocio) saveNegs(    junta(negs(),     K.cats_negocio, 'n'));
+    if(K.sub_iconos){
+      var si=reemplazar?{}:subIcos();
+      Object.keys(K.sub_iconos).forEach(function(k2){
+        if(reemplazar || si[k2]==null) si[k2]=K.sub_iconos[k2]; });
+      sv(K_SUBICO, si);
+    }
     if(K.agentes_iconos){
       var ic=reemplazar?{}:agIcos();
       Object.keys(K.agentes_iconos).forEach(function(k){
@@ -6265,7 +6327,7 @@ function exportarTodo(){
     base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a,
     catalogos:{agentes:agentes(), agentes_iconos:agIcos(), ambitos:ambitos(),
                cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs(),
-               viajes:viajes()}},null,2);
+               viajes:viajes(), sub_iconos:subIcos()}},null,2);
   /* con la fecha en el nombre: se acumulan en Descargas y así se sabe cuál es el bueno */
   var nom='masmoney-backup-'+hoyISO()+'.json';   // va a la carpeta "Masmoney Backup"
   if(window.claude&&window.claude.downloads){
