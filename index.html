@@ -676,6 +676,12 @@ body.capturando .tabbar{display:none;}
 .fld select{cursor:pointer;} .fld select option{background:var(--surface2);color:var(--ink);}
 .fld .ro{flex:1;font-size:14.5px;}
 .fld input[type=date],.fld input[type=time]{color-scheme:dark;}
+/* El renglón del ÍCONO no se parte en dos columnas: la etiqueta va ARRIBA y la rejilla a
+   todo lo ancho. Con la columna fija de 78px para una palabra, la rejilla se quedaba con
+   media pantalla y salían 4 iconos por fila con un hueco enorme a la izquierda (Marco,
+   13-ago-2026: "¿por qué queda ese espacio? mejor aprovéchalo"). Ahora caben 7. */
+.fld-ico{flex-direction:column;align-items:stretch;gap:7px;}
+.fld-ico .k{width:auto;}
 .emojis{display:flex;flex-wrap:wrap;gap:5px;}
 .emojis button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
   font-size:17px;cursor:pointer;}
@@ -1031,7 +1037,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-1705";
+<script>window.MM_VER="20260813-1950";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4850,7 +4856,7 @@ function editarCuenta(id,grupoNuevo){
     '<div class="fld" id="aLimRow"><div class="k">Línea de crédito</div><input id="aLim" type="number" inputmode="decimal" step="100" placeholder="opcional" value="'+(c.limite||'')+'"></div>'+
     '<div class="fld" id="aCorteRow"><div class="k">Día de corte</div><input id="aCorte" type="number" inputmode="numeric" min="1" max="31" step="1" placeholder="opcional" value="'+(c.corte||'')+'"><div class="k" style="width:auto">de cada mes</div></div>'+
     '<div class="fld" id="aOrigRow"><div class="k">Te prestaron</div><input id="aOrig" type="number" inputmode="decimal" step="100" placeholder="opcional" value="'+(c.orig||'')+'"></div>'+
-    '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
+    '<div class="fld fld-ico"><div class="k">Ícono</div>'+
       '<div class="emojis" id="aE">'+EMOJIS.map(function(x){
         return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+
         campoOtroIco('aEotro')+'</div></div>'+
@@ -5335,7 +5341,7 @@ function editarGrupo(cual,i){
   openSheet(nuevo?'Nuevo grupo':'Grupo');
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="fld"><div class="k">Nombre</div><input id="gN" type="text" value="'+c.n.replace(/"/g,'&quot;')+'" placeholder="Mascotas"></div>'+
-    '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
+    '<div class="fld fld-ico"><div class="k">Ícono</div>'+
       '<div class="emojis" id="gE">'+EMOJIS_CAT.map(function(x){
         return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+
         campoOtroIco('gEotro')+'</div></div>'+
@@ -5444,7 +5450,7 @@ function editarAmbito(i){
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="fld"><div class="k">Nombre</div><input id="amN" type="text" value="'+A.n.replace(/"/g,'&quot;')+'" placeholder="Faridee"></div>'+
     '<div class="fld"><div class="k">Nota</div><input id="amD" type="text" value="'+(A.d||'').replace(/"/g,'&quot;')+'" placeholder="para acordarte de qué es"></div>'+
-    '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
+    '<div class="fld fld-ico"><div class="k">Ícono</div>'+
       '<div class="emojis" id="amE">'+['🙋','🏡','🏢','🏪','👨‍👩‍👦','🐶','🎓','💼','🌴','📦'].map(function(x){
         return '<button data-e="'+x+'"'+(x===A.e?' class="on"':'')+'>'+x+'</button>';}).join('')+campoOtroIco('amEotro')+'</div></div>'+
     '<div class="edit-acts">'+(nuevo?'':'<button class="b-del" id="amDel">Borrar</button>')+
@@ -5938,7 +5944,7 @@ function editarViaje(i){
     '<div class="fld"><div class="k">Nombre</div><input id="veN" type="text" value="'+escAtr(v.n)+'"></div>'+
     '<div class="fld"><div class="k">Empieza</div><input id="veI" type="date" value="'+(v.ini||'')+'"></div>'+
     '<div class="fld"><div class="k">Termina</div><input id="veF" type="date" value="'+(v.fin||'')+'"></div>'+
-    '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:6px">Ícono</div>'+
+    '<div class="fld fld-ico"><div class="k">Ícono</div>'+
       '<div class="emojis" id="veE">'+['🧳','✈️','🏖️','🚗','⛺','🎡','🗺️','🏨','🚢','🎿'].map(function(x){
         return '<button data-e="'+x+'"'+(x===(v.e||'🧳')?' class="on"':'')+'>'+x+'</button>';}).join('')+
         campoOtroIco('veEotro')+'</div></div>'+
