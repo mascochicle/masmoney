@@ -687,6 +687,13 @@ body.capturando .tabbar{display:none;}
   font-size:17px;cursor:pointer;}
 .emojis button.on{border-color:var(--accent-ink);background:var(--accent-soft);}
 /* escribir cualquier emoji: la rejilla siempre se queda corta */
+/* El ícono actual, a la derecha del nombre. La rejilla vive PLEGADA detrás de este botón:
+   60 emojis abiertos todo el tiempo son ruido y empujan lo demás fuera de la pantalla
+   (Marco, 13-ago-2026). */
+.icotrig{margin-left:auto;width:40px;height:40px;flex:none;border-radius:11px;
+  border:1px solid var(--line);background:var(--surface2);font-size:20px;line-height:1;
+  cursor:pointer;display:grid;place-items:center;}
+.icotrig.on{border-color:var(--accent-ink);background:var(--accent-soft);}
 .lnk{border:0;background:transparent;color:var(--accent-ink);font:inherit;cursor:pointer;
   padding:0;text-decoration:underline;}
 .emoin{width:56px;height:36px;border-radius:10px;border:1px dashed var(--line);
@@ -1039,7 +1046,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-2117";
+<script>window.MM_VER="20260813-2157";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5310,6 +5317,49 @@ function conectaOtroIco(idGrid, idInput, alElegir){
     $(idGrid).querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
     alElegir(v);
   };
+  plegarIcono(idGrid, idInput);
+}
+/* Pliega la rejilla de íconos detrás de un botón con el ícono ACTUAL, puesto a la derecha
+   del nombre. Al tocarlo se despliega; al elegir uno se asigna y se vuelve a plegar.
+   Se hace sobre el HTML ya pintado —no reescribiendo las cinco pantallas— y NO toca los
+   manejadores que ya existen: se suma con addEventListener, así que lo que cada pantalla
+   hacía al elegir un ícono se sigue haciendo igual. */
+function plegarIcono(idGrid, idInput, porDefecto){
+  var g=$(idGrid); if(!g || g._plegado) return;
+  var caja=g.closest('.fld-ico'); if(!caja) return;
+  g._plegado=true;
+  var inp=idInput?$(idInput):null;
+  var fila=caja.previousElementSibling;              // el renglón del Nombre
+  function actual(){
+    var on=g.querySelector('[data-e].on');
+    if(on) return on.dataset.e;
+    if(inp && (inp.value||'').trim()) return inp.value.trim();
+    /* una subcategoría sin ícono propio USA el del grupo: eso es lo que hay que enseñar,
+       no un interrogante (13-ago-2026) */
+    return porDefecto || '❓';
+  }
+  caja.style.display='none';
+  var bt=document.createElement('button');
+  bt.type='button'; bt.className='icotrig';
+  bt.title='Cambiar el ícono';
+  bt.textContent=actual();
+  bt.onclick=function(){
+    var abierta = caja.style.display!=='none';
+    caja.style.display = abierta ? 'none' : '';
+    bt.classList.toggle('on', !abierta);
+    if(!abierta) caja.scrollIntoView({block:'nearest', behavior:'smooth'});
+  };
+  if(fila && fila.classList.contains('fld')) fila.appendChild(bt);
+  else caja.parentNode.insertBefore(bt, caja);
+  g.querySelectorAll('[data-e]').forEach(function(b2){
+    b2.addEventListener('click', function(){
+      bt.textContent=b2.dataset.e;
+      caja.style.display='none'; bt.classList.remove('on');   // se pliega al asignar
+    });
+  });
+  /* el emoji escrito a mano NO pliega: seguiría escribiendo a ciegas */
+  if(inp) inp.addEventListener('input', function(){
+    var v=(inp.value||'').trim(); if(v) bt.textContent=v; });
 }
 function usoDeGrupo(g,sub){
   return movs().filter(function(m){ return m.grupo===g && (!sub||m.sub===sub); }).length;
@@ -5469,6 +5519,7 @@ function editarSub(cual,gi,c,subs,k,emoji){
     $('sE').querySelectorAll('[data-e]').forEach(function(x){ x.classList.remove('on'); });
     pintaNota();
   };
+  plegarIcono('sE','sEotro', emoji);   // sin ícono propio, enseña el del grupo
   $('sOk').onclick=function(){
     var v=$('sN').value.trim(); if(!v){ toast('Ponle nombre',true); return; }
     if(nuevo) subs.push(v);
