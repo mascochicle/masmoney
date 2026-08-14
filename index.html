@@ -1046,7 +1046,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260814-1008";
+<script>window.MM_VER="20260814-1143";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3189,7 +3189,10 @@ $('rowAmb').onclick=function(){
 function setAmbito(n){
   var A=ambitos().filter(function(x){return x.n===n;})[0]||ambitos()[0];
   st.ambito=A.n; $('ambNm').textContent=A.n; $('ambIc').textContent=A.e;
-  acomodaCat(); pintaAmbChips();
+  /* el ámbito manda sobre el viaje: al pasar a Propiedades hay que soltarlo, y al volver
+     a Personal se vuelve a proponer si la fecha cae en un viaje (14-ago-2026) */
+  sugiereViaje(); pintaViaje();
+  acomodaCat(); pintaAmbChips(); pintaOpts();
 }
 /* ---- captura compacta: el ámbito en chips y lo opcional en iconos (12-ago-2026) ----
    Marco comparó con Money Pro y tenía razón: seis renglones de texto antes del monto pesan.
@@ -3278,7 +3281,9 @@ function pintaViaje(){
    sean gasto no deben llevar la opcion de viaje, ni aunque este dentro de las fechas"). Le
    salio marcado "Merida" en el pago del credito de Cetelem solo porque cayo en las fechas.
    Un pago a un credito, una transferencia o un ingreso no son gasto del viaje. */
-function llevaViaje(){ return st.tipo==='Gasto'; }
+/* Ni en PROPIEDADES: el gasto de una casa no es gasto del viaje aunque caiga dentro de
+   las fechas (Marco, 14-ago-2026, capturando la caseta durante el viaje a Merida). */
+function llevaViaje(){ return st.tipo==='Gasto' && st.ambito!=='Propiedades'; }
 function sugiereViaje(){
   if(!llevaViaje()){ st.viaje=null; return; }   // ni siquiera se propone
   if(st.viajeManual) return;
