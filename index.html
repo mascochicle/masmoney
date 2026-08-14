@@ -1039,7 +1039,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260813-2024";
+<script>window.MM_VER="20260813-2117";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5439,7 +5439,10 @@ function editarSub(cual,gi,c,subs,k,emoji){
           ((eSub && EMOJIS_CAT.indexOf(eSub)<0)?eSub:'')+'">'+
       '</div></div>'+
     '<div class="note" id="sEnota"></div>'+
-    '<div class="note">Dentro del grupo '+emoji+' '+(c.n||'nuevo')+'</div>'+
+    (nuevo ? '<div class="note">Dentro del grupo '+emoji+' '+(c.n||'nuevo')+'</div>'
+           : '<button class="fld tocable" id="sMov"><div class="k">Grupo</div>'+
+             '<div class="ro">'+emoji+'  '+c.n+'</div><div class="chev">›</div></button>'+
+             '<div class="note">Tócalo para mudarla a otro grupo o volverla categoría propia.</div>')+
     '<div class="edit-acts">'+(nuevo?'':'<button class="b-del" id="sDel">Quitar</button>')+
       '<button class="b-save" id="sOk">Listo</button></div></div>';
   /* Sin icono propio hereda el del grupo, y hay que poder VOLVER a eso: el aviso de abajo
@@ -5476,6 +5479,117 @@ function editarSub(cual,gi,c,subs,k,emoji){
   if(!nuevo) $('sDel').onclick=function(){
     setSubIco(c.n, val, null);                          // que no quede el ícono huérfano
     subs.splice(k,1); volverAlGrupo(cual,gi,c,subs,emoji); };
+  if(!nuevo) $('sMov').onclick=function(){
+    /* el nombre y el ícono que tenga escritos AHORA se llevan con ella */
+    var v=$('sN').value.trim()||val;
+    if(v!==val){ renombraSubIco(c.n,val,v); subs[k]=v; }
+    setSubIco(c.n, v, eSub);
+    c.subs=subs; guardaLista(cual, (function(){ var A=lista(cual);
+      if(gi>=0){ A[gi]={n:c.n,e:emoji,subs:subs}; } return A; })());
+    mudarSub(cual, c.n, v, emoji);
+  };
+}
+/* ================= MUDAR UNA SUBCATEGORÍA (13-ago-2026) =================
+   Marco: "quiero poder mover de categorías las subcategorías o volverlas categorías
+   principales".
+
+   Lo delicado no es mover la lista: es que CADA MOVIMIENTO guarda su grupo y su
+   subcategoría como TEXTO. Si solo se cambia el catálogo, todo lo ya capturado se queda
+   apuntando al grupo viejo y el gasto histórico se parte en dos sin avisar. Por eso la
+   mudanza cuenta cuántos movimientos la usan y los reescribe también —incluidas las
+   `partes` de los movimientos divididos—, y se lo dice antes de hacer nada.
+
+   Al PROMOVERLA queda como un grupo sin subcategorías, que es como ya se captura ese caso
+   (`pickCat(c.n, c.e, c.n)`): en los movimientos el grupo Y la subcategoría pasan a ser su
+   nombre. */
+function movsDeSub(cual, grupo, sub){
+  return movs().filter(function(m){
+    var mio = (cual==='ingreso') ? (m.tipo==='Ingreso')
+            : (cual==='negocio') ? (m.tipo==='Gasto' && m.ambito==='Negocio')
+            :                      (m.tipo==='Gasto' && m.ambito!=='Negocio');
+    if(!mio) return false;
+    if(m.grupo===grupo && (m.sub||m.grupo)===sub) return true;
+    return (m.partes||[]).some(function(p){ return p.g===grupo && (p.sub||p.g)===sub; });
+  });
+}
+function mudarSub(cual, grupo, sub, emoji){
+  var L=lista(cual);
+  var otros=L.filter(function(x){ return x.n!==grupo; });
+  openSheet('Mudar «'+sub+'»');
+  $('sheetBody').innerHTML=
+    '<div class="note">Ahora está en '+emoji+' <b>'+escAtr(grupo)+'</b>. '+
+      'Elige a dónde se va; los movimientos ya capturados se actualizan con ella.</div>'+
+    '<div class="sublist">'+
+      '<div class="sub-i nuevo" data-prom="1"><span class="e">\u2B50</span>'+
+        'Volverla categoría propia</div>'+
+      otros.map(function(x,i){
+        return '<div class="sub-i" data-g="'+escAtr(x.n)+'"><span class="e">'+x.e+'</span>'+
+               escAtr(x.n)+'</div>'; }).join('')+
+    '</div>';
+  function pide(destino, nom){
+    var L2=movsDeSub(cual, grupo, sub);
+    var txt = destino===null
+      ? '«'+escAtr(sub)+'» sale de '+escAtr(grupo)+' y queda como categoría propia.'
+      : '«'+escAtr(sub)+'» se muda de '+escAtr(grupo)+' a <b>'+escAtr(nom)+'</b>.';
+    ask(txt + (L2.length
+          ? '<br><br>Se '+(L2.length===1?'va':'van')+' a reclasificar <b>'+L2.length+
+            ' movimiento'+(L2.length===1?'':'s')+'</b> que ya '+
+            (L2.length===1?'tenías capturado':'tenías capturados')+'.'
+          : '<br><br>No hay movimientos capturados con ella.'),
+        'Mudar', function(){ aplicaMudanza(cual, grupo, sub, destino, nom); });
+  }
+  $('sheetBody').querySelector('[data-prom]').onclick=function(){ pide(null,null); };
+  $('sheetBody').querySelectorAll('[data-g]').forEach(function(el){
+    el.onclick=function(){ pide(el.dataset.g, el.dataset.g); };
+  });
+}
+function aplicaMudanza(cual, grupo, sub, destino, nom){
+  var L=lista(cual), oi=-1, di=-1;
+  L.forEach(function(x,i){ if(x.n===grupo) oi=i; if(destino!==null && x.n===nom) di=i; });
+  if(oi<0) return;
+  var eProp=subIco(grupo,sub);
+  L[oi].subs=(L[oi].subs||[]).filter(function(s){ return s!==sub; });
+  var nuevoG;
+  if(destino===null){
+    if(L.some(function(x){ return x.n===sub; })){ toast('Ya hay un grupo con ese nombre',true); return; }
+    L.push({n:sub, e:(eProp||L[oi].e), subs:[]});
+    nuevoG=sub;
+  } else {
+    if(di<0) return;
+    if((L[di].subs||[]).indexOf(sub)<0) L[di].subs.push(sub);
+    nuevoG=nom;
+  }
+  guardaLista(cual,L);
+  /* el ícono propio se muda de llave; si se promovió, ya es el del grupo y sobra */
+  setSubIco(grupo, sub, null);
+  if(eProp && destino!==null) setSubIco(nuevoG, sub, eProp);
+  /* y ahora lo importante: los movimientos ya capturados */
+  var A=movs(), n=0;
+  A.forEach(function(m){
+    var mio = (cual==='ingreso') ? (m.tipo==='Ingreso')
+            : (cual==='negocio') ? (m.tipo==='Gasto' && m.ambito==='Negocio')
+            :                      (m.tipo==='Gasto' && m.ambito!=='Negocio');
+    if(!mio) return;
+    var toco=false;
+    if(m.grupo===grupo && (m.sub||m.grupo)===sub){
+      m.grupo=nuevoG; m.sub=(destino===null? nuevoG : sub);
+      if(eProp) m.e=eProp;
+      toco=true;
+    }
+    (m.partes||[]).forEach(function(p){
+      if(p.g===grupo && (p.sub||p.g)===sub){
+        p.g=nuevoG; p.sub=(destino===null? nuevoG : sub);
+        if(eProp) p.e=eProp;
+        toco=true;
+      }
+    });
+    if(toco) n++;
+  });
+  if(n) saveMovs(A);
+  closeSheet(); renderCuenta(); renderSaldos();
+  toast(n ? ('Mudada · '+n+' movimiento'+(n===1?'':'s')+' reclasificado'+(n===1?'':'s'))
+          : 'Mudada');
+  setTimeout(function(){ verCategorias(cual); }, 140);
 }
 function volverAlGrupo(cual,gi,c,subs,emoji){
   c.subs=subs; c.e=emoji;                       // se refleja al reabrir el grupo
