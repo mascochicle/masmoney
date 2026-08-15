@@ -203,6 +203,44 @@ button{font-family:inherit;}
   align-items:center;justify-content:center;padding:18px;}
 #fotoOv.show{display:flex;}
 #fotoOv img{max-width:100%;max-height:100%;border-radius:10px;}
+/* ---- recortar la foto (Marco, 15-ago-2026: "la mayoria de los tickets son alargados y
+   siento que se desperdicia espacio") ---- */
+#recOv{position:fixed;inset:0;z-index:1300;background:#0b0d10;display:none;
+  flex-direction:column;}
+#recOv.show{display:flex;}
+#recTop{padding:14px 16px 10px;color:#fff;flex:none;}
+#recTop .t{font-size:15px;font-weight:650;}
+#recTop .s{font-size:11.5px;color:#9AA3AF;margin-top:2px;line-height:1.35;}
+#recArea{flex:1;position:relative;overflow:hidden;touch-action:none;}
+#recImg{position:absolute;transform-origin:0 0;pointer-events:none;}
+/* el velo: 4 bandas alrededor del recuadro, así el hueco queda de verdad transparente
+   y se ve la foto sin encimarle nada */
+.recVelo{position:absolute;background:rgba(0,0,0,.62);pointer-events:none;}
+#recBox{position:absolute;border:1.5px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,0);
+  cursor:move;}
+/* la retícula de tercios ayuda a encuadrar el ticket */
+#recBox::before,#recBox::after{content:'';position:absolute;inset:0;pointer-events:none;}
+#recBox::before{border-left:1px solid rgba(255,255,255,.28);border-right:1px solid rgba(255,255,255,.28);
+  left:33.33%;right:33.33%;}
+#recBox::after{border-top:1px solid rgba(255,255,255,.28);border-bottom:1px solid rgba(255,255,255,.28);
+  top:33.33%;bottom:33.33%;}
+.recH{position:absolute;width:30px;height:30px;}
+.recH::after{content:'';position:absolute;width:19px;height:19px;border:2.5px solid #fff;}
+.recH[data-h=nw]{left:-15px;top:-15px;} .recH[data-h=nw]::after{left:11px;top:11px;border-right:0;border-bottom:0;}
+.recH[data-h=ne]{right:-15px;top:-15px;} .recH[data-h=ne]::after{right:11px;top:11px;border-left:0;border-bottom:0;}
+.recH[data-h=sw]{left:-15px;bottom:-15px;} .recH[data-h=sw]::after{left:11px;bottom:11px;border-right:0;border-top:0;}
+.recH[data-h=se]{right:-15px;bottom:-15px;} .recH[data-h=se]::after{right:11px;bottom:11px;border-left:0;border-top:0;}
+#recBot{flex:none;padding:12px 14px calc(14px + env(safe-area-inset-bottom));
+  display:flex;gap:9px;align-items:center;}
+#recBot button{flex:1;border:0;border-radius:12px;padding:12px 8px;font:inherit;font-size:13.5px;
+  font-weight:650;cursor:pointer;}
+#recCancel{background:#20262E;color:#C7CDD6;flex:0 0 auto;padding:12px 15px;}
+#recFull{background:#20262E;color:#C7CDD6;}
+#recOk{background:var(--accent);color:#fff;}
+/* min-height con el renglón ya reservado: si arranca vacío y crece al escribir la medida,
+   encoge #recArea DESPUÉS de que ya se midió, y la foto queda calculada contra un alto que
+   ya no existe (se veía cortada abajo unos 15 px). */
+#recMed{color:#9AA3AF;font-size:11px;text-align:center;padding:0 14px 4px;min-height:19px;}
 .msi{margin:9px 16px 0;background:var(--surface);border-radius:14px;border:1px solid var(--line);overflow:hidden;}
 .msi-head{display:flex;align-items:center;gap:12px;padding:12px 15px;}
 .msi-head .lb{flex:1;} .msi-head .lb .t{font-size:14px;font-weight:650;}
@@ -1035,6 +1073,29 @@ body.capturando .tabbar{display:none;}
   <div class="scrim" id="scrim"></div>
   <!-- visor de la foto en grande: las miniaturas de 52px no dejan leer un ticket -->
   <div id="fotoOv"><img alt="Nota"></div>
+  <!-- recortar la foto antes de guardarla: los tickets son largos y angostos, y recortar
+       ahorra espacio en el respaldo además de que se lee mejor -->
+  <div id="recOv">
+    <div id="recTop">
+      <div class="t">Recortar la nota</div>
+      <div class="s">Arrastra el recuadro o sus esquinas. El recorte se aplica a la foto que se guarda.</div>
+    </div>
+    <div id="recArea">
+      <img id="recImg" alt="">
+      <div class="recVelo" id="vT"></div><div class="recVelo" id="vB"></div>
+      <div class="recVelo" id="vL"></div><div class="recVelo" id="vR"></div>
+      <div id="recBox">
+        <div class="recH" data-h="nw"></div><div class="recH" data-h="ne"></div>
+        <div class="recH" data-h="sw"></div><div class="recH" data-h="se"></div>
+      </div>
+    </div>
+    <div id="recMed"></div>
+    <div id="recBot">
+      <button id="recCancel">Cancelar</button>
+      <button id="recFull">Usar completa</button>
+      <button id="recOk">Recortar</button>
+    </div>
+  </div>
   <div class="sheet" id="sheet"><h3 id="sheetTitle"><button class="atras" id="sheetBack">‹</button><span id="sheetTit">Cuenta</span><button class="x" id="sheetX">Cerrar</button></h3>
     <div class="sheet-scroll" id="sheetBody"></div></div>
 
@@ -1046,7 +1107,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260814-1143";
+<script>window.MM_VER="20260815-1459";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2782,6 +2843,132 @@ function reescala(img, max, q){
   c.getContext('2d').drawImage(img,0,0,w,h);
   return c.toDataURL('image/jpeg', q);
 }
+/* ================= RECORTAR (15-ago-2026) =================
+   Marco: "la mayoria de los tickets son alargados y siento que se desperdicia espacio".
+   Se mete entre leer el archivo y generar la miniatura/el archivo, así que TODO lo que
+   sale después ya va recortado: la miniatura de la app, el archivo de Descargas y el peso.
+
+   `reescala()` recibe la fuente y le pide width/height y se la pasa a drawImage — y un
+   <canvas> responde a las dos cosas igual que un <img>. Por eso el recorte puede devolver
+   un canvas y el resto del código sigue sin enterarse. */
+var _rec = null;   // {img, disp:{x,y,w,h}, box:{x,y,w,h}, listo}
+
+function _recPinta(){
+  if(!_rec) return;
+  var b=_rec.box, A=$('recArea').getBoundingClientRect();
+  var B=$('recBox');
+  B.style.left=b.x+'px'; B.style.top=b.y+'px';
+  B.style.width=b.w+'px'; B.style.height=b.h+'px';
+  /* las 4 bandas del velo, para que el hueco quede realmente transparente */
+  var S=function(id,x,y,w,h){ var e=$(id).style;
+    e.left=x+'px'; e.top=y+'px'; e.width=Math.max(0,w)+'px'; e.height=Math.max(0,h)+'px'; };
+  S('vT',0,0,A.width,b.y);
+  S('vB',0,b.y+b.h,A.width,A.height-(b.y+b.h));
+  S('vL',0,b.y,b.x,b.h);
+  S('vR',b.x+b.w,b.y,A.width-(b.x+b.w),b.h);
+  /* medidas en px REALES de la foto, no de pantalla */
+  var k=_rec.img.naturalWidth/_rec.disp.w;
+  $('recMed').textContent = Math.round(b.w*k)+' × '+Math.round(b.h*k)+' px  ·  '+
+    Math.round(b.w*b.h/(_rec.disp.w*_rec.disp.h)*100)+'% de la foto';
+}
+
+function abrirRecorte(img, listo){
+  var O=$('recOv'); O.classList.add('show');
+  /* El gesto de retroceder cancela el recorte, no cierra la app. Se registra como capa
+     igual que las hojas; por eso los tres botones salen por `cerrarCapa()` y no tocan
+     `_pila` a mano. */
+  abrirCapa(function(){
+    var R=_rec; if(!R) return;
+    var q=_recSalir; _recSalir=null;          // null = lo cerró el gesto de retroceder
+    var res = q ? q(R) : null;                // se calcula con R vivo
+    _recCerrar();
+    R.listo(res);
+  });
+  /* getBoundingClientRect DESPUÉS de .show: en display:none mide 0 y el recuadro
+     arrancaría en la esquina con tamaño cero. */
+  var A=$('recArea').getBoundingClientRect();
+  /* la foto se dibuja "contain": completa y centrada, sin deformarse */
+  var s=Math.min(A.width/img.naturalWidth, A.height/img.naturalHeight);
+  var w=img.naturalWidth*s, h=img.naturalHeight*s;
+  var x=(A.width-w)/2, y=(A.height-h)/2;
+  var I=$('recImg');
+  I.src=img.src; I.style.left=x+'px'; I.style.top=y+'px';
+  I.style.width=w+'px'; I.style.height=h+'px';
+  /* arranca con casi toda la foto: recortar es quitar, no armar desde cero */
+  _rec={img:img, disp:{x:x,y:y,w:w,h:h}, listo:listo,
+        box:{x:x+w*.04, y:y+h*.04, w:w*.92, h:h*.92}};
+  _recPinta();
+}
+
+(function(){
+  var arr=null;   // {modo, x0, y0, box0}
+  var A=null;
+  function dentro(b){
+    var d=_rec.disp, MIN=34;
+    b.w=Math.max(MIN,b.w); b.h=Math.max(MIN,b.h);
+    b.x=Math.max(d.x, Math.min(b.x, d.x+d.w-b.w));
+    b.y=Math.max(d.y, Math.min(b.y, d.y+d.h-b.h));
+    b.w=Math.min(b.w, d.x+d.w-b.x); b.h=Math.min(b.h, d.y+d.h-b.y);
+    return b;
+  }
+  $('recArea').addEventListener('pointerdown', function(e){
+    if(!_rec) return;
+    var h=e.target.closest ? e.target.closest('.recH') : null;
+    var b=_rec.box, r=$('recArea').getBoundingClientRect();
+    var px=e.clientX-r.left, py=e.clientY-r.top;
+    var enCaja = px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h;
+    if(!h && !enCaja) return;
+    A=r;
+    arr={modo: h?h.dataset.h:'mov', x0:px, y0:py, box0:{x:b.x,y:b.y,w:b.w,h:b.h}};
+    /* la captura del puntero mantiene el arrastre aunque el dedo se salga del área;
+       si el navegador la rechaza no pasa nada, el arrastre sigue por los eventos del área */
+    try{ $('recArea').setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  $('recArea').addEventListener('pointermove', function(e){
+    if(!arr||!_rec) return;
+    var px=e.clientX-A.left, py=e.clientY-A.top;
+    var dx=px-arr.x0, dy=py-arr.y0, o=arr.box0, b;
+    if(arr.modo==='mov'){ b={x:o.x+dx, y:o.y+dy, w:o.w, h:o.h}; }
+    else{
+      /* cada esquina mueve dos lados; el opuesto se queda quieto */
+      var L=o.x, T=o.y, R=o.x+o.w, B=o.y+o.h;
+      if(arr.modo==='nw'){ L+=dx; T+=dy; }
+      if(arr.modo==='ne'){ R+=dx; T+=dy; }
+      if(arr.modo==='sw'){ L+=dx; B+=dy; }
+      if(arr.modo==='se'){ R+=dx; B+=dy; }
+      b={x:Math.min(L,R), y:Math.min(T,B), w:Math.abs(R-L), h:Math.abs(B-T)};
+    }
+    _rec.box=dentro(b); _recPinta(); e.preventDefault();
+  });
+  var fin=function(){ arr=null; };
+  $('recArea').addEventListener('pointerup', fin);
+  $('recArea').addEventListener('pointercancel', fin);
+})();
+
+function _recCerrar(){ $('recOv').classList.remove('show'); _rec=null; }
+/* Los tres salen por `cerrarCapa()`, que además saca la entrada de historial que metió
+   `abrirCapa`. Si cerraran a mano, quedaría una entrada colgada y el siguiente gesto de
+   retroceder no haría nada visible. `_recSalir` guarda qué devolver antes de que la capa
+   ejecute su propio cierre. */
+var _recSalir=null;
+function _recFin(quePasar){
+  _recSalir=quePasar;                     // se lee dentro del cierre de la capa
+  if(!cerrarCapa()){ var L=_rec&&_rec.listo; _recCerrar(); if(L) L(quePasar(_rec)); }
+}
+$('recCancel').onclick=function(){ _recFin(function(){ return null; }); };
+$('recFull').onclick =function(){ _recFin(function(R){ return R.img; }); };
+$('recOk').onclick   =function(){
+  _recFin(function(R){
+    var k=R.img.naturalWidth/R.disp.w;    // pantalla → px reales de la foto
+    var sx=Math.round((R.box.x-R.disp.x)*k), sy=Math.round((R.box.y-R.disp.y)*k);
+    var sw=Math.round(R.box.w*k),           sh=Math.round(R.box.h*k);
+    var c=document.createElement('canvas'); c.width=sw; c.height=sh;
+    c.getContext('2d').drawImage(R.img, sx, sy, sw, sh, 0, 0, sw, sh);
+    return c;                             // un canvas sirve igual que un <img>
+  });
+};
+
 function pesoDataUrl(u){ return u ? Math.round(u.length*0.75) : 0; }   // base64 → bytes
 function kbTxt(b){ return !b ? '' : (b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.round(b/1024)+' KB'); }
 /* Lee un archivo y devuelve UNA foto ya lista: {mini, full, tipo, nom, peso}.
@@ -2801,12 +2988,21 @@ function leerFoto(f, listo){
     }
     var img=new Image();
     img.onload=function(){
-      F.mini=reescala(img, 600, .5);              // la miniatura, para la app
-      var cal=fotoCal();
-      /* el archivo: se rehace más chico salvo que él haya pedido Original */
-      if(cal.max) F.full=reescala(img, cal.max, cal.q);
-      F.peso=pesoDataUrl(F.full);
-      listo(F);
+      /* Paso de RECORTE antes de generar nada (15-ago-2026). Lo que devuelva —la imagen
+         completa o un canvas recortado— es la fuente de TODO lo que sigue, así que el
+         recorte se refleja en la miniatura, en el archivo que baja y en el peso.
+         Si cancela, no se agrega la foto: `fuente` viene null. */
+      abrirRecorte(img, function(fuente){
+        if(!fuente) return;                       // canceló
+        F.mini=reescala(fuente, 600, .5);         // la miniatura, para la app
+        var cal=fotoCal();
+        /* el archivo: se rehace más chico salvo que él haya pedido Original. Si recortó,
+           hay que rehacerlo SIEMPRE aunque pida Original, o se guardaría la foto entera. */
+        if(cal.max) F.full=reescala(fuente, cal.max, cal.q);
+        else if(fuente!==img) F.full=reescala(fuente, 0, .92);
+        F.peso=pesoDataUrl(F.full);
+        listo(F);
+      });
     };
     img.onerror=function(){ listo(F); };
     img.src=ev.target.result;
