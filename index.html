@@ -1112,7 +1112,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1537";
+<script>window.MM_VER="20260815-1752";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4043,8 +4043,19 @@ function pickCat(g,e,sub){
     if(V && V.d) setDir(V.d);
   }
   if(st.partes&&st.partes.length<2) st.partes=null;
+  /* `rowCat` está oculto desde el rediseño, pero se sigue usando como memoria: el ramal
+     de Transferencia lee `catSub` para el título de la hoja. Por eso se escribe igual. */
   $('catNm').textContent=sub; $('catSub').textContent=g; $('catIc').textContent=e;
-  acomodaNegocio(); }
+  acomodaNegocio();
+  /* ⚠️ REPINTAR AQUÍ, no en cada quien que elige (15-ago-2026, con video de Marco).
+     Lo que se ve en la captura son las LÍNEAS, y escribir en `catNm` ya no pinta nada:
+     al elegir "Ayudas y Donaciones" desde el buscador, el renglón seguía diciendo
+     "Víveres" —la categoría por defecto— hasta que otra cosa forzaba el redibujado.
+     Es el MISMO fallo que el 13-ago tuvo el destino, y aquel se parchó en su llamador;
+     por eso volvió a aparecer por otro camino. Puesto dentro de `pickCat`, quedan
+     cubiertos los cinco: buscador, rejilla, subcategoría, subcategoría nueva y el
+     restablecer al editar. `pintaLineas` ya se protege sola si la caja no existe. */
+  pintaLineas(); }
 /* El campo "¿cuánto era del negocio?" depende de la CATEGORÍA, no del tipo: solo aparece
    en el ingreso "Negocio · Pago de tarjetas", que es el único donde entra dinero mezclado. */
 function esPagoDeTarjetas(){
