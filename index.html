@@ -1112,7 +1112,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1530";
+<script>window.MM_VER="20260815-1537";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2928,8 +2928,25 @@ function _recObserva(){
   new ResizeObserver(function(){ _recAjusta(); }).observe(el);
   _recObs=true;
 }
+/* ⚠️ SACAR EL RECORTADOR DE `.phone`, o la foto se sale por la derecha.
+   `.phone` lleva `zoom:var(--z)` (Marco ajusta el zoom de la app desde Ajustes), y bajo
+   `zoom` las dos unidades DEJAN DE COINCIDIR:
+
+       getBoundingClientRect().width -> px VISUALES  (ya multiplicados por el zoom)
+       style.width = '444px'         -> px de CSS    (el zoom los multiplica OTRA VEZ)
+
+   Medido con zoom 1.15: rect 1644 contra offsetWidth 1430, factor 1.15 exacto. O sea que
+   la foto se dibujaba 15% más grande de lo calculado y se desbordaba. Se notaba solo a la
+   DERECHA porque en vertical las franjas negras se comían el sobrante, y en horizontal no
+   hay holgura. En mi máquina el zoom estaba en 1 y por eso no se reproducía.
+   Colgado del <body> no hay zoom en medio: rect y CSS vuelven a hablar el mismo idioma. */
+function _recSuelta(){
+  var O=$('recOv');
+  if(O && O.parentElement!==document.body) document.body.appendChild(O);
+}
 
 function abrirRecorte(img, listo){
+  _recSuelta();                      // fuera de `.phone` ANTES de medir nada
   var O=$('recOv'); O.classList.add('show');
   /* El gesto de retroceder cancela el recorte, no cierra la app. Se registra como capa
      igual que las hojas; por eso los tres botones salen por `cerrarCapa()` y no tocan
