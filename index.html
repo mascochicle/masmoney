@@ -232,9 +232,12 @@ button{font-family:inherit;}
 .recH[data-h=se]{right:-15px;bottom:-15px;} .recH[data-h=se]::after{right:11px;bottom:11px;border-left:0;border-top:0;}
 #recBot{flex:none;padding:12px 14px calc(14px + env(safe-area-inset-bottom));
   display:flex;gap:9px;align-items:center;}
-#recBot button{flex:1;border:0;border-radius:12px;padding:12px 8px;font:inherit;font-size:13.5px;
-  font-weight:650;cursor:pointer;}
-#recCancel{background:#20262E;color:#C7CDD6;flex:0 0 auto;padding:12px 15px;}
+/* `white-space:nowrap` no es cosmético: si un botón se parte en dos renglones, la barra
+   crece y encoge #recArea DESPUÉS de medirla, y la foto sale comida por abajo. La etiqueta
+   se acortó a "Completa" por lo mismo. */
+#recBot button{flex:1;border:0;border-radius:12px;padding:12px 6px;font:inherit;font-size:13.5px;
+  font-weight:650;cursor:pointer;white-space:nowrap;}
+#recCancel{background:#20262E;color:#C7CDD6;}
 #recFull{background:#20262E;color:#C7CDD6;}
 #recOk{background:var(--accent);color:#fff;}
 /* min-height con el renglón ya reservado: si arranca vacío y crece al escribir la medida,
@@ -1078,7 +1081,9 @@ body.capturando .tabbar{display:none;}
   <div id="recOv">
     <div id="recTop">
       <div class="t">Recortar la nota</div>
-      <div class="s">Arrastra el recuadro o sus esquinas. El recorte se aplica a la foto que se guarda.</div>
+      <!-- corto y de un solo renglón a propósito: si envuelve, el encabezado crece y
+           encoge el área DESPUÉS de medirla -->
+      <div class="s">Arrastra el recuadro o sus esquinas.</div>
     </div>
     <div id="recArea">
       <img id="recImg" alt="">
@@ -1107,7 +1112,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1459";
+<script>window.MM_VER="20260815-1530";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2872,6 +2877,58 @@ function _recPinta(){
     Math.round(b.w*b.h/(_rec.disp.w*_rec.disp.h)*100)+'% de la foto';
 }
 
+/* Reencuadra la foto con el tamaño ACTUAL del área y repone el recuadro donde estaba.
+   El recuadro se guarda en `norm` (0..1 sobre la foto), no en píxeles de pantalla: así
+   sobrevive a que el área cambie de tamaño sin saltar ni deformarse.
+
+   Hace falta porque medir UNA vez no basta: en el teléfono de Marco "Usar completa" se
+   parte en dos renglones y la barra de botones crece DESPUÉS de la medición, encogiendo
+   el área; la foto quedaba dibujada contra un alto que ya no existía y se veía comida por
+   abajo (15-ago-2026, con foto de su pantalla). Se llama al abrir, en el siguiente cuadro,
+   y cuando la ventana cambia. */
+function _recAjusta(){
+  if(!_rec) return;
+  var A=$('recArea').getBoundingClientRect();
+  if(!A.width || !A.height) return;
+  var img=_rec.img;
+  /* MARGEN: la foto nunca toca la orilla de la pantalla. Sin él, con una foto vertical la
+     foto ocupa todo el ancho y las manijas de la derecha caen medio fuera, imposibles de
+     agarrar con el pulgar (Marco, 15-ago-2026: "del lado derecho esta comido"). 18 px por
+     lado alcanzan para que la manija completa quede dentro. */
+  var M=18;
+  var aw=Math.max(40, A.width-M*2), ah=Math.max(40, A.height-M*2);
+  var s=Math.min(aw/img.naturalWidth, ah/img.naturalHeight);
+  var w=img.naturalWidth*s, h=img.naturalHeight*s;
+  var d={x:(A.width-w)/2, y:(A.height-h)/2, w:w, h:h};
+  /* Se compara TAMBIÉN la posición, no solo el tamaño. Con una foto vertical el ancho es
+     el que manda, así que al encoger el área de alto el tamaño NO cambia —solo el centro—
+     y con un atajo que mirara únicamente w/h la foto se quedaba colgada de arriba y
+     cortada abajo. Eso era justo lo que Marco veía. */
+  var q=_rec.disp;
+  if(q && Math.abs(d.w-q.w)<.5 && Math.abs(d.h-q.h)<.5
+       && Math.abs(d.x-q.x)<.5 && Math.abs(d.y-q.y)<.5) return;
+  _rec.disp=d;
+  var I=$('recImg');
+  I.style.left=d.x+'px'; I.style.top=d.y+'px';
+  I.style.width=d.w+'px'; I.style.height=d.h+'px';
+  var n=_rec.norm;
+  _rec.box={x:d.x+n.x*d.w, y:d.y+n.y*d.h, w:n.w*d.w, h:n.h*d.h};
+  _recPinta();
+}
+window.addEventListener('resize', _recAjusta);
+/* La red de seguridad: ResizeObserver avisa CADA vez que #recArea cambia de tamaño, sin
+   tener que adivinar quién lo movió ni cuándo.
+   ⚠️ Se engancha en el PRIMER `abrirRecorte`, no aquí arriba: este script corre antes de
+   que exista `#recArea`, así que `observe(null)` tronaba y el try/catch se lo tragaba en
+   silencio — el observador nunca quedaba puesto y la foto seguía saliendo descentrada. */
+var _recObs=false;
+function _recObserva(){
+  if(_recObs) return;
+  var el=$('recArea'); if(!el || typeof ResizeObserver==='undefined') return;
+  new ResizeObserver(function(){ _recAjusta(); }).observe(el);
+  _recObs=true;
+}
+
 function abrirRecorte(img, listo){
   var O=$('recOv'); O.classList.add('show');
   /* El gesto de retroceder cancela el recorte, no cierra la app. Se registra como capa
@@ -2884,20 +2941,21 @@ function abrirRecorte(img, listo){
     _recCerrar();
     R.listo(res);
   });
-  /* getBoundingClientRect DESPUÉS de .show: en display:none mide 0 y el recuadro
-     arrancaría en la esquina con tamaño cero. */
-  var A=$('recArea').getBoundingClientRect();
-  /* la foto se dibuja "contain": completa y centrada, sin deformarse */
-  var s=Math.min(A.width/img.naturalWidth, A.height/img.naturalHeight);
-  var w=img.naturalWidth*s, h=img.naturalHeight*s;
-  var x=(A.width-w)/2, y=(A.height-h)/2;
-  var I=$('recImg');
-  I.src=img.src; I.style.left=x+'px'; I.style.top=y+'px';
-  I.style.width=w+'px'; I.style.height=h+'px';
+  $('recImg').src=img.src;
   /* arranca con casi toda la foto: recortar es quitar, no armar desde cero */
-  _rec={img:img, disp:{x:x,y:y,w:w,h:h}, listo:listo,
-        box:{x:x+w*.04, y:y+h*.04, w:w*.92, h:h*.92}};
-  _recPinta();
+  _rec={img:img, listo:listo, disp:null, box:null,
+        norm:{x:.04, y:.04, w:.92, h:.92}};
+  _recObserva();
+  _recAjusta();
+  /* Reencuadres de respaldo. Son TRES caminos a propósito, porque ninguno cubre todo:
+       · ResizeObserver — el bueno, avisa de cualquier cambio de tamaño…
+       · requestAnimationFrame — …pero los dos SOLO se entregan si la página se está
+         dibujando; con la pestaña en segundo plano el navegador no los corre.
+       · setTimeout — sí corre igual, y tapa ese hueco y el de los navegadores viejos.
+     El primer cuadro es cuando los botones pueden partirse en dos renglones y encoger
+     el área justo después de la primera medida. */
+  requestAnimationFrame(function(){ requestAnimationFrame(_recAjusta); });
+  setTimeout(_recAjusta, 60); setTimeout(_recAjusta, 260);
 }
 
 (function(){
@@ -2939,7 +2997,12 @@ function abrirRecorte(img, listo){
       if(arr.modo==='se'){ R+=dx; B+=dy; }
       b={x:Math.min(L,R), y:Math.min(T,B), w:Math.abs(R-L), h:Math.abs(B-T)};
     }
-    _rec.box=dentro(b); _recPinta(); e.preventDefault();
+    _rec.box=dentro(b);
+    /* `norm` es la verdad: el recuadro en 0..1 sobre la foto. Si no se actualiza aquí,
+       un reencuadre posterior lo regresaría a donde estaba antes de arrastrarlo. */
+    var d=_rec.disp, k=_rec.box;
+    _rec.norm={x:(k.x-d.x)/d.w, y:(k.y-d.y)/d.h, w:k.w/d.w, h:k.h/d.h};
+    _recPinta(); e.preventDefault();
   });
   var fin=function(){ arr=null; };
   $('recArea').addEventListener('pointerup', fin);
