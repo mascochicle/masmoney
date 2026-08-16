@@ -177,6 +177,12 @@ button{font-family:inherit;}
 .optres:empty{display:none;}
 .amount.chico{padding:10px 16px 0;min-height:0;}
 .amount.chico .calcln:empty{display:none;}
+/* Cuando la caja del monto se queda SIN NADA dentro se esconde entera. Desde que la fecha
+   se mudó a la caja de líneas, aquí no queda nada visible en la captura normal —pero seguía
+   cobrando su relleno y el gap de la columna: 21 px de aire entre "HOY" y los iconos, que
+   Marco marcó en rojo (15-ago-2026). No se puede resolver con `:empty` porque los hijos
+   siguen ahí, solo que ocultos; lo pone `ajustaAmount()`. */
+.amount.chico.vacia{display:none;}
 .extras{padding:0 16px;display:flex;gap:9px;align-items:stretch;}
 .extras.vis{display:flex !important;padding-top:11px;}
 .desc{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);
@@ -1112,7 +1118,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1822";
+<script>window.MM_VER="20260815-1936";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2404,6 +2410,9 @@ function pintaCalc(){
     ? (fmt2(calAc)+'  '+SIGNO[calOp]) : '';
   $('pad').querySelectorAll('.key.calc').forEach(function(b){
     b.classList.toggle('on', b.dataset.op===calOp); });
+  /* al aparecer o desaparecer el renglón de la operación, la caja del monto pasa de vacía
+     a con contenido y al revés: hay que revisar si se colapsa */
+  if(typeof ajustaAmount==='function') ajustaAmount();
 }
 $('pad').addEventListener('click',function(e){
   var k=e.target.closest('.key'); if(!k||k.id==='guardar') return;
@@ -2567,6 +2576,21 @@ function lineasDe(){
     ? st.partes
     : [{g:st.cat.g, e:st.cat.e, sub:st.cat.sub, amount:(st.amount==='0'?'':st.amount)}];
 }
+/* ¿Le queda algo visible a la caja del monto? Si no, se colapsa (ver `.amount.chico.vacia`).
+   Tiene que correr DESPUÉS de que `pintaLineas` termine de mudar la fecha: en Transferencia
+   no hay caja de líneas y el botón se queda aquí, y entonces la caja SÍ tiene que verse. */
+function ajustaAmount(){
+  var a=document.querySelector('#vForm .amount'); if(!a) return;
+  /* Se decide por CONTENIDO, no midiendo: una vez escondida, sus hijos miden cero y ya no
+     podría volver a aparecer nunca. Con eso el renglón de la calculadora ("$220.00 +") se
+     quedaba invisible a media operación. */
+  var calc=$('calcLn'), fb=$('fechaBtn');
+  var hayCalc  = !!(calc && calc.parentElement===a && calc.textContent.trim()!=='');
+  var hayFecha = !!(fb && fb.parentElement===a);   // sin caja de líneas la fecha vive aquí
+  var hayOtro  = [].some.call(a.children, function(c){
+    return c!==calc && c!==fb && c.style.display!=='none'; });
+  a.classList.toggle('vacia', !(hayCalc || hayFecha || hayOtro));
+}
 function pintaLineas(){
   var box=$('lineasBox'); if(!box) return;
   /* La fecha vive DENTRO de esta caja (abajo del total, como Money Pro), y aquí se reescribe
@@ -2632,7 +2656,7 @@ function pintaLineas(){
       });
     }
     if(fb) $('linFec').appendChild(fb);
-    pintaCursor();
+    pintaCursor(); ajustaAmount();
     return;
   }
   box.style.display='';
@@ -2654,7 +2678,7 @@ function pintaLineas(){
     '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>'+
   '<div class="linfec" id="linFec"></div>';
   if(fb) $('linFec').appendChild(fb);
-  pintaCursor();
+  pintaCursor(); ajustaAmount();
 
   box.querySelectorAll('[data-cat]').forEach(function(el){
     el.onclick=function(){ cambiaCatLinea(+el.dataset.cat); }; });
