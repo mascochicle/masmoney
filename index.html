@@ -41,7 +41,11 @@ button{font-family:inherit;}
 .scrollable{overflow-y:auto;flex:1;min-height:0;}
 
 /* ---------- captura ---------- */
-.top{padding:14px 16px 10px;display:flex;flex-direction:column;gap:11px;}
+/* Apretado el 15-ago-2026: con el teclado abierto el contenido no cabia en la pantalla de
+   Marco y los iconos quedaban debajo del teclado. Se recorto el AIRE, no el contenido:
+   gap 11->8 y relleno 14/10 -> 10/6. El hueco entre los dos cuadros de arriba sigue
+   siendo el `gap`, que es lo que el pidio el 6-ago para leerlos como partes distintas. */
+.top{padding:10px 16px 6px;display:flex;flex-direction:column;gap:8px;}
 .intIn{width:110px;flex:none;background:var(--surface2);border:1px solid var(--line);border-radius:9px;
   color:var(--ink);font-size:15px;font-family:inherit;padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;}
 .intIn::placeholder{color:var(--mut2);}
@@ -138,7 +142,7 @@ button{font-family:inherit;}
 /* La fecha va DENTRO de la tarjeta, en su renglón debajo del TOTAL y alineada a la
    izquierda, como Money Pro (Marco, 12-ago-2026, con foto de su pantalla). Antes iba
    centrada y suelta más abajo. */
-.linfec{position:relative;padding:2px 16px 4px;}
+.linfec{position:relative;padding:2px 16px 2px;}
 .linfec .cur{margin:0;padding:8px 0;font-size:13px;color:var(--accent-ink);letter-spacing:.04em;
   text-transform:uppercase;background:transparent;border:0;font-family:inherit;cursor:pointer;}
 .linfec .cur u{text-decoration:none;border-bottom:0;}
@@ -167,7 +171,7 @@ button{font-family:inherit;}
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ambchips .amb.on .o{background:var(--accent-soft);border-color:var(--accent-ink);}
 .ambchips .amb.on .t{color:var(--accent-ink);font-weight:700;}
-.optbar{display:flex;gap:6px;padding:10px 16px 0;}
+.optbar{display:flex;gap:6px;padding:6px 16px 0;}
 .optbar button{flex:1;height:38px;border-radius:11px;border:0;background:var(--surface);
   color:var(--mut);font-size:16px;cursor:pointer;font-family:inherit;display:grid;place-items:center;}
 .optbar button.on{color:var(--accent-ink);background:var(--accent-soft);}
@@ -900,7 +904,10 @@ body.capturando .tabbar{display:none;}
            propósito, para que se lean como cosas distintas (Marco, 6-ago-2026: "sepáralos,
            que sean partes independientes, déjales un espacio entre partes, así sé que ya
            es otra cosa"). El `gap:11px` de `.top` es el que los separa. -->
-      <div class="rows">
+      <!-- Envoltorio OCULTO (15-ago-2026): su único hijo, `rowCat`, está en display:none
+           desde el rediseño, así que medía 0 de alto… pero seguía siendo un elemento flex
+           de `.top` y se llevaba su `gap` de 11px. Aire puro entre el ámbito y las líneas. -->
+      <div class="rows" id="rowCatBox" style="display:none">
         <!-- El ámbito sigue antes de la CATEGORÍA: es lo que decide si se ofrecen las
              categorías personales o las del negocio. -->
         <!-- El renglón viejo de categoría se queda oculto: `pintaPartes` y compañía escriben
@@ -1118,7 +1125,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1936";
+<script>window.MM_VER="20260815-1949";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
