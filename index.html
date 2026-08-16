@@ -1112,7 +1112,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1752";
+<script>window.MM_VER="20260815-1822";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2372,7 +2372,11 @@ function sumaPartes(){
   if(!st.partes || st.partes.length<2) return null;
   return st.partes.reduce(function(a,p){ return a+(evalua(p.amount)||0); },0);
 }
-function num(){ var s=sumaPartes(); return (s!==null)?s:(parseFloat(st.amount)||0); }
+/* `evalua`, no `parseFloat`: el teclado tiene + − × ÷ y con UNA sola línea el parseFloat
+   se quedaba con el primer número —teclear "12+3" guardaba 12, no 15— mientras que con
+   varias líneas `sumaPartes` sí usaba la calculadora. Encontrado el 15-ago-2026 revisando
+   el formato del monto; es un número mal guardado sin avisar, de los peores. */
+function num(){ var s=sumaPartes(); return (s!==null)?s:(evalua(st.amount)||0); }
 function renderMsiPrev(){
   if(!st.msi) return;
   var t=num(), m=st.meses;
@@ -2528,6 +2532,36 @@ function pintaPartes(){
    Cada categoría es un renglón con su monto. La ACTIVA es donde escribe el teclado; el
    total es la suma. Antes esto vivía en la hoja "Dividir entre categorías" y agregar una
    categoría te sacaba de la captura — que es justo lo que Marco no quería. */
+/* ===== cómo se ve un monto MIENTRAS lo escribes (15-ago-2026, con dos videos) =====
+   Marco: *"estoy llenando enteros y ya pones los decimales y me confunde; en money pro no
+   salen los decimales hasta que pongo el punto, que crea la división para ir poniendo
+   decimales"*. Tenía razón: la línea se dibujaba con `fmt2raw`, que SIEMPRE rellena a dos
+   decimales, así que al teclear 1 · 5 · 9 se leía $1.00, $15.00, $159.00 y el punto ya
+   estaba puesto antes de que él lo pusiera.
+
+   Money Pro (medido en su video):  1 → 12 → 123 → 123. → 123.2 → 123.20
+   O sea: se muestra EXACTAMENTE lo tecleado. El punto aparece cuando él lo teclea y se
+   queda visible aunque todavía no haya decimales, que es justo lo que le sirve de división.
+
+   `fmtTecleado` es para la línea que se está escribiendo; `fmtSuma` para el total, que no
+   se teclea y por eso sí se calcula —pero tampoco rellena con ceros, igual que Money Pro
+   ($123.2, no $123.20). Los montos ya guardados siguen con dos decimales en todo lo demás
+   de la app: esto es solo la calculadora de la captura. */
+function fmtTecleado(s){
+  s=String(s==null?'':s);
+  if(s==='' || s==='0') return '$0';
+  /* una operación a medias ("12+3") se enseña tal cual: es lo que está escribiendo */
+  if(/[+\-*/×÷]/.test(s)) return s;
+  var neg=s.charAt(0)==='-'; if(neg) s=s.slice(1);
+  var p=s.split('.'), ent=p[0]||'0';
+  var mil=parseFloat(ent);
+  ent=isFinite(mil)?mil.toLocaleString('en-US',{maximumFractionDigits:0}):ent;
+  /* p.length>1 = ya tecleó el punto: se conserva aunque no haya nada después */
+  return (neg?'-$':'$')+ent+(p.length>1?'.'+p[1]:'');
+}
+function fmtSuma(n){
+  return '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:_dec()});
+}
 function lineasDe(){
   return (st.partes && st.partes.length>1)
     ? st.partes
@@ -2573,13 +2607,14 @@ function pintaLineas(){
       '<div class="lin act">'+
         '<button class="lcat" data-mon="1"><span class="e">'+(_T.e||'💵')+'</span>'+
           '<span class="n">'+(_T.interes?'Capital':'Monto')+'</span></button>'+
-        '<button class="lm" data-mon="1">'+fmt2raw(_cap)+'</button></div>'+
+        /* el Capital también se teclea: va como lo escribe, sin decimales de regalo */
+        '<button class="lm" data-mon="1">'+fmtTecleado(st.amount)+'</button></div>'+
       (_T.interes
         ? '<div class="lin"><span class="lcat"><span class="e">%</span>'+
             '<span class="n">Interés</span></span><span class="lm" id="slotInt"></span></div>'+
           '<div class="lin"><span class="lcat"><span class="e">\u2795</span>'+
             '<span class="n">Abono a capital</span></span><span class="lm" id="slotAbo"></span></div>'+
-          '<div class="lintot"><span class="k">Total:</span><b id="linTot">'+fmt2(totalPasivo())+'</b></div>'
+          '<div class="lintot"><span class="k">Total:</span><b id="linTot">'+fmtSuma(totalPasivo())+'</b></div>'
         : '')+
       '<div class="linfec" id="linFec"></div>';
     box.querySelectorAll('[data-mon]').forEach(function(el){
@@ -2593,7 +2628,7 @@ function pintaLineas(){
       $('slotInt').appendChild($('interes'));
       $('slotAbo').appendChild($('abono'));
       [$('interes'),$('abono')].forEach(function(inp){
-        inp.oninput=function(){ var t=$('linTot'); if(t) t.textContent=fmt2raw(totalPasivo()); };
+        inp.oninput=function(){ var t=$('linTot'); if(t) t.textContent=fmtSuma(totalPasivo()); };
       });
     }
     if(fb) $('linFec').appendChild(fb);
@@ -2609,10 +2644,13 @@ function pintaLineas(){
     return '<div class="lin'+(i===st.li?' act':'')+'">'+
       '<button class="lcat" data-cat="'+i+'"><span class="e">'+p.e+'</span>'+
         '<span class="n">'+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span></button>'+
-      '<button class="lm" data-m="'+i+'">'+fmt2raw(evalua(p.amount)||0)+'</button>'+
+      /* SOLO la línea activa se enseña como se teclea; las otras ya están puestas
+         y se leen mejor con sus dos decimales */
+      '<button class="lm" data-m="'+i+'">'+
+        (i===st.li ? fmtTecleado(p.amount) : fmt2raw(evalua(p.amount)||0))+'</button>'+
       (multi?'<button class="x" data-del="'+i+'">✕</button>':'')+'</div>';
   }).join('')+
-  '<div class="lintot"><span class="k">Total:</span><b>'+fmt2raw(tot)+'</b>'+
+  '<div class="lintot"><span class="k">Total:</span><b>'+fmtSuma(tot)+'</b>'+
     '<button class="linmas" id="linMas" aria-label="Agregar categoría">＋</button></div>'+
   '<div class="linfec" id="linFec"></div>';
   if(fb) $('linFec').appendChild(fb);
