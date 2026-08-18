@@ -1131,7 +1131,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260817-2021";
+<script>window.MM_VER="20260818-0654";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4648,11 +4648,19 @@ function editarMov(id, pre){
         '<div class="ro">'+m.e+'  '+lab+'</div></div>')+
     /* una línea por parte y los montos alineados a la derecha: envueltos en un párrafo,
        Marco solo alcanzó a ver el segundo importe y creyó que faltaba el primero */
+    /* ⚠️ TOCABLE, no solo de lectura (17-ago-2026). Marco mandó la captura con los dos
+       importes circulados: "no puedo editar estas cantidades, solo la de arriba".
+       Editarlos SÍ se podía —la hoja de partes existe— pero colgaba de "Categoría ›
+       2 categorías", que no es donde uno pone el dedo: se pone sobre el número que quiere
+       cambiar. Ahora esta fila abre la misma hoja, así que los dos caminos llevan al mismo
+       lugar y no hay dos formas de mantener. */
     (dividido
-      ? '<div class="fld" style="align-items:flex-start"><div class="k" style="padding-top:4px">Dividido en</div>'+
+      ? '<button type="button" class="fld tocable" id="eParts" style="align-items:flex-start">'+
+        '<div class="k" style="padding-top:4px">Dividido en</div>'+
         '<div class="ro plist">'+partes.map(function(p){
           return '<div class="pline"><span>'+p.e+'  '+((p.sub&&p.sub!==p.g)?p.sub:p.g)+'</span>'+
-                 '<b>'+fmtM(p.amount,m.mon)+'</b></div>'; }).join('')+'</div></div>'
+                 '<b>'+fmtM(p.amount,m.mon)+'</b></div>'; }).join('')+'</div>'+
+        '<div class="chev" style="padding-top:4px">›</div></button>'
       : '')+
     (T.dir?'<div class="fld"><div class="k">¿Sube o baja?</div><div class="seg" id="eDir">'+
       '<button data-d="1"'+(dirM>0?' class="on"':'')+'>Sube</button>'+
@@ -4812,6 +4820,9 @@ function editarMov(id, pre){
     elegirCatEdit(lista(cual), function(c){ v.cat=c; editarMov(id, v); }, '', cual);
     volverHoja=function(){ editarMov(id, v); };
   };
+  /* la fila de partes reusa el handler de "Categoría" tal cual: ahí ya está resuelto que
+     si va dividido se abre `verDividir` y no el selector de una sola categoría */
+  if($('eParts') && $('eCat')) $('eParts').onclick=$('eCat').onclick;
   /* ---- FOTO ----
      `fot` arranca de lo que ya tiene el movimiento y se reemplaza si él escoge otra. Vive
      en `pre` para que sobreviva a los repintados (cambiar categoría, cuenta, etc. vuelven
