@@ -1131,7 +1131,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260818-0654";
+<script>window.MM_VER="20260818-0702";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2794,6 +2794,44 @@ function padHojaHTML(){
     '</div>';
 }
 /* `lee`/`escribe` trabajan sobre el renglón activo; `alListo` cierra. */
+/* ---- EL CURSOR DE LOS CAMPOS DEL PAD ----
+   Los campos van `readonly` para que Android no abra su teclado encima, y un readonly NO
+   dibuja cursor: se ve el recuadro azul y nada parpadeando. Se dibuja a mano, MIDIENDO
+   dónde termina el texto.
+   ⚠️ VIVE AQUÍ, junto al pad, no dentro de una pantalla (17-ago-2026). Estaba dentro de
+   `editarMov`, así que la hoja de partes —que usa el MISMO teclado— se quedó sin él y
+   Marco lo cachó: "ahora se te olvidó el cursor, que no se te olvide es importante".
+   Quien conecte el pad, lo tiene.
+   Y respeta la ALINEACIÓN: en el editor el texto va a la izquierda, pero en la hoja de
+   partes los montos van a la DERECHA, así que el cursor no puede calcularse siempre desde
+   el borde izquierdo. */
+function cursorCampo(el){
+  var v=document.querySelector('.carcampo');
+  if(v && v.parentNode) v.parentNode.removeChild(v);
+  if(!el) return;
+  var cs=getComputedStyle(el);
+  var med=document.createElement('span');
+  med.style.cssText='position:absolute;visibility:hidden;white-space:pre;font:'+cs.font;
+  med.textContent=el.value||'';
+  document.body.appendChild(med);
+  var w=med.getBoundingClientRect().width;
+  med.parentNode.removeChild(med);
+  var alto=Math.round(parseFloat(cs.fontSize)*1.15);
+  var padL=parseFloat(cs.paddingLeft||0),  padR=parseFloat(cs.paddingRight||0);
+  var borL=parseFloat(cs.borderLeftWidth||0), borR=parseFloat(cs.borderRightWidth||0);
+  var ta=cs.textAlign, ancho=el.offsetWidth, arranca;
+  if(ta==='right'||ta==='end')  arranca = ancho - borR - padR - w;   // pegado a la derecha
+  else if(ta==='center')        arranca = (ancho - w)/2;
+  else                          arranca = borL + padL;               // izquierda (default)
+  var c=document.createElement('span');
+  c.className='carcampo';
+  c.style.left  = (el.offsetLeft + arranca + w + 2) + 'px';
+  c.style.top   = (el.offsetTop + (el.offsetHeight - alto)/2) + 'px';
+  c.style.height= alto + 'px';
+  var casa = el.offsetParent || el.parentNode;
+  if(getComputedStyle(casa).position==='static') casa.style.position='relative';
+  casa.appendChild(c);
+}
 function conectaPadHoja(lee, escribe, alListo){
   $('padHoja').addEventListener('click', function(e){
     var k=e.target.closest('.key'); if(!k) return;
@@ -2838,15 +2876,19 @@ function verDividir(op){
       el.classList.toggle('act', +el.dataset.i===foco); });
   }
   /* tocar un renglón lo vuelve el activo; el pad escribe siempre en ese */
+  function campoFoco(){ return $('sheetBody').querySelector('.pmonto[data-m="'+foco+'"]'); }
   $('sheetBody').querySelectorAll('.pmonto').forEach(function(el){
-    el.onfocus=el.onclick=function(){ foco=+el.dataset.m; verDividir._f=foco; pintaFoco(); };
+    el.onfocus=el.onclick=function(){ foco=+el.dataset.m; verDividir._f=foco; pintaFoco();
+      cursorCampo(el); };
   });
+  cursorCampo(campoFoco());          // al abrir la hoja ya hay una línea activa
   conectaPadHoja(
     function(){ return L[foco] ? L[foco].amount : ''; },
     function(s){ if(!L[foco]) return; L[foco].amount=s;
-      var el=$('sheetBody').querySelector('.pmonto[data-m="'+foco+'"]');
-      if(el) el.value=s; total(); },
-    function(){ terminar(); }        // la tecla Listo del pad cierra la hoja
+      var el=campoFoco();
+      if(el) el.value=s;
+      cursorCampo(el); total(); },
+    function(){ cursorCampo(null); terminar(); }   // se va con el teclado
   );
   $('sheetBody').querySelectorAll('.pcat').forEach(function(el){
     el.onclick=function(){ var i=+el.dataset.cat;
@@ -4699,29 +4741,6 @@ function editarMov(id, pre){
   /* el pad de la app en vez del de Android: aparece al tocar Monto o Interés y escribe
      en el que se haya tocado */
   var campo=null;
-  /* Coloca el cursor justo donde acaba el texto. Hay que MEDIR: el input es readonly, así
-     que el sistema no pinta ninguno, y el texto va alineado a la izquierda. */
-  function cursorCampo(el){
-    var v=document.querySelector('.carcampo');
-    if(v && v.parentNode) v.parentNode.removeChild(v);
-    if(!el) return;
-    var cs=getComputedStyle(el);
-    var med=document.createElement('span');
-    med.style.cssText='position:absolute;visibility:hidden;white-space:pre;font:'+cs.font;
-    med.textContent=el.value||'';
-    document.body.appendChild(med);
-    var w=med.getBoundingClientRect().width;
-    med.parentNode.removeChild(med);
-    var alto=Math.round(parseFloat(cs.fontSize)*1.15);
-    var c=document.createElement('span');
-    c.className='carcampo';
-    c.style.left  = (el.offsetLeft + parseFloat(cs.paddingLeft||0) + parseFloat(cs.borderLeftWidth||0) + w + 2) + 'px';
-    c.style.top   = (el.offsetTop + (el.offsetHeight - alto)/2) + 'px';
-    c.style.height= alto + 'px';
-    var casa = el.offsetParent || el.parentNode;
-    if(getComputedStyle(casa).position==='static') casa.style.position='relative';
-    casa.appendChild(c);
-  }
   function enfoca(el){
     campo=el;
     $('sheetBody').querySelectorAll('.calcin').forEach(function(x){ x.classList.toggle('act', x===el); });
