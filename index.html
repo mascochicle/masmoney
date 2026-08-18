@@ -171,6 +171,12 @@ button{font-family:inherit;}
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ambchips .amb.on .o{background:var(--accent-soft);border-color:var(--accent-ink);}
 .ambchips .amb.on .t{color:var(--accent-ink);font-weight:700;}
+/* El ámbito, ARRIBA de la rejilla de categorías (17-ago-2026). Mismos círculos que en el
+   formulario a propósito: es el mismo control, y ya está probado que los cuatro caben en
+   361px. Va pegado al borde de la hoja y con una línea que lo separa del buscador. */
+.ambchips.hoja{padding:2px 4px 9px;margin:0 0 9px;border-bottom:1px solid var(--line);}
+.ambchips.hoja .amb .o{width:34px;height:34px;font-size:16px;}
+.ambchips.hoja .amb .t{font-size:10px;}
 .optbar{display:flex;gap:6px;padding:6px 16px 0;}
 .optbar button{flex:1;height:38px;border-radius:11px;border:0;background:var(--surface);
   color:var(--mut);font-size:16px;cursor:pointer;font-family:inherit;display:grid;place-items:center;}
@@ -1125,7 +1131,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260815-1949";
+<script>window.MM_VER="20260817-2021";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -4006,11 +4012,50 @@ function catElegida(){
   closeSheet();
   if(f) f();
 }
+/* ---- EL ÁMBITO SE PREGUNTA AQUÍ, NO DESPUÉS (17-ago-2026, lo cachó Marco) ----
+   El + entra directo a esta rejilla, y la rejilla se arma con `catsActuales()`, que depende
+   del ámbito... que venía del movimiento ANTERIOR, porque `limpiarForm` no lo resetea (y
+   está bien que no lo haga: encadenar gastos del mismo tipo es lo normal).
+   El problema era que desde aquí no se podía cambiar: si el anterior fue Personal, para
+   capturar algo del negocio había que elegir una categoría personal cualquiera SOLO para
+   llegar al formulario, ahí tocar Negocio, y volver a abrir la rejilla. Marco: "primero
+   tengo que capturar cualquier categoría personal y luego ya selecciono negocio, y eso no
+   está bien".
+   El comentario del formulario ya decía que "el ámbito va antes de la CATEGORÍA: es lo que
+   decide qué categorías se ofrecen". Cierto en el formulario, pero el FLUJO lo hacía al
+   revés. Aquí se empareja: la pregunta que manda va primero, en la misma pantalla. */
+function chipsAmbHoja(){
+  var T=tipoDe(st.tipo);
+  /* en ingreso el ámbito se deriva de la categoría, y en transferencias no aplica */
+  if(T.sinAmb || st.tipo==='Ingreso') return '';
+  /* solo donde el ámbito DECIDE la lista (gasto personal vs negocio). En "Cambio de valor"
+     el catálogo de motivos es uno solo, así que el chip no cambiaría nada de lo que se ve
+     y parecería descompuesto; ahí el ámbito se sigue poniendo en el formulario. */
+  if(cualLista()==='valor') return '';
+  var L=ambitosPara(st.tipo);
+  if(L.length<2) return '';
+  return '<div class="ambchips hoja" id="ambHoja">'+L.map(function(A){
+    return '<button type="button" class="amb'+(A.n===st.ambito?' on':'')+'" data-ah="'+escAtr(A.n)+'">'+
+           '<span class="o">'+A.e+'</span><span class="t">'+A.n+'</span></button>'; }).join('')+'</div>';
+}
+function conectaAmbHoja(q){
+  var c=$('ambHoja'); if(!c) return;
+  c.querySelectorAll('[data-ah]').forEach(function(x){
+    x.onclick=function(){
+      if(x.dataset.ah===st.ambito) return;
+      /* `setAmbito` ya reacomoda la categoría al catálogo nuevo; aquí solo hay que volver a
+         dibujar la rejilla, conservando lo que traía escrito en el buscador. */
+      setAmbito(x.dataset.ah);
+      showCatGrid(q);
+    }; });
+}
 function showCatGrid(q){
   $('sheetTit').textContent = (cualLista()==='valor') ? 'Motivo' : 'Grupo';
   var L=catsActuales(), b=$('sheetBody');
-  q=q||'';
-  var caja='<div class="busca"><span>🔍</span><input id="qcat" placeholder="Buscar categoría" '+
+  /* solo texto: si llega un evento (por engancharla directo a un onclick) se ignora, en vez
+     de tronar a medio repintado y dejar la hoja a medias */
+  q=(typeof q==='string')?q:'';
+  var caja=chipsAmbHoja()+'<div class="busca"><span>🔍</span><input id="qcat" placeholder="Buscar categoría" '+
            'autocomplete="off" value="'+q.replace(/"/g,'&quot;')+'"></div>';
 
   if(llano(q).trim()){
@@ -4047,6 +4092,7 @@ function showCatGrid(q){
     arrastrarRejilla(b.querySelector('.grid'), cualLista());
   }
 
+  conectaAmbHoja(q);
   var qi=$('qcat');
   qi.oninput=function(){ var v=this.value, pos=this.selectionStart;
     showCatGrid(v); var n=$('qcat'); n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} };
@@ -4088,7 +4134,10 @@ function showSubs(c){
   b.innerHTML='<div class="gback" id="gback">‹ '+c.e+'  '+c.n+'</div><div class="sublist">'+
     c.subs.map(function(s){return '<div class="sub-i" data-s="'+s.replace(/"/g,'&quot;')+'"><span class="e">'+icoSub(c.n,s,c.e)+'</span>'+s+'</div>';}).join('')+
     filaNuevaSub(cual)+'</div>';
-  $('gback').onclick=showCatGrid;
+  /* OJO: `onclick=showCatGrid` le pasaba el EVENTO como si fuera el texto del buscador,
+     y `q.replace` reventaba: el título cambiaba a "Grupo" pero el cuerpo se quedaba en la
+     lista de subcategorías, o sea que el "‹" no volvía (17-ago-2026). */
+  $('gback').onclick=function(){ showCatGrid(); };
   if($('subNueva')) $('subNueva').onclick=function(){
     nuevaSubDe(cual, c, function(v){ pickCat(c.n,c.e,v); catElegida(); toast('Subcategoría agregada'); }); };
   b.querySelectorAll('.sub-i[data-s]').forEach(function(el){ el.onclick=function(){ pickCat(c.n,c.e,el.dataset.s); catElegida(); }; });
