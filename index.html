@@ -1131,7 +1131,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260818-0702";
+<script>window.MM_VER="20260818-0718";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2823,13 +2823,34 @@ function cursorCampo(el){
   if(ta==='right'||ta==='end')  arranca = ancho - borR - padR - w;   // pegado a la derecha
   else if(ta==='center')        arranca = (ancho - w)/2;
   else                          arranca = borL + padL;               // izquierda (default)
+
+  /* ---- DÓNDE SE CUELGA (18-ago-2026, Marco lo cachó con foto) ----
+     Antes se colgaba de `el.offsetParent`. Para los montos de la hoja de partes eso
+     resultaba ser `#sheet`, o sea FUERA de `#sheetBody` — y como los repintados cambian
+     el innerHTML del CUERPO, el cursor sobrevivía y quedaba flotando en medio de la
+     pantalla siguiente. En el editor no pasaba de pura casualidad: ahí `.fld` es
+     `position:relative`, así que el cursor sí caía dentro del cuerpo y se iba con él.
+     Ahora se cuelga SIEMPRE del cuerpo de la hoja: cada repintado se lo lleva, sin que
+     nadie tenga que acordarse de limpiarlo. */
+  var sb=$('sheetBody'), casa, x, y;
+  if(sb && sb.contains(el)){
+    if(getComputedStyle(sb).position==='static') sb.style.position='relative';
+    /* se suma por la cadena de offsetParent hasta el cuerpo. En px CSS a propósito: la
+       pantalla del teléfono lleva `zoom` y ahí getBoundingClientRect miente, offsetLeft no. */
+    x=0; y=0; var n=el;
+    while(n && n!==sb){ x+=n.offsetLeft; y+=n.offsetTop; n=n.offsetParent; }
+    if(n===sb){ casa=sb; }
+    else { casa=el.offsetParent||el.parentNode; x=el.offsetLeft; y=el.offsetTop; }
+  } else {
+    casa=el.offsetParent||el.parentNode; x=el.offsetLeft; y=el.offsetTop;
+  }
+  if(getComputedStyle(casa).position==='static') casa.style.position='relative';
+
   var c=document.createElement('span');
   c.className='carcampo';
-  c.style.left  = (el.offsetLeft + arranca + w + 2) + 'px';
-  c.style.top   = (el.offsetTop + (el.offsetHeight - alto)/2) + 'px';
+  c.style.left  = (x + arranca + w + 2) + 'px';
+  c.style.top   = (y + (el.offsetHeight - alto)/2) + 'px';
   c.style.height= alto + 'px';
-  var casa = el.offsetParent || el.parentNode;
-  if(getComputedStyle(casa).position==='static') casa.style.position='relative';
   casa.appendChild(c);
 }
 function conectaPadHoja(lee, escribe, alListo){
@@ -3390,6 +3411,7 @@ function topDeHoja(){
   return Math.max(0, Math.round((r.bottom-p.top)/z));
 }
 function openSheet(t){
+  cursorCampo(null);        // que ninguna hoja herede el cursor de la anterior
   $('sheetTit').textContent=t;
   if(sheet.classList.contains('show')) return;      // solo cambia el título
   var arriba=topDeHoja();
@@ -3417,6 +3439,7 @@ function openSheet(t){
 function closeSheet(){
   volverHoja=null;        /* el "regresar" muere con la hoja */
   modoOrdenar=false;      /* el modo ordenar no se hereda a la próxima hoja */
+  cursorCampo(null);      /* ni el cursor, que si no se alcanza a ver al deslizarse */
   if(sheet.classList.contains('show')) cerrarCapa();
 }
 /* Un solo botón arriba a la derecha: "Cerrar" REGRESA un nivel cuando la pantalla registró
