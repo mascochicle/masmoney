@@ -1138,7 +1138,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260819-0859";
+<script>window.MM_VER="20260822-0903";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1243,8 +1243,8 @@ var MONEDAS=[
 /* 17.371528 es el TC exacto que reproduce al centavo los dos totales de su Money Pro:
    11,481.90 USD → 199,458.15 MXN  y  5,600 USD → 97,280.56 MXN */
 /* USD = FIX de Banxico. Se actualiza a mano en cada versión de la app; cuando haya
-   servidor se jalará solo. Última: 3-ago-2026. */
-var TC_DEF={MXN:1, USD:17.3317, EUR:19.10, BTC:1850000};
+   servidor se jalará solo. Última: 22-ago-2026 (FIX del 21-ago, vía DOF). */
+var TC_DEF={MXN:1, USD:16.9583, EUR:19.10, BTC:1850000};
 var K_TC='appcaptura_tc_v1';
 function tcs(){ var t=ld(K_TC,{}); var r={}; MONEDAS.forEach(function(m){
   r[m.c] = (t[m.c]!=null?t[m.c]:TC_DEF[m.c]) || 1; }); return r; }
@@ -1392,7 +1392,7 @@ function diasViaje(v){
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=19;
+var MIG_V=20;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1724,6 +1724,14 @@ function migrar(){
       });
       if(n19) sv(K_MOV,M19);
     }
+  }
+
+  if(hecho<20){
+    /* 20) mismo caso que la 10: el tipo de cambio vive GUARDADO en el teléfono, así que
+           cambiar TC_DEF por sí solo no le llega. Se sube al FIX del 21-ago-2026 SOLO si
+           todavía tiene el valor anterior; si Marco lo puso a mano, se respeta. */
+    var T20=ld(K_TC,null);
+    if(T20 && Math.abs((T20.USD||0)-17.3317)<0.000001){ T20.USD=16.9583; sv(K_TC,T20); }
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
@@ -5033,12 +5041,19 @@ var INFL=[
  /* dic-2024 → dic-2025: 3.69% */
  {h:'2025-12', m:Math.pow(1.0369,1/12)-1},
  /* dic-2025 → jun-2026: 1.46% */
- {h:'2099-12', m:Math.pow(1.0146,1/6)-1}
+ {h:'2026-06', m:Math.pow(1.0146,1/6)-1},
+ /* jul-2026: 0.03% mensual (INEGI, publicado el 7-ago-2026). Con esto el acumulado
+    dic-2025→jul-2026 queda en 1.4904%, o sea el 1.49% que reporta el INEGI.
+    ⚠️ Se AGREGA un tramo, NO se modifica el de ene-jun. `periodosAuto` recalcula la serie
+    COMPLETA desde `desde` encadenando el valor; los meses ya posteados no se re-postean
+    porque su id ya existe, pero si se cambiara la tasa de ene-jun, julio partiría de un
+    valor encadenado que nunca se asentó. */
+ {h:'2099-12', m:0.0003}
 ];
 /* ÚLTIMO MES CON INPC PUBLICADO. El INEGI lo saca ~el día 9 del mes siguiente, así que
    esto se actualiza en CADA versión de la app junto con INFL y el tipo de cambio. Sin
    este tope se estaría inventando la inflación de los meses que aún no salen. */
-var INPC_HASTA='2026-06';
+var INPC_HASTA='2026-07';
 function tasaInfl(ym){
   for(var i=0;i<INFL.length;i++) if(ym<=INFL[i].h) return INFL[i].m;
   return INFL[INFL.length-1].m;
