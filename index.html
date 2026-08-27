@@ -840,6 +840,27 @@ body.capturando .tabbar{display:none;}
   background:#e0a92e;color:#241a06;flex:none;}
 .avres button.x{background:transparent;color:#c7a86b;padding:7px 4px;font-weight:550;}
 
+/* ---- Cuadrar con el banco (26-ago-2026) ---- */
+.cuTA{width:100%;min-height:120px;border:1px solid var(--lin);border-radius:10px;
+  padding:9px 11px;font:13px/1.45 ui-monospace,Consolas,monospace;color:var(--ink);
+  background:var(--card);resize:vertical;-webkit-text-size-adjust:100%}
+.cuBar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:9px 0 4px}
+.cuHint{font-size:12px;color:var(--mut);line-height:1.4}
+.cuAviso{background:var(--warnbg,#FFF6E0);border:1px solid #E8D9A8;color:#6B5518;
+  border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0;line-height:1.45}
+.cuFila{display:grid;grid-template-columns:22px 1fr auto;gap:9px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--lin)}
+.cuFila:last-child{border-bottom:0}
+.cuIc{font-size:15px;text-align:center}
+.cuNom{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cuSub{font-size:11.5px;color:var(--mut)}
+.cuMon{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cuFila.falta .cuNom{color:var(--op)}
+.cuAdd{border:1px solid var(--acc);background:transparent;color:var(--acc);
+  border-radius:9px;padding:5px 11px;font-size:12.5px;font-weight:650}
+.cuTot{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin:10px 0 2px}
+.cuTot b{color:var(--ink)}
+
 /* z-index 35: tapa la app y la barra de pestañas, pero queda DEBAJO del scrim (40) y de
    la hoja (50), para que el diálogo de importar se lea encima y no revuelto. */
 .bienvenida{position:absolute;inset:0;z-index:35;background:var(--ground);
@@ -1138,7 +1159,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260822-0903";
+<script>window.MM_VER="20260827-0949";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -2296,11 +2317,19 @@ function renderCuenta(){
   if(c.nota) x+='<small>'+c.nota+'</small>';
   /* si lo que sobra es una sola línea (p.ej. la nota de una cuenta) no se pliega:
      esconderla no gana nada y la dejaría invisible. */
+  /* Cuadrar con el banco: solo en tarjetas, y dentro del bloque plegable para no
+     estorbar la pantalla de captura. */
+  if(c.g==='tarjeta') x+='<div class="ln" style="margin-top:6px"><button id="btnCuadre" '+
+    'style="border:1px solid var(--acc);background:transparent;color:var(--acc);'+
+    'border-radius:9px;padding:6px 12px;font-size:12.5px;font-weight:650">'+
+    'Cuadrar con el banco</button></div>';
   var piezas=(x.match(/<small|<div/g)||[]).length, plegar=(piezas>1);
   $('ctaSaldo').innerHTML = plegar
     ? h+'<div class="ctaX" id="ctaX"><div class="in">'+x+'</div></div>'
     : h+x;
   $('ctaSaldo').classList.toggle('plegable', plegar);
+  var _bc=$('btnCuadre');
+  if(_bc) _bc.onclick=function(ev){ ev.stopPropagation(); abrirCuadre(); };
   pintaDetalle(false);
   var L=a.filter(function(m){
     if(m.cuentaId!==c.id && m.destinoId!==c.id) return false;
@@ -7063,6 +7092,290 @@ function exportarTodo(){
   if(autoN) toast(autoN+' ajuste'+(autoN>1?'s':'')+' de valor aplicado'+(autoN>1?'s':''));
   avisoRespaldo();
 })();
+
+/* ===== CUADRAR CON EL BANCO (26-ago-2026) =====
+   Pantallazo del banco -> sacarle el texto -> pegarlo aqui -> la app dice que ya
+   tiene y que le falta. UN cambio de pantalla por tanda en vez de uno por cargo,
+   que era lo que tumbaba la sesion del banco.
+   Los tres formatos se probaron contra capturas REALES de Marco (26-ago). Ninguno
+   se podia adivinar desde la imagen: la extraccion de texto ROMPE las columnas y el
+   monto no queda junto al comercio.
+   TRES GUARDIAS, porque un cuadre que se equivoca callado es peor que no tenerlo
+   (ver la memoria guardias-que-mienten):
+     1. conteo de bloques del texto vs interpretados  (cacho 3 de 11 en Liverpool)
+     2. los movimientos SIN fecha no se descartan, se marcan  (cacho 3 de 5 en BBVA)
+     3. la suma contra el total que declara el banco, cuando lo trae
+   ===== */
+
+var MESN_={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,
+           agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+function sinAc_(s){ return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
+function nMonto_(s){ return parseFloat(String(s).replace(/[,\s]/g,'')); }
+var RE_MONTO_ = /^[-−–]?\s*\$\s*(-?\s*[\d,]+(?:\.\d{1,2})?)$/;
+var RE_HORA_  = /^(\d{1,2}:\d{2})\s*h?$/;
+var RE_FECHA_A_ = /^(\d{1,2})\s+([a-zA-ZÀ-ſ]+)\s+(\d{4})$/;
+var RE_FECHA_D_ = /^(\d{1,2})\s+de\s+([a-zA-ZÀ-ſ]+)$/;
+function fechaDe_(d, mesTxt, anio){
+  var m = MESN_[sinAc_(mesTxt)];
+  if(!m) return null;
+  var hoy = new Date(), y = anio || hoy.getFullYear();
+  var f = new Date(y, m-1, +d, 12, 0, 0);
+  if(!anio && f > hoy) y = y-1;
+  return y+'-'+String(m).padStart(2,'0')+'-'+String(+d).padStart(2,'0');
+}
+var SUBT_BBVA = ['pago con tarjeta','devolucion','compra','cargo','abono','pago',
+                 'retiro de efectivo','transferencia','domiciliacion','pago de servicio'];
+var CHIP_BBVA = ['quiero','en transito','pendiente','a meses'];
+function leeBBVA_(L){
+  var out=[], av=[], fecha=null, i=0;
+  while(i<L.length){
+    var fd = RE_FECHA_D_.exec(L[i]);
+    if(fd){ var f=fechaDe_(fd[1],fd[2]); if(f) fecha=f; i++; continue; }
+    if(SUBT_BBVA.indexOf(sinAc_(L[i]))>=0 && i>0){
+      var comercio=L[i-1], subt=sinAc_(L[i]), j=i+1, transito=false;
+      while(j<L.length && CHIP_BBVA.indexOf(sinAc_(L[j]))>=0){
+        if(sinAc_(L[j])==='en transito') transito=true;
+        j++;
+      }
+      var monto=null, hora=null, k=j;
+      while(k<L.length && k<j+3){
+        var mm=RE_MONTO_.exec(L[k]);
+        if(mm && monto===null){ monto=nMonto_(mm[1]); k++; continue; }
+        var hh=RE_HORA_.exec(L[k]);
+        if(hh && monto!==null){ hora=hh[1]; k++; break; }
+        if(monto!==null) break;
+        k++;
+      }
+      if(monto===null){ av.push('sin monto: '+comercio); i++; continue; }
+      out.push({fecha:fecha, comercio:comercio, monto:Math.abs(monto), hora:hora,
+                transito:transito, devolucion:(subt==='devolucion'||monto<0), abono:false});
+      i=k; continue;
+    }
+    i++;
+  }
+  return {movs:out, avisos:av,
+          bloques:L.filter(function(l){ return SUBT_BBVA.indexOf(sinAc_(l))>=0; }).length,
+          declarado:null};
+}
+var RE_SUB_PLATA_ = /^(\d{4})\s*[·.]\s*(.+)$/;
+function leePlata_(L){
+  var out=[], av=[], fecha=null, empezo=false, i=0;
+  while(i<L.length){
+    var fd = RE_FECHA_D_.exec(L[i]);
+    if(fd){ var f=fechaDe_(fd[1],fd[2]); if(f){ fecha=f; empezo=true; } i++; continue; }
+    if(!empezo){ i++; continue; }
+    if(RE_MONTO_.test(L[i]) || RE_SUB_PLATA_.test(L[i])){ i++; continue; }
+    var comercio=L[i], j=i+1, cat=null;
+    var s=RE_SUB_PLATA_.exec(L[j]||'');
+    if(s){ cat=s[2]; j++; }
+    var mm=RE_MONTO_.exec(L[j]||'');
+    if(mm){
+      out.push({fecha:fecha, comercio:comercio, monto:Math.abs(nMonto_(mm[1])), hora:null,
+                transito:false, devolucion:false, abono:false, catBanco:cat});
+      i=j+1; continue;
+    }
+    av.push('sin monto: '+comercio); i++;
+  }
+  return {movs:out, avisos:av,
+          bloques:L.filter(function(l){ return RE_SUB_PLATA_.test(l); }).length, declarado:null};
+}
+var RE_INI_LIV_ = /^(Cargo|Abono)\s+(.*)$/i;
+function ruidoLiv_(l){
+  var n=sinAc_(l);
+  return n==='...' || n==='?' || n==='v' || n==='movimientos' || n==='volver' ||
+         n.indexOf('cargo digital')===0 || n.indexOf('total de cargos')===0 ||
+         n.indexOf('abonos')===0 || n.indexOf('fecha de corte')===0 ||
+         n.indexOf('periodo anterior')===0 || n.indexOf('filtrar por')===0;
+}
+function leeLiverpool_(L){
+  var out=[], av=[], i=0, declarado=null;
+  for(var k=0;k<L.length;k++){
+    if(sinAc_(L[k]).indexOf('total de cargos')===0){
+      for(var j0=k+1;j0<Math.min(k+3,L.length);j0++){
+        var m0=RE_MONTO_.exec(L[j0]); if(m0){ declarado=Math.abs(nMonto_(m0[1])); break; }
+      }
+    }
+  }
+  while(i<L.length){
+    if(ruidoLiv_(L[i])){ i++; continue; }
+    var mi=RE_INI_LIV_.exec(L[i]);
+    if(!mi){ i++; continue; }
+    var clase=mi[1].toLowerCase(), partes=[mi[2].trim()], j=i+1;
+    while(j<L.length && !RE_FECHA_A_.test(L[j]) && !ruidoLiv_(L[j]) &&
+          !RE_MONTO_.test(L[j]) && !RE_INI_LIV_.test(L[j])){ partes.push(L[j]); j++; }
+    var fa=RE_FECHA_A_.exec(L[j]||'');
+    if(!fa){ av.push('sin fecha: '+partes.join(' ')); i++; continue; }
+    var fecha=fechaDe_(fa[1],fa[2],+fa[3]);
+    var monto=null, k2=j+1;
+    while(k2<L.length && k2<j+6){
+      var mm=RE_MONTO_.exec(L[k2]);
+      if(mm){ monto=Math.abs(nMonto_(mm[1])); break; }
+      if(RE_INI_LIV_.test(L[k2]) && !ruidoLiv_(L[k2])) break;
+      k2++;
+    }
+    if(monto===null){ av.push('sin monto: '+partes.join(' ')); i=j+1; continue; }
+    out.push({fecha:fecha, comercio:partes.join(' '), monto:monto, hora:null,
+              transito:false, devolucion:false, abono:(clase==='abono')});
+    i=k2+1;
+  }
+  return {movs:out, avisos:av,
+          bloques:L.filter(function(l){ return RE_INI_LIV_.test(l) && !ruidoLiv_(l); }).length,
+          declarado:declarado};
+}
+function detectaBanco_(L){
+  if(L.some(function(l){ return RE_INI_LIV_.test(l) && !ruidoLiv_(l); })) return 'Liverpool';
+  if(L.some(function(l){ return SUBT_BBVA.indexOf(sinAc_(l))>=0; }))      return 'BBVA';
+  if(L.some(function(l){ return RE_SUB_PLATA_.test(l); }))                return 'Plata';
+  return null;
+}
+function leeBanco(txt){
+  var L = txt.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  var b = detectaBanco_(L);
+  if(!b) return {banco:null, movs:[], avisos:['No reconoci el formato.'], bloques:0, declarado:null};
+  var r = (b==='Liverpool') ? leeLiverpool_(L) : (b==='BBVA' ? leeBBVA_(L) : leePlata_(L));
+  r.banco = b;
+  if(r.bloques !== r.movs.length)
+    r.avisos.push('El texto trae '+r.bloques+' movimientos y solo interprete '+r.movs.length+'.');
+  if(r.declarado!=null){
+    var suma = r.movs.reduce(function(s,m){ return s + (m.abono?0:m.monto); },0);
+    if(Math.abs(suma-r.declarado) > 0.01)
+      r.parcial = {suma:suma, declarado:r.declarado, falta:r.declarado-suma};
+  }
+  return r;
+}
+
+/* ---------- el cruce contra lo capturado ---------- */
+function cuadraConBanco(lect, ctaId){
+  var DIAS=4;
+  var mios = movs().filter(function(m){
+    return m.cuentaId===ctaId && !m.ajuste &&
+           (m.tipo==='Gasto' || (m.tipo==='Ingreso' && sinAc_(m.grupo)==='devolucion'));
+  }).map(function(m){ return {m:m, usado:false, f:m.fecha, monto:Math.round(m.amount*100)/100}; });
+  var dif=function(a,b){ return Math.abs((new Date(a+'T12:00:00') - new Date(b+'T12:00:00'))/86400000); };
+  var res=[];
+  lect.movs.forEach(function(b){
+    if(b.abono){ res.push({b:b, estado:'abono'}); return; }
+    if(!b.fecha){ res.push({b:b, estado:'sinfecha'}); return; }
+    var cand = mios.filter(function(x){
+      if(x.usado || dif(x.f,b.fecha)>DIAS) return false;
+      return b.devolucion ? (x.m.tipo==='Ingreso') : (x.m.tipo==='Gasto');
+    });
+    var ex = cand.filter(function(x){ return Math.abs(x.monto-b.monto)<0.005; });
+    if(ex.length){ ex[0].usado=true; res.push({b:b, estado:'ok', mio:ex[0].m}); return; }
+    res.push({b:b, estado:'falta'});
+  });
+  /* Dos renglones del banco que suman UNO capturado. La comision anual de Liverpool viene
+     partida en comision + IVA (249.50 + 39.92) y Marco la captura junta como 289.42. Sin
+     esto marcaria dos faltantes y un sobrante, y lo mandaria a buscar fantasmas. */
+  var fal = res.filter(function(r){ return r.estado==='falta'; });
+  for(var a=0;a<fal.length;a++) for(var c=a+1;c<fal.length;c++){
+    if(fal[a].estado!=='falta'||fal[c].estado!=='falta') continue;
+    var suma=Math.round((fal[a].b.monto+fal[c].b.monto)*100)/100;
+    var par=mios.filter(function(x){
+      return !x.usado && x.m.tipo==='Gasto' && dif(x.f,fal[a].b.fecha)<=DIAS &&
+             Math.abs(x.monto-suma)<0.005; })[0];
+    if(par){ par.usado=true; fal[a].estado=fal[c].estado='suma'; fal[a].mio=fal[c].mio=par.m; }
+  }
+  var fs=lect.movs.filter(function(m){return m.fecha;}).map(function(m){return m.fecha;}).sort();
+  var sobra=[];
+  if(fs.length) sobra=mios.filter(function(x){ return !x.usado && x.f>=fs[0] && x.f<=fs[fs.length-1]; })
+                          .map(function(x){ return x.m; });
+  return {res:res, sobra:sobra};
+}
+
+/* ---------- la pantalla ---------- */
+var _cuLect=null, _cuCta=null;
+function abrirCuadre(){
+  var c=cta(ctaVer);
+  if(!c){ toast('Elige primero una tarjeta',true); return; }
+  _cuCta=c.id; _cuLect=null;
+  openSheet('Cuadrar '+c.n);
+  $('sheetBody').innerHTML =
+    '<p class="cuHint">Toma un pantallazo de los movimientos del banco, sacale el texto '+
+    '(<b>Recortes</b> en la computadora, <b>Galeria</b> en el telefono) y pegalo aqui.</p>'+
+    '<textarea class="cuTA" id="cuTxt" placeholder="Pega aqui el texto del banco"></textarea>'+
+    '<div class="cuBar"><button class="cuAdd" id="cuLeer">Leer y cuadrar</button>'+
+    '<span class="cuHint" id="cuQue"></span></div>'+
+    '<div id="cuRes"></div>';
+  $('cuLeer').onclick=correCuadre;
+}
+function correCuadre(){
+  var t=($('cuTxt').value||'').trim();
+  if(!t){ toast('Pega el texto primero',true); return; }
+  _cuLect=leeBanco(t);
+  if(!_cuLect.banco){
+    $('cuRes').innerHTML='<div class="cuAviso">No reconoci el formato. Revisa que hayas '+
+      'pegado el texto completo del pantallazo.</div>';
+    return;
+  }
+  pintaCuadre();
+}
+function pintaCuadre(){
+  var L=_cuLect, X=cuadraConBanco(L,_cuCta), h='';
+  $('cuQue').textContent = L.banco+' · '+L.movs.length+' movimientos leidos';
+  if(L.parcial) h+='<div class="cuAviso"><b>Esta captura no cubre el corte completo.</b> '+
+    'El banco declara '+fmt2(L.parcial.declarado)+' de cargos y en el texto solo hay '+
+    fmt2(L.parcial.suma)+'. Faltan '+fmt2(L.parcial.falta)+' - desliza mas abajo y vuelve a pegar.</div>';
+  (L.avisos||[]).forEach(function(a){ h+='<div class="cuAviso">'+a+'</div>'; });
+  var n={ok:0,falta:0,suma:0,abono:0,sinfecha:0};
+  X.res.forEach(function(r,i){
+    n[r.estado]++;
+    var ic={ok:'OK',falta:'+',suma:'=',abono:'~',sinfecha:'?'}[r.estado];
+    var sub={ok:'ya lo tienes'+(r.mio?': '+(r.mio.desc||r.mio.sub||''):''),
+             falta:'te falta'+(r.b.transito?' · en transito':'')+(r.b.devolucion?' · devolucion':''),
+             suma:'parte de un cargo que ya tienes'+(r.mio?': '+(r.mio.desc||r.mio.sub||''):''),
+             abono:'pago a la tarjeta - no se cuadra',
+             sinfecha:'sin fecha: la captura empieza a media lista'}[r.estado];
+    h+='<div class="cuFila '+r.estado+'"><div class="cuIc">'+ic+'</div>'+
+       '<div><div class="cuNom">'+(r.b.fecha?dstr(r.b.fecha)+' · ':'')+escAtr(r.b.comercio)+'</div>'+
+       '<div class="cuSub">'+sub+'</div></div>'+
+       '<div>'+(r.estado==='falta'
+          ? '<button class="cuAdd" data-add="'+i+'">Agregar</button>'
+          : '<span class="cuMon">'+fmt2(r.b.monto)+'</span>')+'</div></div>';
+  });
+  h+='<div class="cuTot"><span>ya los tienes <b>'+n.ok+'</b></span>'+
+     '<span>faltan <b>'+n.falta+'</b></span>'+
+     (n.suma?'<span>partes de uno tuyo <b>'+n.suma+'</b></span>':'')+
+     (n.abono?'<span>abonos <b>'+n.abono+'</b></span>':'')+
+     (n.sinfecha?'<span>sin fecha <b>'+n.sinfecha+'</b></span>':'')+'</div>';
+  if(X.sobra.length){
+    h+='<div class="cuAviso"><b>Tienes capturado esto que la captura del banco no muestra</b>'+
+       ' (dentro del mismo rango de fechas):<br>';
+    X.sobra.forEach(function(m){ h+=dstr(m.fecha)+' · '+fmt2(m.amount)+' - '+escAtr(m.desc||m.sub||'')+'<br>'; });
+    h+='</div>';
+  }
+  h+='<p class="cuHint" style="margin-top:10px">El cruce va por <b>monto y fecha</b>, no por '+
+     'el nombre: el banco pone el comercio y tu pones lo que compraste. Y compara solo contra '+
+     'lo que trae esta captura: si no cubre el corte completo, no es un cuadre de la tarjeta.</p>';
+  $('cuRes').innerHTML=h;
+  $('cuRes').querySelectorAll('[data-add]').forEach(function(b){
+    b.onclick=function(){ agregaDelCuadre(X.res[+b.dataset.add]); };
+  });
+}
+function agregaDelCuadre(r){
+  var b=r.b, c=cta(_cuCta);
+  var id='m'+Date.now()+Math.floor(Math.random()*1000);
+  var mv={id:id, cuentaId:_cuCta, cuenta:c?c.n:'', mon:(c&&c.mon)||BASE,
+          amount:b.monto, desc:b.comercio,
+          fecha:b.fecha, hora:b.hora||'12:00',
+          ts:new Date(b.fecha+'T'+(b.hora||'12:00')+':00').getTime(),
+          agente:null, viaje:null};
+  if(b.devolucion){
+    /* La devolucion se registra como INGRESO, NUNCA borrando el cargo: si el cargo ya
+       conto, borrarlo bajaria la deuda y ademas el reembolso la bajaria otra vez. Es la
+       regla que quedo el 12-ago-2026. Su categoria ya la sabemos, asi que se crea
+       completa y no hace falta abrir el editor. */
+    mv.tipo='Ingreso'; mv.grupo='Devolución'; mv.sub='Devolución'; mv.e='↩️';
+    mv.ambito=null;
+  } else {
+    mv.tipo='Gasto'; mv.grupo='Otros'; mv.sub='Varios'; mv.e='🗄️'; mv.ambito='Personal';
+  }
+  var a=movs(); a.unshift(mv);
+  if(!saveMovs(a)) return;
+  renderCuenta();
+  if(b.devolucion){ toast('Devolucion agregada'); pintaCuadre(); }
+  else { toast('Agregado: ponle su categoria'); editarMov(id); }
+}
 </script>
 <script>
 /* El service worker la vuelve instalable y la deja abrir sin internet.
