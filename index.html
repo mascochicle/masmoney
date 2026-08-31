@@ -1159,7 +1159,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260827-0949";
+<script>window.MM_VER="20260831-1347";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1584,14 +1584,14 @@ function migrar(){
         if(c.auto) return;                       // ya tiene regla: no se pisa
         if(/kia/i.test(c.n)){
           c.auto={modo:'trim', motivo:'Depreciación', dir:-1, ambito:'Personal',
-                  valor0:534300, arranca:'2026', desde:'2026-06-30',
+                  valor0:0, arranca:'2026', desde:'2026-06-30',
                   nota:'Depreciación trimestral (modelo de reventa)',
                   tasas:{2026:.20,2027:.15,2028:.12,2029:.10,2030:.08,
                          2031:.07,2032:.06,2033:.05,2034:.05,2035:.05}};
           t12++;
         } else if(/casa lomas/i.test(c.n)){
           c.auto={modo:'mes', motivo:'Apreciación', dir:1, ambito:'Propiedades',
-                  valor0:5436791, desde:'2023-04-30',
+                  valor0:0, desde:'2023-04-30',
                   nota:'Revaluación por INPC'};
           t12++;
         }
@@ -7222,6 +7222,80 @@ function leeLiverpool_(L){
           bloques:L.filter(function(l){ return RE_INI_LIV_.test(l) && !ruidoLiv_(l); }).length,
           declarado:declarado};
 }
+/* ---------- FORMATO LIBRE (1-sep-2026) ----------
+   Marco no puede sacar el texto crudo desde el telefono: lo unico que le funciono
+   fue pedirle a un asistente (Gemini) que transcribiera el pantallazo, y eso sale
+   como lista con vinetas, no como el texto del banco. En vez de un cuarto parser
+   pegado a UN formato, este lee CUALQUIER texto: busca montos con $ y usa como
+   fecha el ultimo encabezado que vio.
+   Es el ULTIMO recurso: solo entra si no se reconocio ninguno de los 3 bancos,
+   para no quitarles movimientos que ellos leen mejor.
+   OJO, la guardia de "bloques vs interpretados" aqui NO aplica: por construccion
+   siempre empatan, seria una guardia que no puede fallar. El riesgo real es que el
+   asistente RESUMA y omita movimientos, y eso no se detecta desde aqui -> se avisa
+   siempre, en vez de fingir que se verifico. (ver memoria guardias-que-mienten)
+   ----------------------------------------------- */
+var RE_MONTO_LIB_ = /([-\u2212\u2013+]?)\s*\$\s*([\d,]+(?:\.\d{1,2})?)/;
+var RE_FECHA_N_   = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/;
+var RE_FECHA_C_   = /^(\d{1,2})\s+([a-zA-Z\u00C0-\u017F]{3,})$/;
+function limpiaLib_(l){
+  return String(l||'').replace(/^[\s>*+\u2022\u00b7\u25cb\u25e6\u25aa\u2013\u2014-]+/,'')
+                      .replace(/^o\s+(?=\S)/,'')
+                      .replace(/\*\*/g,'').replace(/^#+\s*/,'').trim();
+}
+function fechaLib_(s){
+  var n=sinAc_(s), a;
+  if(n==='hoy')  return hoyISO();
+  if(n==='ayer') return dISO(new Date(Date.now()-86400000));
+  if((a=RE_FECHA_D_.exec(s))) return fechaDe_(a[1],a[2]);
+  if((a=RE_FECHA_A_.exec(s))) return fechaDe_(a[1],a[2],+a[3]);
+  if((a=RE_FECHA_C_.exec(s))) return fechaDe_(a[1],a[2]);
+  if((a=RE_FECHA_N_.exec(s))){ var y=+a[3]; if(y<100) y+=2000;
+    return y+'-'+String(+a[2]).padStart(2,'0')+'-'+String(+a[1]).padStart(2,'0'); }
+  return null;
+}
+function resumenLib_(l){
+  /* OJO: no basta con buscar la palabra suelta. "Pago recibido: +$1,500" es un ABONO
+     real y con /recibid/ se perdia callado. Una linea de TOTAL trae el monto primero
+     ("$7,617.77 Gastado") o arranca con la etiqueta. */
+  var n = sinAc_(l);
+  return /^[$\s\d,.\-+]*(gastado|recibido|gastos|ingresos)\b/.test(n) ||
+         /^(total|totales|saldo|disponible|abonos|cargos|limite|corte|pago minimo)\b/.test(n);
+}
+function ruidoLib_(l){
+  var n=sinAc_(l);
+  return !n || /^(texto extraido|encabezado|filtros|encabezado y filtros|resumen|movimientos|todas las cuentas|categoria|categorias|periodo|mostrar mas|ver mas|buscar)\b/.test(n);
+}
+function leeLibre_(L){
+  var out=[], av=[], fecha=null, decl=null;
+  var todas = L.some(function(l){ return sinAc_(l).indexOf('todas las cuentas')>=0; });
+  for(var i=0;i<L.length;i++){
+    var l = limpiaLib_(L[i]);
+    if(!l || ruidoLib_(l)) continue;
+    /* "25 de agosto: Roblox -$129" -> se guarda la fecha y sigue el resto */
+    var pre = /^(\d{1,2}\s+de\s+[a-zA-Z\u00C0-\u017F]+|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\s*[:\u00b7\-\u2013]\s*(?=\S)/.exec(l);
+    if(pre){ var fp=fechaLib_(pre[1]); if(fp){ fecha=fp; l=l.slice(pre[0].length).trim(); } }
+    var sola = fechaLib_(l.replace(/[:\uff1a]\s*$/,''));
+    if(sola){ fecha=sola; continue; }
+    var mm = RE_MONTO_LIB_.exec(l);
+    if(!mm) continue;
+    if(resumenLib_(l)){
+      if(decl===null && /gastad/.test(sinAc_(l))) decl=Math.abs(nMonto_(mm[2]));
+      continue;
+    }
+    var antes=l.slice(0,mm.index), desp=l.slice(mm.index+mm[0].length);
+    var cat=null, pc=/\(([^)]*)\)/.exec(desp); if(pc) cat=pc[1].trim();
+    var com = antes.replace(/[\s:\u00b7\-\u2013\u2014]+$/,'').trim();
+    if(!com) com = desp.replace(/\([^)]*\)/g,'').replace(/^[\s:\u00b7\-\u2013\u2014]+/,'').trim();
+    if(!com) com = '(sin nombre)';
+    var dev = /devoluc|reembols|bonific|cashback|nota de credito/.test(sinAc_(l));
+    out.push({fecha:fecha, comercio:com, monto:Math.abs(nMonto_(mm[2])), hora:null,
+              transito:/transito|pendiente/.test(sinAc_(l)),
+              devolucion:dev, abono:(!dev && mm[1]==='+'), catBanco:cat});
+  }
+  return {movs:out, avisos:av, bloques:out.length,
+          declarado:(todas?null:decl), totalTexto:decl, todasCtas:todas};
+}
 function detectaBanco_(L){
   if(L.some(function(l){ return RE_INI_LIV_.test(l) && !ruidoLiv_(l); })) return 'Liverpool';
   if(L.some(function(l){ return SUBT_BBVA.indexOf(sinAc_(l))>=0; }))      return 'BBVA';
@@ -7230,10 +7304,23 @@ function detectaBanco_(L){
 }
 function leeBanco(txt){
   var L = txt.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
-  var b = detectaBanco_(L);
-  if(!b) return {banco:null, movs:[], avisos:['No reconoci el formato.'], bloques:0, declarado:null};
-  var r = (b==='Liverpool') ? leeLiverpool_(L) : (b==='BBVA' ? leeBBVA_(L) : leePlata_(L));
-  r.banco = b;
+  var b = detectaBanco_(L), r;
+  if(b){
+    r = (b==='Liverpool') ? leeLiverpool_(L) : (b==='BBVA' ? leeBBVA_(L) : leePlata_(L));
+    r.banco = b;
+  } else {
+    r = leeLibre_(L);
+    if(!r.movs.length)
+      return {banco:null, movs:[], bloques:0, declarado:null,
+              avisos:['No encontre ningun movimiento. Necesito lineas con un monto en pesos (con el signo $).']};
+    r.banco = 'Formato libre';
+    r.avisos.unshift('Lei el texto <b>linea por linea</b>, sin conocer el formato del banco. '+
+      'Si lo transcribio un asistente (Gemini, Lens), <b>revisa que esten TODOS</b>: a veces resumen '+
+      'y omiten movimientos, y eso no lo puedo detectar.');
+    if(r.totalTexto!=null && r.todasCtas)
+      r.avisos.push('El texto declara '+fmt2(r.totalTexto)+' gastado, pero es de <b>todas las cuentas</b>, '+
+                    'no de esta tarjeta: no lo uso para cuadrar.');
+  }
   if(r.bloques !== r.movs.length)
     r.avisos.push('El texto trae '+r.bloques+' movimientos y solo interprete '+r.movs.length+'.');
   if(r.declarado!=null){
@@ -7291,8 +7378,10 @@ function abrirCuadre(){
   _cuCta=c.id; _cuLect=null;
   openSheet('Cuadrar '+c.n);
   $('sheetBody').innerHTML =
-    '<p class="cuHint">Toma un pantallazo de los movimientos del banco, sacale el texto '+
-    '(<b>Recortes</b> en la computadora, <b>Galeria</b> en el telefono) y pegalo aqui.</p>'+
+    '<p class="cuHint">Toma un pantallazo de los movimientos del banco, sacale el texto y '+
+    'pegalo aqui. <b>Sirve cualquier extractor</b>: Recortes en la computadora, o en el telefono '+
+    'Galeria / Rodear para buscar / pedirle a Gemini que lo transcriba.<br>'+
+    'Si usas un asistente, pidele <b>la transcripcion literal, sin resumir</b>.</p>'+
     '<textarea class="cuTA" id="cuTxt" placeholder="Pega aqui el texto del banco"></textarea>'+
     '<div class="cuBar"><button class="cuAdd" id="cuLeer">Leer y cuadrar</button>'+
     '<span class="cuHint" id="cuQue"></span></div>'+
@@ -7304,8 +7393,7 @@ function correCuadre(){
   if(!t){ toast('Pega el texto primero',true); return; }
   _cuLect=leeBanco(t);
   if(!_cuLect.banco){
-    $('cuRes').innerHTML='<div class="cuAviso">No reconoci el formato. Revisa que hayas '+
-      'pegado el texto completo del pantallazo.</div>';
+    $('cuRes').innerHTML='<div class="cuAviso">'+(_cuLect.avisos[0]||'No pude leer el texto.')+'</div>';
     return;
   }
   pintaCuadre();
@@ -7329,9 +7417,10 @@ function pintaCuadre(){
     h+='<div class="cuFila '+r.estado+'"><div class="cuIc">'+ic+'</div>'+
        '<div><div class="cuNom">'+(r.b.fecha?dstr(r.b.fecha)+' · ':'')+escAtr(r.b.comercio)+'</div>'+
        '<div class="cuSub">'+sub+'</div></div>'+
-       '<div>'+(r.estado==='falta'
-          ? '<button class="cuAdd" data-add="'+i+'">Agregar</button>'
-          : '<span class="cuMon">'+fmt2(r.b.monto)+'</span>')+'</div></div>';
+       '<div style="text-align:right"><span class="cuMon">'+fmt2(r.b.monto)+'</span>'+
+          (r.estado==='falta'
+            ? '<br><button class="cuAdd" data-add="'+i+'">Agregar</button>'
+            : '')+'</div></div>';
   });
   h+='<div class="cuTot"><span>ya los tienes <b>'+n.ok+'</b></span>'+
      '<span>faltan <b>'+n.falta+'</b></span>'+
