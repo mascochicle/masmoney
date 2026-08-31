@@ -1159,7 +1159,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260831-1347";
+<script>window.MM_VER="20260831-1403";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3482,6 +3482,7 @@ function openSheet(t){
 }
 function closeSheet(){
   volverHoja=null;        /* el "regresar" muere con la hoja */
+  _trasGuardar=null;      /* y la cadena de la cola tambien */
   modoOrdenar=false;      /* el modo ordenar no se hereda a la próxima hoja */
   cursorCampo(null);      /* ni el cursor, que si no se alcanza a ver al deslizarse */
   if(sheet.classList.contains('show')) cerrarCapa();
@@ -3494,6 +3495,10 @@ function closeSheet(){
    Para cerrar de un jalón desde una hoja anidada quedan tocar afuera, el gesto de retroceso
    y Escape: esos siguen cerrando todo. */
 var volverHoja=null;
+/* Que hacer DESPUES de guardar un movimiento. Lo usa la cola del cuadre para
+   encadenar los editores. Se limpia en closeSheet(), asi que si cierra sin
+   guardar la cadena se corta sola en vez de dispararse mas tarde. */
+var _trasGuardar=null;
 scrim.onclick=closeSheet;
 $('sheetX').onclick=function(){
   if(volverHoja){ var f=volverHoja; volverHoja=null; f(); }
@@ -5002,7 +5007,12 @@ function editarMov(id, pre){
       }) : undefined;
       delete b[i].foto; delete b[i].fotoArch; delete b[i].fotoTipo; delete b[i].fotoNom;
       break; }
-    if(saveMovs(b)){ closeSheet(); renderCuenta(); renderSaldos(); toast('Actualizado'); }
+    if(saveMovs(b)){
+      /* se toma ANTES de closeSheet(), que es justo quien lo borra */
+      var _sig=_trasGuardar; _trasGuardar=null;
+      closeSheet(); renderCuenta(); renderSaldos(); toast('Actualizado');
+      if(_sig) setTimeout(_sig,0);
+    }
   };
   $('eDel').onclick=function(){
     var anc=anclado(m);
@@ -7371,11 +7381,30 @@ function cuadraConBanco(lect, ctaId){
 }
 
 /* ---------- la pantalla ---------- */
-var _cuLect=null, _cuCta=null;
+var _cuLect=null, _cuCta=null, _cuTxt='', _cuVistos=[];
+/* Los pendientes NO se guardan en una lista: se DERIVAN de los movimientos. Un
+   movimiento nacido del cuadre lleva `deCuadre` y esta pendiente mientras siga en
+   'Otros / Varios'. Asi no hay lista que se desincronice, sobrevive a cerrar la
+   app, y si le pone categoria por otro lado deja de aparecer solo. */
+function pendCuadre_(){
+  return movs().filter(function(m){
+    return m.deCuadre && m.cuentaId===_cuCta && m.grupo==='Otros' && m.sub==='Varios';
+  }).map(function(m){ return m.id; });
+}
 function abrirCuadre(){
   var c=cta(ctaVer);
   if(!c){ toast('Elige primero una tarjeta',true); return; }
-  _cuCta=c.id; _cuLect=null;
+  /* Si vuelve a la MISMA tarjeta se conserva lo leido y la cola: puede salirse a
+     medias y seguir donde iba. Solo se borra al cambiar de tarjeta. */
+  if(_cuCta!==c.id){ _cuLect=null; _cuTxt=''; _cuVistos=[]; }
+  _cuCta=c.id;
+  cuArma_(c);
+}
+function reabreCuadre(){
+  var c=cta(_cuCta); if(!c) return;
+  cuArma_(c);
+}
+function cuArma_(c){
   openSheet('Cuadrar '+c.n);
   $('sheetBody').innerHTML =
     '<p class="cuHint">Toma un pantallazo de los movimientos del banco, sacale el texto y '+
@@ -7386,11 +7415,14 @@ function abrirCuadre(){
     '<div class="cuBar"><button class="cuAdd" id="cuLeer">Leer y cuadrar</button>'+
     '<span class="cuHint" id="cuQue"></span></div>'+
     '<div id="cuRes"></div>';
+  $('cuTxt').value=_cuTxt;
   $('cuLeer').onclick=correCuadre;
+  if(_cuLect && _cuLect.banco) pintaCuadre();
 }
 function correCuadre(){
   var t=($('cuTxt').value||'').trim();
   if(!t){ toast('Pega el texto primero',true); return; }
+  _cuTxt=t;
   _cuLect=leeBanco(t);
   if(!_cuLect.banco){
     $('cuRes').innerHTML='<div class="cuAviso">'+(_cuLect.avisos[0]||'No pude leer el texto.')+'</div>';
@@ -7399,7 +7431,7 @@ function correCuadre(){
   pintaCuadre();
 }
 function pintaCuadre(){
-  var L=_cuLect, X=cuadraConBanco(L,_cuCta), h='';
+  var L=_cuLect, X=cuadraConBanco(L,_cuCta), h='', pend=pendCuadre_();
   $('cuQue').textContent = L.banco+' · '+L.movs.length+' movimientos leidos';
   if(L.parcial) h+='<div class="cuAviso"><b>Esta captura no cubre el corte completo.</b> '+
     'El banco declara '+fmt2(L.parcial.declarado)+' de cargos y en el texto solo hay '+
@@ -7409,7 +7441,10 @@ function pintaCuadre(){
   X.res.forEach(function(r,i){
     n[r.estado]++;
     var ic={ok:'OK',falta:'+',suma:'=',abono:'~',sinfecha:'?'}[r.estado];
-    var sub={ok:'ya lo tienes'+(r.mio?': '+(r.mio.desc||r.mio.sub||''):''),
+    var enCola = r.mio && pend.indexOf(r.mio.id)>=0;
+    if(enCola) ic='...';
+    var sub={ok:enCola?'agregado - le falta la categoria'
+                      :('ya lo tienes'+(r.mio?': '+(r.mio.desc||r.mio.sub||''):'')),
              falta:'te falta'+(r.b.transito?' · en transito':'')+(r.b.devolucion?' · devolucion':''),
              suma:'parte de un cargo que ya tienes'+(r.mio?': '+(r.mio.desc||r.mio.sub||''):''),
              abono:'pago a la tarjeta - no se cuadra',
@@ -7427,6 +7462,12 @@ function pintaCuadre(){
      (n.suma?'<span>partes de uno tuyo <b>'+n.suma+'</b></span>':'')+
      (n.abono?'<span>abonos <b>'+n.abono+'</b></span>':'')+
      (n.sinfecha?'<span>sin fecha <b>'+n.sinfecha+'</b></span>':'')+'</div>';
+  if(n.falta>1)
+    h+='<div class="cuBar"><button class="cuAdd" id="cuTodos">Agregar los '+n.falta+
+       ' que faltan</button></div>';
+  if(pend.length)
+    h+='<div class="cuBar"><button class="cuAdd" id="cuCat">Ponerles categoria ('+
+       pend.length+')</button></div>';
   if(X.sobra.length){
     h+='<div class="cuAviso"><b>Tienes capturado esto que la captura del banco no muestra</b>'+
        ' (dentro del mismo rango de fechas):<br>';
@@ -7440,15 +7481,43 @@ function pintaCuadre(){
   $('cuRes').querySelectorAll('[data-add]').forEach(function(b){
     b.onclick=function(){ agregaDelCuadre(X.res[+b.dataset.add]); };
   });
+  var bT=$('cuTodos');
+  if(bT) bT.onclick=function(){
+    var k=0;
+    X.res.forEach(function(r){ if(r.estado==='falta' && agregaDelCuadre(r,true)) k++; });
+    renderCuenta(); renderSaldos();
+    toast(k+' agregados - ahora ponles categoria');
+    pintaCuadre();
+  };
+  var bC=$('cuCat');
+  if(bC) bC.onclick=function(){ _cuVistos=[]; correCola(); };
 }
-function agregaDelCuadre(r){
+/* Edita EN CADENA los que quedaron sin categoria: al guardar uno se abre el
+   siguiente (via _trasGuardar) y al terminar regresa al cuadre.
+   _cuVistos es lo que evita el bucle: si guarda uno SIN cambiarle la categoria
+   sigue pendiente, y sin esto se reabriria para siempre. */
+function correCola(){
+  var p=pendCuadre_().filter(function(id){ return _cuVistos.indexOf(id)<0; });
+  if(!p.length){
+    var faltan=pendCuadre_().length;
+    toast(faltan? faltan+' quedaron sin categoria' : 'Listo, ya todos tienen categoria');
+    _cuVistos=[]; reabreCuadre(); return;
+  }
+  _cuVistos.push(p[0]);
+  _trasGuardar=correCola;
+  editarMov(p[0]);
+}
+function agregaDelCuadre(r, calla){
   var b=r.b, c=cta(_cuCta);
   var id='m'+Date.now()+Math.floor(Math.random()*1000);
   var mv={id:id, cuentaId:_cuCta, cuenta:c?c.n:'', mon:(c&&c.mon)||BASE,
           amount:b.monto, desc:b.comercio,
           fecha:b.fecha, hora:b.hora||'12:00',
           ts:new Date(b.fecha+'T'+(b.hora||'12:00')+':00').getTime(),
-          agente:null, viaje:null};
+          agente:null, viaje:null,
+          /* marca de origen: es lo que hace que aparezca en "Ponerles categoria"
+             mientras siga en 'Otros / Varios' */
+          deCuadre:true};
   if(b.devolucion){
     /* La devolucion se registra como INGRESO, NUNCA borrando el cargo: si el cargo ya
        conto, borrarlo bajaria la deuda y ademas el reembolso la bajaria otra vez. Es la
@@ -7460,10 +7529,16 @@ function agregaDelCuadre(r){
     mv.tipo='Gasto'; mv.grupo='Otros'; mv.sub='Varios'; mv.e='🗄️'; mv.ambito='Personal';
   }
   var a=movs(); a.unshift(mv);
-  if(!saveMovs(a)) return;
-  renderCuenta();
-  if(b.devolucion){ toast('Devolucion agregada'); pintaCuadre(); }
-  else { toast('Agregado: ponle su categoria'); editarMov(id); }
+  if(!saveMovs(a)) return null;
+  /* La devolucion nace completa (ya sabemos su categoria); el gasto nace en
+     'Otros / Varios' y se forma en la cola. Aqui YA NO se abre el editor: abrirlo
+     hacia closeSheet() al guardar y cerraba todo el cuadre, asi que con dos
+     pendientes habia que reabrirlo a mano entre uno y otro (Marco, 1-sep-2026). */
+  if(calla) return id;
+  renderCuenta(); renderSaldos();
+  toast(b.devolucion?'Devolucion agregada':'Agregado - ponle categoria al final');
+  pintaCuadre();
+  return id;
 }
 </script>
 <script>
