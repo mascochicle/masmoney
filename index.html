@@ -1162,7 +1162,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260831-1413";
+<script>window.MM_VER="20260831-1418";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -7286,6 +7286,16 @@ function fechaEnLinea_(l){
     var iso = fechaDe_(m[2], m[3], m[4] ? +m[4] : null);
     if(iso) return {iso:iso, txt:m[0].slice(m[1].length)};
   }
+  /* numericas: primero el ISO (2026-08-13) y luego dia/mes/anio (13/08/2026,
+     13-08-26). El (?!\d) y el (^|[^\d]) son los que evitan morder un monto
+     como $6,349.00 o un numero de sucursal como "FAR GUAD 1948". */
+  var p2 = function(x){ return String(x).padStart(2,'0'); }, q;
+  if((q = /(^|[^\d])(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)/.exec(l)))
+    return {iso:q[2]+'-'+p2(+q[3])+'-'+p2(+q[4]), txt:q[0].slice(q[1].length)};
+  if((q = /(^|[^\d])(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?!\d)/.exec(l))){
+    var y = +q[4]; if(y < 100) y += 2000;
+    return {iso:y+'-'+p2(+q[3])+'-'+p2(+q[2]), txt:q[0].slice(q[1].length)};
+  }
   return null;
 }
 function resumenLib_(l){
@@ -7324,6 +7334,13 @@ function leeLibre_(L){
        manda para ESTE movimiento y se le quita al nombre del comercio. */
     var fl = fechaEnLinea_(antes) || fechaEnLinea_(desp), fUso = fecha;
     if(fl){ fUso = fl.iso; antes = antes.replace(fl.txt, ' '); }
+    /* "sin fecha" significa que NO se sabe. Heredar la del encabezado anterior seria
+       inventarla, y una fecha inventada puede cruzar con el movimiento equivocado:
+       mejor que quede sin fecha y la app lo marque. */
+    if(/sin fecha/.test(sinAc_(l))){
+      fUso = null;
+      antes = antes.replace(/sin\s+fecha/i,' ');
+    }
     var cat=null, pc=/\(([^)]*)\)/.exec(desp); if(pc) cat=pc[1].trim();
     var com = antes.replace(/[\s:\u00b7\-\u2013\u2014]+$/,'').trim();
     if(!com) com = desp.replace(/\([^)]*\)/g,'').replace(/^[\s:\u00b7\-\u2013\u2014]+/,'').trim();
@@ -7362,6 +7379,9 @@ function leeBanco(txt){
      con "Cargo" y el parser del banco saco 0 de 11. Si el lector libre encuentra MAS,
      gana el libre. Con un texto del banco de verdad no gana: ahi el parser saca los
      mismos y ademas con el nombre del comercio bien puesto. */
+  /* El Gem marca con ILEGIBLE / AVISO lo que no pudo leer. Son renglones sin $, asi
+     que el lector los salta: si no se muestran aqui, la advertencia se pierde callada. */
+  var flojos = L.filter(function(l){ return /^aviso\b|ilegible/i.test(l.trim()); });
   var lib = leeLibre_(L);
   if(!r || lib.movs.length > r.movs.length){
     if(!lib.movs.length)
@@ -7377,6 +7397,10 @@ function leeBanco(txt){
       r.avisos.push('El texto declara '+fmt2(r.totalTexto)+' gastado, pero es de <b>todas las cuentas</b>, '+
                     'no de esta tarjeta: no lo uso para cuadrar.');
   }
+  if(flojos.length)
+    r.avisos.push('<b>El texto trae partes que no se pudieron leer</b> ('+flojos.length+
+                  '): '+flojos.slice(0,3).map(escAtr).join(' / ')+
+                  (flojos.length>3?' ...':'')+'. Revisa esos en el banco.');
   if(r.bloques !== r.movs.length)
     r.avisos.push('El texto trae '+r.bloques+' movimientos y solo interprete '+r.movs.length+'.');
   if(r.declarado!=null){
