@@ -1162,7 +1162,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260831-1418";
+<script>window.MM_VER="20260831-1427";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3447,21 +3447,25 @@ function _sheetFuera(){ scrim.classList.remove('show'); sheet.classList.remove('
    que empiece, no desde arriba, sino ahí donde te puse?"). Se mide en vivo porque cada
    pantalla tiene un encabezado distinto: la de una cuenta trae nombre + saldo, Ajustes solo
    el título. Si no se encuentra, cae a 64px. */
-function topDeHoja(){
+/* `soloHd` la sube: se ancla al encabezado en vez de al bloque de saldo. El de la
+   tarjeta es alto (deuda, disponible, uso de linea, proximo corte, MSI) y dejaba la
+   hoja a media pantalla; para el cuadre, que es largo, se desperdiciaba media vista. */
+function topDeHoja(soloHd){
   var v=document.querySelector('.pane.on .vista.on') || document.querySelector('.pane.on');
   if(!v) return 64;
   var p=document.querySelector('.phone').getBoundingClientRect();
-  var ult=v.querySelector('.ctaSaldo') || v.querySelector('.hd');
+  var ult=soloHd ? (v.querySelector('.hd') || v.querySelector('.ctaSaldo'))
+                 : (v.querySelector('.ctaSaldo') || v.querySelector('.hd'));
   if(!ult) return 64;
   var r=ult.getBoundingClientRect();
   var z=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z'))||1;
   return Math.max(0, Math.round((r.bottom-p.top)/z));
 }
-function openSheet(t){
+function openSheet(t, alta){
   cursorCampo(null);        // que ninguna hoja herede el cursor de la anterior
   $('sheetTit').textContent=t;
   if(sheet.classList.contains('show')) return;      // solo cambia el título
-  var arriba=topDeHoja();
+  var arriba=topDeHoja(alta);
   /* Colocar el `top` SIN animarlo: la transición de .18s existe para cuando sube por el
      teclado, pero aquí se encimaba con el deslizamiento de entrada y se veían dos
      movimientos. Se apaga, se coloca, se fuerza el reflow y se vuelve a encender. */
@@ -7347,7 +7351,9 @@ function leeLibre_(L){
     com = com.replace(/^(cargo|abono)\s+/i,'').replace(/^[\s:\u00b7\-\u2013\u2014]+/,'').trim();
     if(!com) com = '(sin nombre)';
     var nl = sinAc_(l);
-    var dev = /devoluc|reembols|bonific|cashback|nota de credito/.test(nl);
+    /* 'Operacion DEVUELTA de Roblox' no casaba con 'devoluc' y entraba como pago a la
+       tarjeta: hay que cubrir las dos raices, devoluc- y devuelt-. */
+    var dev = /devoluc|devuelt|reembols|bonific|cashback|nota de credito|cancelad/.test(nl);
     /* El SIGNO no dice cargo o abono: Plata pone los CARGOS en negativo y Liverpool
        pone asi los ABONOS. La palabra con la que arranca el renglon si es confiable. */
     var ab = dev ? false
@@ -7382,16 +7388,24 @@ function leeBanco(txt){
   /* El Gem marca con ILEGIBLE / AVISO lo que no pudo leer. Son renglones sin $, asi
      que el lector los salta: si no se muestran aqui, la advertencia se pierde callada. */
   var flojos = L.filter(function(l){ return /^aviso\b|ilegible/i.test(l.trim()); });
+  /* El formato que pide el Gem ("Cargo · 13 agosto 2026 · X · $1.00") arranca cada
+     renglon con Cargo/Abono, que es EXACTAMENTE la pista con la que detectaBanco_
+     adivina Liverpool. Sin reconocerlo, el aviso "parece de Liverpool" salia siempre,
+     aun cuadrando Plata. */
+  var esGem = L.filter(function(l){ return /^(cargo|abono)\s*[·|]/i.test(l.trim()); }).length >= 2;
   var lib = leeLibre_(L);
   if(!r || lib.movs.length > r.movs.length){
     if(!lib.movs.length)
       return {banco:null, movs:[], bloques:0, declarado:null,
               avisos:['No encontre ningun movimiento. Necesito lineas con un monto en pesos (con el signo $).']};
-    r = lib; r.banco = 'Formato libre';
-    r.avisos.unshift('Lei el texto <b>linea por linea</b>, sin conocer el formato del banco. '+
-      'Si lo transcribio un asistente (Gemini, Lens), <b>revisa que esten TODOS</b>: a veces resumen '+
-      'y omiten movimientos, y eso no lo puedo detectar.');
-    if(b) r.avisos.unshift('El texto parece de <b>'+b+'</b> pero no viene con la forma original del '+
+    r = lib; r.banco = esGem ? 'Transcripcion' : 'Formato libre';
+    r.avisos.unshift(esGem
+      ? 'Lo transcribio tu Gem. <b>Revisa que esten TODOS</b>: un asistente a veces resume y '+
+        'omite movimientos, y eso no lo puedo detectar.'
+      : 'Lei el texto <b>linea por linea</b>, sin conocer el formato del banco. '+
+        'Si lo transcribio un asistente (Gemini, Lens), <b>revisa que esten TODOS</b>: a veces resumen '+
+        'y omiten movimientos, y eso no lo puedo detectar.');
+    if(b && !esGem) r.avisos.unshift('El texto parece de <b>'+b+'</b> pero no viene con la forma original del '+
       'banco'+(nBanco?' (asi solo salian '+nBanco+')':'')+', asi que lo lei linea por linea.');
     if(r.totalTexto!=null && r.todasCtas)
       r.avisos.push('El texto declara '+fmt2(r.totalTexto)+' gastado, pero es de <b>todas las cuentas</b>, '+
@@ -7475,7 +7489,7 @@ function reabreCuadre(){
   cuArma_(c);
 }
 function cuArma_(c){
-  openSheet('Cuadrar '+c.n);
+  openSheet('Cuadrar '+c.n, true);   // alta: el cuadre es largo y necesita pantalla
   $('sheetBody').innerHTML =
     '<p class="cuHint">Toma un pantallazo de los movimientos del banco, sacale el texto y '+
     'pegalo aqui. <b>Sirve cualquier extractor</b>: Recortes en la computadora, o en el telefono '+
