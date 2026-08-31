@@ -848,9 +848,12 @@ body.capturando .tabbar{display:none;}
 .cuHint{font-size:12px;color:var(--mut);line-height:1.4}
 .cuAviso{background:var(--warnbg,#FFF6E0);border:1px solid #E8D9A8;color:#6B5518;
   border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0;line-height:1.45}
-.cuFila{display:grid;grid-template-columns:22px 1fr auto;gap:9px;align-items:center;
+.cuFila{display:grid;grid-template-columns:22px 1fr auto;gap:9px;align-items:center;/* min-width:0 o el nombre largo NO se recorta: una celda de grid no encoge por debajo
+   de su contenido, y el monto y el boton Agregar se salian de la pantalla. */
+
   padding:8px 0;border-bottom:1px solid var(--lin)}
 .cuFila:last-child{border-bottom:0}
+.cuFila>*{min-width:0}
 .cuIc{font-size:15px;text-align:center}
 .cuNom{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cuSub{font-size:11.5px;color:var(--mut)}
@@ -1159,7 +1162,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260831-1403";
+<script>window.MM_VER="20260831-1413";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -7125,8 +7128,16 @@ var RE_MONTO_ = /^[-−–]?\s*\$\s*(-?\s*[\d,]+(?:\.\d{1,2})?)$/;
 var RE_HORA_  = /^(\d{1,2}:\d{2})\s*h?$/;
 var RE_FECHA_A_ = /^(\d{1,2})\s+([a-zA-ZÀ-ſ]+)\s+(\d{4})$/;
 var RE_FECHA_D_ = /^(\d{1,2})\s+de\s+([a-zA-ZÀ-ſ]+)$/;
+/* Acepta 'agosto' y tambien 'ago'/'ago.'. Solo cuenta si el texto es PREFIJO de un
+   mes real, asi que 'mayores' no se vuelve mayo ni 'eleven' un mes. */
+function mesNum_(t){
+  var n = sinAc_(t).replace(/\.$/,'');
+  if(MESN_[n]) return MESN_[n];
+  if(n.length>=3) for(var k in MESN_) if(k.indexOf(n)===0) return MESN_[k];
+  return 0;
+}
 function fechaDe_(d, mesTxt, anio){
-  var m = MESN_[sinAc_(mesTxt)];
+  var m = mesNum_(mesTxt);
   if(!m) return null;
   var hoy = new Date(), y = anio || hoy.getFullYear();
   var f = new Date(y, m-1, +d, 12, 0, 0);
@@ -7264,6 +7275,19 @@ function fechaLib_(s){
     return y+'-'+String(+a[2]).padStart(2,'0')+'-'+String(+a[1]).padStart(2,'0'); }
   return null;
 }
+/* Busca una fecha DENTRO del renglon: '- 13 agosto 2026 -', '5 de mayo', '3 ago'.
+   Devuelve el ISO y el texto exacto, para poder quitarselo al nombre del comercio.
+   El filtro de verdad es mesNum_: si la palabra no es un mes, no hay fecha. */
+function fechaEnLinea_(l){
+  var re = /(^|[^\d.,])(\d{1,2})\s+(?:de\s+)?([a-zA-Z\u00C0-\u017F]{3,})\.?(?:\s+(?:de\s+)?(\d{4}))?/g;
+  var m;
+  while((m = re.exec(l))){
+    if(!mesNum_(m[3])) continue;
+    var iso = fechaDe_(m[2], m[3], m[4] ? +m[4] : null);
+    if(iso) return {iso:iso, txt:m[0].slice(m[1].length)};
+  }
+  return null;
+}
 function resumenLib_(l){
   /* OJO: no basta con buscar la palabra suelta. "Pago recibido: +$1,500" es un ABONO
      real y con /recibid/ se perdia callado. Una linea de TOTAL trae el monto primero
@@ -7274,7 +7298,7 @@ function resumenLib_(l){
 }
 function ruidoLib_(l){
   var n=sinAc_(l);
-  return !n || /^(texto extraido|encabezado|filtros|encabezado y filtros|resumen|movimientos|todas las cuentas|categoria|categorias|periodo|mostrar mas|ver mas|buscar)\b/.test(n);
+  return !n || /^(texto extraido|encabezado|filtros|encabezado y filtros|resumen|movimientos|todas las cuentas|categoria|categorias|periodo|mostrar mas|ver mas|buscar|filtrar por)\b/.test(n);
 }
 function leeLibre_(L){
   var out=[], av=[], fecha=null, decl=null;
@@ -7290,18 +7314,32 @@ function leeLibre_(L){
     var mm = RE_MONTO_LIB_.exec(l);
     if(!mm) continue;
     if(resumenLib_(l)){
-      if(decl===null && /gastad/.test(sinAc_(l))) decl=Math.abs(nMonto_(mm[2]));
+      /* el total que declara el banco: sirve para avisar si la captura quedo corta */
+      if(decl===null && /(gastad|^total de cargos)/.test(sinAc_(l)))
+        decl=Math.abs(nMonto_(mm[2]));
       continue;
     }
     var antes=l.slice(0,mm.index), desp=l.slice(mm.index+mm[0].length);
+    /* La fecha puede venir DENTRO del renglon en vez de como encabezado. Si esta,
+       manda para ESTE movimiento y se le quita al nombre del comercio. */
+    var fl = fechaEnLinea_(antes) || fechaEnLinea_(desp), fUso = fecha;
+    if(fl){ fUso = fl.iso; antes = antes.replace(fl.txt, ' '); }
     var cat=null, pc=/\(([^)]*)\)/.exec(desp); if(pc) cat=pc[1].trim();
     var com = antes.replace(/[\s:\u00b7\-\u2013\u2014]+$/,'').trim();
     if(!com) com = desp.replace(/\([^)]*\)/g,'').replace(/^[\s:\u00b7\-\u2013\u2014]+/,'').trim();
+    com = com.replace(/^(cargo|abono)\s+/i,'').replace(/^[\s:\u00b7\-\u2013\u2014]+/,'').trim();
     if(!com) com = '(sin nombre)';
-    var dev = /devoluc|reembols|bonific|cashback|nota de credito/.test(sinAc_(l));
-    out.push({fecha:fecha, comercio:com, monto:Math.abs(nMonto_(mm[2])), hora:null,
-              transito:/transito|pendiente/.test(sinAc_(l)),
-              devolucion:dev, abono:(!dev && mm[1]==='+'), catBanco:cat});
+    var nl = sinAc_(l);
+    var dev = /devoluc|reembols|bonific|cashback|nota de credito/.test(nl);
+    /* El SIGNO no dice cargo o abono: Plata pone los CARGOS en negativo y Liverpool
+       pone asi los ABONOS. La palabra con la que arranca el renglon si es confiable. */
+    var ab = dev ? false
+           : /^abono\b/.test(nl) ? true
+           : /^cargo\b/.test(nl) ? false
+           : (mm[1]==='+');
+    out.push({fecha:fUso, comercio:com, monto:Math.abs(nMonto_(mm[2])), hora:null,
+              transito:/transito|pendiente/.test(nl),
+              devolucion:dev, abono:ab, catBanco:cat});
   }
   return {movs:out, avisos:av, bloques:out.length,
           declarado:(todas?null:decl), totalTexto:decl, todasCtas:todas};
@@ -7314,19 +7352,27 @@ function detectaBanco_(L){
 }
 function leeBanco(txt){
   var L = txt.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
-  var b = detectaBanco_(L), r;
+  var b = detectaBanco_(L), r = null, nBanco = 0;
   if(b){
     r = (b==='Liverpool') ? leeLiverpool_(L) : (b==='BBVA' ? leeBBVA_(L) : leePlata_(L));
-    r.banco = b;
-  } else {
-    r = leeLibre_(L);
-    if(!r.movs.length)
+    r.banco = b; nBanco = r.movs.length;
+  }
+  /* detectaBanco_ se guia por pistas sueltas y un texto transcrito por un asistente
+     las trae aunque su forma sea otra: el de Liverpool del 1-sep empezaba cada renglon
+     con "Cargo" y el parser del banco saco 0 de 11. Si el lector libre encuentra MAS,
+     gana el libre. Con un texto del banco de verdad no gana: ahi el parser saca los
+     mismos y ademas con el nombre del comercio bien puesto. */
+  var lib = leeLibre_(L);
+  if(!r || lib.movs.length > r.movs.length){
+    if(!lib.movs.length)
       return {banco:null, movs:[], bloques:0, declarado:null,
               avisos:['No encontre ningun movimiento. Necesito lineas con un monto en pesos (con el signo $).']};
-    r.banco = 'Formato libre';
+    r = lib; r.banco = 'Formato libre';
     r.avisos.unshift('Lei el texto <b>linea por linea</b>, sin conocer el formato del banco. '+
       'Si lo transcribio un asistente (Gemini, Lens), <b>revisa que esten TODOS</b>: a veces resumen '+
       'y omiten movimientos, y eso no lo puedo detectar.');
+    if(b) r.avisos.unshift('El texto parece de <b>'+b+'</b> pero no viene con la forma original del '+
+      'banco'+(nBanco?' (asi solo salian '+nBanco+')':'')+', asi que lo lei linea por linea.');
     if(r.totalTexto!=null && r.todasCtas)
       r.avisos.push('El texto declara '+fmt2(r.totalTexto)+' gastado, pero es de <b>todas las cuentas</b>, '+
                     'no de esta tarjeta: no lo uso para cuadrar.');
