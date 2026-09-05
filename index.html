@@ -548,9 +548,16 @@ button{font-family:inherit;}
    Siguen siendo tocables: abren la dona de composicion. */
 .bar:active{filter:brightness(.9);}
 /* dona de composición */
-.dona{display:flex;flex-direction:column;align-items:center;padding:2px 4px 4px;}
+/* El texto del centro va ENCIMA de la dona, posicionado, no metido en el flujo con
+   margenes negativos. Antes era `margin-top:-118px` + `margin-bottom:56px`, y esos dos
+   numeros solo cuadran si el texto mide exactamente 62px de alto: mide 44, asi que la
+   leyenda subia 18px y la dona se le encimaba (Marco, 5-sep-2026). Asi ya no importa
+   cuanto mida el texto ni cuantos digitos traiga la cifra. */
+.dona{display:flex;flex-direction:column;align-items:center;padding:2px 4px 4px;position:relative;}
 .dona svg{width:190px;height:190px;transform:rotate(-90deg);}
-.dona .centro{margin-top:-118px;margin-bottom:56px;text-align:center;pointer-events:none;}
+.dona .centro{position:absolute;top:2px;left:0;right:0;height:190px;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;pointer-events:none;}
 .dona .centro .v{font-size:21px;font-weight:780;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
 .dona .centro .k{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.09em;font-weight:700;margin-top:2px;}
 .leyenda{width:100%;display:flex;flex-direction:column;}
@@ -1170,7 +1177,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260905-1328";
+<script>window.MM_VER="20260905-1332";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
