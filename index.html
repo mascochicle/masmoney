@@ -1177,7 +1177,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260911-0729";
+<script>window.MM_VER="20260913-1507";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3888,6 +3888,25 @@ function renombraSubIco(g,viejo,nuevo){
   var m=subIcos(), k=_sk(g,viejo);
   if(m[k]!==undefined && viejo!==nuevo){ m[_sk(g,nuevo)]=m[k]; delete m[k]; sv(K_SUBICO,m); }
 }
+/* Renombrar una subcategoría ARRASTRA el cambio a los movimientos (13-sep-2026).
+   Cada movimiento guarda grupo y subcategoría como TEXTO: si solo cambia el catálogo, lo ya
+   capturado se queda con el nombre viejo y el gasto se parte en dos sin avisar. Marco lo cachó
+   al renombrar "Regalos amigos" -> "Hijos regalos amigos": tuvo que editar a mano cada
+   movimiento. Vive junto a renombraSubIco porque es el mismo mecanismo: quien renombra, arrastra.
+   Coincide igual que mudarSub (sub vacía = la del grupo) y alcanza a los DIVIDIDOS (`partes`).
+   Devuelve cuántos movimientos cambió. */
+function renombraSubEnMovs(g,viejo,nuevo){
+  if(!viejo || viejo===nuevo) return 0;
+  var a=movs(), k=0;
+  a.forEach(function(m){
+    var toca=false;
+    if(m.grupo===g && (m.sub||m.grupo)===viejo){ m.sub=nuevo; toca=true; }
+    (m.partes||[]).forEach(function(p){ if(p.g===g && (p.sub||p.g)===viejo){ p.sub=nuevo; toca=true; } });
+    if(toca) k++;
+  });
+  if(k) saveMovs(a);
+  return k;
+}
 var K_AGICO='appcaptura_agicos_v1';
 function agIcos(){ return ld(K_AGICO,{}); }
 function setAgIco(n,e){ var m=agIcos(); if(e) m[n]=e; else delete m[n]; sv(K_AGICO,m); }
@@ -6052,7 +6071,19 @@ function editarGrupo(cual,i){
     guardaLista(cual,A);
     if(viejo && viejo!==nom){                       // arrastra el cambio a los movimientos
       var b=movs(), k=0;
-      b.forEach(function(m){ if(m.grupo===viejo){ m.grupo=nom; m.e=pick; k++; } });
+      b.forEach(function(m){
+        var toca=false;
+        if(m.grupo===viejo){ m.grupo=nom; m.e=pick; toca=true; }
+        /* los DIVIDIDOS guardan el grupo por parte: sin esto la parte se quedaba con el viejo */
+        (m.partes||[]).forEach(function(p){ if(p.g===viejo){ p.g=nom; toca=true; } });
+        if(toca) k++;
+      });
+      /* los íconos propios de sus subcategorías van con llave "grupo|sub": se mudan con él */
+      var mi=subIcos(), movio=false;
+      Object.keys(mi).forEach(function(key){
+        if(key.indexOf(viejo+'|')===0){ mi[nom+key.slice(viejo.length)]=mi[key]; delete mi[key]; movio=true; }
+      });
+      if(movio) sv(K_SUBICO,mi);
       if(k) saveMovs(b);
       toast(k?('Renombrado · '+k+' movimiento'+(k>1?'s':'')):'Guardado');
     } else toast('Guardado');
@@ -6115,7 +6146,12 @@ function editarSub(cual,gi,c,subs,k,emoji){
   $('sOk').onclick=function(){
     var v=$('sN').value.trim(); if(!v){ toast('Ponle nombre',true); return; }
     if(nuevo) subs.push(v);
-    else { renombraSubIco(c.n, val, v); subs[k]=v; }   // si la renombró, su ícono la sigue
+    else {
+      renombraSubIco(c.n, val, v);                       // si la renombró, su ícono la sigue
+      var kMov=renombraSubEnMovs(c.n, val, v);           // ...y sus movimientos también
+      subs[k]=v;
+      if(kMov){ renderCuenta(); toast('Renombrado · '+kMov+' movimiento'+(kMov>1?'s':'')); }
+    }
     setSubIco(c.n, v, eSub);
     volverAlGrupo(cual,gi,c,subs,emoji);
   };
@@ -6125,7 +6161,7 @@ function editarSub(cual,gi,c,subs,k,emoji){
   if(!nuevo) $('sMov').onclick=function(){
     /* el nombre y el ícono que tenga escritos AHORA se llevan con ella */
     var v=$('sN').value.trim()||val;
-    if(v!==val){ renombraSubIco(c.n,val,v); subs[k]=v; }
+    if(v!==val){ renombraSubIco(c.n,val,v); renombraSubEnMovs(c.n,val,v); subs[k]=v; }
     setSubIco(c.n, v, eSub);
     c.subs=subs; guardaLista(cual, (function(){ var A=lista(cual);
       if(gi>=0){ A[gi]={n:c.n,e:emoji,subs:subs}; } return A; })());
