@@ -1177,7 +1177,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260913-1507";
+<script>window.MM_VER="20260915-1513";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1391,6 +1391,18 @@ var ING_CATS=[
  {n:"Ajuste Saldo",e:"⚙️",subs:["Ajuste Saldo"]},
  {n:"Otros",e:"🗄️",subs:["Otros"]}
 ];
+/* Una subcategoría ÚNICA que se llama igual que su grupo no aporta nada y confunde: obliga a un
+   toque de más al capturar (Marco, 15-sep-2026: "dentro tienen una subcategoría que se llama
+   igual"). Un grupo sin subcategorías guarda LO MISMO: al elegirlo, la sub del movimiento es el
+   nombre del grupo. Se limpia aquí para la lista de fábrica y en la migración 22 para la suya. */
+function sinSubRepetida(L){
+  var n=0;
+  (L||[]).forEach(function(g){
+    if(g.subs && g.subs.length===1 && g.subs[0]===g.n){ g.subs=[]; n++; }
+  });
+  return n;
+}
+sinSubRepetida(CATS); sinSubRepetida(NEG_CATS); sinSubRepetida(ING_CATS);
 
 function $(i){return document.getElementById(i);}
 
@@ -1431,7 +1443,7 @@ function diasViaje(v){
    Las listas y las cuentas, una vez guardadas en el teléfono, ya no leen el catálogo: por
    eso un cambio aquí no le llega a Marco. `MIG` es la lista de arreglos puntuales, cada
    uno con su número; se aplican una sola vez y queda anotado hasta cuál se corrió. */
-var MIG_V=21;
+var MIG_V=22;
 function migrar(){
   var hecho=ld(K_CFG,{}).mig||0;
   if(hecho>=MIG_V) return;
@@ -1778,6 +1790,17 @@ function migrar(){
            tiene el valor anterior; si Marco lo puso a mano, se respeta. */
     var T21=ld(K_TC,null);
     if(T21 && Math.abs((T21.USD||0)-16.9583)<0.000001){ T21.USD=16.9722; sv(K_TC,T21); }
+  }
+
+  if(hecho<22){
+    /* 22) Quita la subcategoría repetida de sus listas guardadas: SOLO cuando es la única y se
+           llama EXACTAMENTE igual que el grupo (Stock Trading > Stock Trading…). No toca
+           movimientos: con o sin ella, lo capturado guarda el nombre del grupo como sub.
+           Efectivo, Hijos y Otros tienen varias subcategorías y no se tocan. */
+    [K_CAT, K_ING, K_NEG].forEach(function(K){
+      var L22=ld(K,null);
+      if(L22 && L22.length && sinSubRepetida(L22)) sv(K,L22);
+    });
   }
 
   var cf=ld(K_CFG,{}); cf.mig=MIG_V; sv(K_CFG,cf);
@@ -2585,7 +2608,7 @@ function setTipo(t){
                                     : T.d==='deuda' ?'Crédito que pagas' : 'Cuenta destino'; }
   } else {
     var L=catsActuales();
-    if(!L.some(function(x){return x.n===st.cat.g;})) pickCat(L[0].n,L[0].e,L[0].subs[0]);
+    if(!L.some(function(x){return x.n===st.cat.g;})) pickCat(L[0].n,L[0].e,(L[0].subs&&L[0].subs.length)?L[0].subs[0]:L[0].n);   // grupo sin subs: la sub es el grupo
     else pickCat(st.cat.g,st.cat.e,st.cat.sub);
   }
   renderAmt();
