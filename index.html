@@ -1178,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-0641";
+<script>window.MM_VER="20260919-0655";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3343,7 +3343,7 @@ function pintaFotos(){
     '<div class="txt">'+st.fotos.length+(st.fotos.length===1?' archivo':' archivos')+
       (pdfs?' ('+pdfs+' PDF)':'')+' · '+kbTxt(peso)+
       (fotoCal().max?', calidad '+fotoCal().n.toLowerCase():'')+
-      '. Se guardan en <b>Descargas</b> al guardar el movimiento.</div>';
+      '. '+(syncActivo()?'Se suben al <b>servidor</b>':'Se guardan en <b>Descargas</b>')+' al guardar el movimiento.</div>';
   P.querySelectorAll('.x').forEach(function(b){
     b.onclick=function(e){ e.stopPropagation(); st.fotos.splice(+b.dataset.del,1); pintaFotos(); };
   });
@@ -3419,6 +3419,20 @@ function guardarFoto(mv, dataUrl, tipo, k){
     var b=atob(dataUrl.split(',')[1]), n=b.length, u=new Uint8Array(n);
     while(n--) u[n]=b.charCodeAt(n);
     var blob=new Blob([u],{type:pdf?'application/pdf':'image/jpeg'});
+    /* 19-sep-2026: con el Servidor Ximbal conectado la foto NO baja a Descargas: entra a
+       la cola y sube sola. Si la cola falla (IndexedDB), cae a la descarga de siempre. */
+    if(typeof syncActivo==='function' && syncActivo()){
+      colaFoto(nom, blob, pdf?'application/pdf':'image/jpeg')
+        .then(function(){ subirFotos(); })
+        ['catch'](function(){ descargaFoto(nom, blob, pdf); });
+      return nom;
+    }
+    descargaFoto(nom, blob, pdf);
+  }catch(e){ return null; }
+  return nom;
+}
+function descargaFoto(nom, blob, pdf){
+  try{
     if(window.claude&&window.claude.downloads){
       /* el artefacto no deja bajar PDF; en la app instalada no hay esa restricción */
       window.claude.downloads.save({filename:nom, data:blob})
@@ -5696,7 +5710,7 @@ function elegirFotoCal(){
     return '<div class="acct'+(i===act?' sel':'')+'" data-i="'+i+'"><div class="ic">📷</div>'+
       '<div class="nm">'+F.n+'<small>'+F.d+'</small></div></div>';
   }).join('')+
-  '<div class="note">Solo afecta al <b>archivo que se baja a Descargas</b> y de ahí sube a Drive. '+
+  '<div class="note">Solo afecta al <b>archivo completo</b>: el que se sube al servidor (o baja a Descargas si no está conectado). '+
   'La foto que ves dentro del movimiento siempre es una miniatura y pesa poco, así que el '+
   'respaldo no cambia de tamaño.<br><br>Los <b>PDF se guardan tal cual</b>: a un PDF no se le '+
   'puede bajar la resolución desde el navegador.</div>';
@@ -5821,7 +5835,7 @@ function renderCfg(){
       '<div class="nm">Mostrar centavos<small>'+(c.centavos===false?'$1,250':'$1,250.00')+'</small></div>'+
       '<div class="sw'+(c.centavos===false?'':' on')+'"></div></div>'+
     fila('semana','📅','La semana empieza en', c.semana===1?'lunes':'domingo','en el calendario')+
-    fila('fotocal','📷','Calidad de la foto', fotoCal().n, 'la que se guarda en Descargas')+
+    fila('fotocal','📷','Calidad de la foto', fotoCal().n, 'la del archivo completo de la nota')+
 
     '<div class="secttl">Respaldo'+(resp.txt?'<span class="'+resp.cls+'">'+resp.txt+'</span>':'')+'</div>'+
     fila('sync','🛰️','Servidor Ximbal', textoSync().v, textoSync().d)+
@@ -7232,7 +7246,7 @@ function llamaServidor(ruta, op){
     return r.text().then(function(x){
       var j=null; try{ j=JSON.parse(x); }catch(e){}
       if(r.status===401||r.status===403) throw new Error('La clave no es correcta ('+r.status+')');
-      if(!r.ok||!j||!j.ok) throw new Error('El servidor contestó HTTP '+r.status);
+      if(!r.ok||!j||!j.ok){ var er=new Error('El servidor contestó HTTP '+r.status); er.status=r.status; throw er; }
       return j;
     });
   }, function(e){
@@ -7265,10 +7279,89 @@ function enviarEstado(){
     return false;
   }).then(function(ok){
     _syncEnviando=false; pintaSync();
+    if(ok) subirFotos();                   // si los datos pasaron, hay red: que suban las fotos
     clearTimeout(_syncReint); _syncReint=null;
     if(syncCfg().pend && !_syncT) _syncReint=setTimeout(enviarEstado,5*60000);
     return ok;
   });
+}
+/* ---- FOTOS (19-sep-2026): cola en IndexedDB, porque una foto completa no cabe en
+   localStorage. Se sube una por una a POST /masmoney/foto?nombre=... y solo se borra de
+   la cola cuando el servidor contesta ok. Sin red se quedan ahí y reintentan igual que
+   los datos. El servidor las baja a Drive › Fotos transacciones, donde Marco ya las busca. */
+var _fdb=null, _subiendoFotos=false, _fotosPend=0, _fotosReint=null;
+function fdb(){
+  if(_fdb) return _fdb;
+  _fdb=new Promise(function(ok,ko){
+    var r=indexedDB.open('masmoney_fotos',1);
+    r.onupgradeneeded=function(){ r.result.createObjectStore('cola',{keyPath:'nom'}); };
+    r.onsuccess=function(){ ok(r.result); };
+    r.onerror=function(){ _fdb=null; ko(r.error); };
+  });
+  return _fdb;
+}
+function _fop(modo, fn){
+  return fdb().then(function(db){ return new Promise(function(ok,ko){
+    var tx=db.transaction('cola',modo), st=tx.objectStore('cola'), res;
+    var q=fn(st); if(q) q.onsuccess=function(){ res=q.result; };
+    tx.oncomplete=function(){ ok(res); };
+    tx.onerror=tx.onabort=function(){ ko(tx.error); };
+  }); });
+}
+function colaFoto(nom, blob, tipo){
+  return _fop('readwrite', function(s){ return s.put({nom:nom, blob:blob, tipo:tipo, t:Date.now()}); })
+    .then(function(){ _fotosPend++; pintaSync(); });
+}
+function cuentaFotos(){
+  return _fop('readonly', function(s){ return s.count(); })
+    .then(function(n){ _fotosPend=n||0; pintaSync(); return _fotosPend; }, function(){ return 0; });
+}
+function renombraArch(viejo, nuevo){
+  var a=movs(), cambio=false;
+  a.forEach(function(m){
+    if(m.fotoArch===viejo){ m.fotoArch=nuevo; cambio=true; }
+    (m.fotos||[]).forEach(function(F){ if(F.arch===viejo){ F.arch=nuevo; cambio=true; } });
+  });
+  if(cambio) saveMovs(a);
+}
+function subirFotos(){
+  if(!syncActivo() || _subiendoFotos || !window.indexedDB) return Promise.resolve();
+  clearTimeout(_fotosReint); _fotosReint=null;
+  _subiendoFotos=true;
+  var fallo=null;
+  function sigue(){
+    return _fop('readonly', function(s){ return s.getAll(null,1); }).then(function(L){
+      if(!L||!L.length) return;
+      var x=L[0];
+      return llamaServidor('/masmoney/foto?nombre='+encodeURIComponent(x.nom),
+                           {method:'POST', headers:{'Content-Type':x.tipo||'image/jpeg'}, body:x.blob})
+        .then(function(j){
+          /* si ya había otra foto con ese nombre, el servidor la guardó como -b, -c…:
+             el movimiento tiene que apuntar al nombre final */
+          if(j && j.nombre && j.nombre!==x.nom) renombraArch(x.nom, j.nombre);
+          return _fop('readwrite', function(s){ return s['delete'](x.nom); });
+        }, function(e){
+          /* 400/413 = el servidor NUNCA la va a aceptar (p. ej. una imagen de la galería en
+             calidad Original que no es JPG, o más de 15 MB). Reintentarla sería un bucle
+             eterno: se baja a Descargas como antes y sale de la cola. */
+          if(e && (e.status===400 || e.status===413)){
+            descargaFoto(x.nom, x.blob, x.tipo==='application/pdf');
+            toast('Una foto no pasó al servidor: se guardó en Descargas',true);
+            return _fop('readwrite', function(s){ return s['delete'](x.nom); });
+          }
+          throw e;
+        }).then(function(){ _fotosPend=Math.max(0,_fotosPend-1); pintaSync(); return sigue(); });
+    });
+  }
+  return sigue()['catch'](function(e){ fallo=e; })
+    .then(function(){
+      _subiendoFotos=false;
+      if(fallo) setSync('errFoto',{t:Date.now(), msg:String(fallo&&fallo.message||fallo)});
+      else setSync('errFoto',null);
+      return cuentaFotos();
+    }).then(function(n){
+      if(n>0) _fotosReint=setTimeout(subirFotos,5*60000);
+    });
 }
 function textoSync(){
   var s=syncCfg();
@@ -7278,6 +7371,8 @@ function textoSync(){
   if(ok&&ok.anomalia&&!s.pend) return {v:'⚠ apartado', d:'el servidor lo apartó por seguridad'+(ok.motivo?' ('+ok.motivo+')':'')+'. Avísale a Red tienda', cls:'mal'};
   if(s.pend&&s.err) return {v:'⚠ pendiente', d:s.err.msg, cls:'mal'};
   if(s.pend) return {v:'pendiente', d:'se manda en unos segundos', cls:''};
+  if(_fotosPend&&s.errFoto) return {v:'⚠ fotos', d:_fotosPend+(_fotosPend===1?' foto':' fotos')+' por subir · '+s.errFoto.msg, cls:'mal'};
+  if(_fotosPend) return {v:'subiendo', d:_fotosPend+(_fotosPend===1?' foto':' fotos')+' por subir', cls:''};
   if(ok) return {v:hace, d:ok.movs.toLocaleString('en-US')+' movimientos en el servidor', cls:'bien'};
   return {v:'sin enviar', d:'toca para mandar la primera copia', cls:''};
 }
@@ -7299,6 +7394,7 @@ function detalleSync(){
   var s=syncCfg(), x=textoSync(), r='<b>'+x.v+'</b> · '+x.d;
   if(s.ok) r+='<br><small>Última copia buena: '+new Date(s.ok.t).toLocaleString('es-MX')+'</small>';
   if(s.err) r+='<br><small>Último error: '+s.err.msg+' ('+new Date(s.err.t).toLocaleString('es-MX')+')</small>';
+  if(_fotosPend) r+='<br><small>Fotos por subir: '+_fotosPend+(s.errFoto?' · '+s.errFoto.msg:'')+'</small>';
   return r;
 }
 function abrirSync(){
@@ -7317,6 +7413,8 @@ function abrirSync(){
       'manda en cuanto se pueda: aquí no se pierde nada, tu teléfono sigue siendo la copia buena.'+
       '<br><br><b>Ponla solo en este celular.</b> En el Chrome de la compu no: ahí hago pruebas, y '+
       'una copia de pruebas no debe llegarle al servidor.'+
+      '<br><br>Las <b>fotos de las notas</b> también suben solas y ya no caen en Descargas: '+
+      'aparecen en <b>Drive › SamsungS25ultra › Descargas › Fotos transacciones</b>, como siempre.'+
       '<br><br>La clave no viaja en el respaldo ni en el código de la app.</div>'+
     (s.token?'<div class="edit-acts"><button class="b-del" id="syOff">Desconectar este teléfono</button></div>':'')+
     '</div>';
@@ -7352,14 +7450,16 @@ function abrirSync(){
   };
 }
 function iniciaSync(){
-  window.addEventListener('online', function(){ if(syncCfg().pend) enviarEstado(); });
+  window.addEventListener('online', function(){ if(syncCfg().pend) enviarEstado(); subirFotos(); });
   document.addEventListener('visibilitychange', function(){
     if(!syncActivo()) return;
     /* al salir de la app: lo que esté esperando sus 30 s se manda YA */
     if(document.visibilityState==='hidden' && _syncT) enviarEstado();
     else if(document.visibilityState==='visible' && syncCfg().pend && !_syncT && !_syncEnviando) enviarEstado();
+    if(document.visibilityState==='visible') subirFotos();
   });
   if(syncActivo() && syncCfg().pend) setTimeout(enviarEstado,5000);
+  if(syncActivo() && window.indexedDB) setTimeout(subirFotos,3000);
 }
 
 /* ================= init ================= */
