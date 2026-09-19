@@ -1178,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-1048";
+<script>window.MM_VER="20260919-1053";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1208,6 +1208,8 @@ function pantallaInicio(){
       adoptarServidor(R);
       sv(K_SYNCB,{gen:R.generado, c:huellasDe(R)});
       setSync('pend',false); setSync('esperaDecision',false);
+      setSync('ok',{generado:R.generado, t:Date.now(), movs:R.movimientos.length, anomalia:false, motivo:''});
+      setCfg('respaldo',Date.now());
       location.reload();
     })['catch'](function(e){
       try{ localStorage.removeItem(K_SYNC); }catch(x){}
@@ -7516,7 +7518,18 @@ function enviarEstado(intento){
       return true;
     });
   })['catch'](function(e){
-    if(e&&e.listo){ setSync('err',null); return true; }
+    if(e&&e.listo){
+      setSync('err',null);
+      /* nada que mandar = este aparato está al día con el servidor. Eso también cuenta
+         como respaldo: si no, un aparato que solo TRAE (la compu recién conectada) decía
+         "sin enviar" y "Respaldo: NUNCA" estando sincronizado. Una anomalía no se tapa. */
+      var S=syncCfg(), B2=ld(K_SYNCB,null);
+      if(B2 && !(S.ok&&S.ok.anomalia)){
+        setSync('ok',{generado:B2.gen, t:Date.now(), movs:movs().length, anomalia:false, motivo:''});
+        setCfg('respaldo',Date.now()); avisoRespaldo();
+      }
+      return true;
+    }
     if(e&&e.decidir){ _syncEnviando=false; pideDecision(e.decidir); return false; }
     /* 409: el otro aparato mandó algo mientras mezclábamos. Se repite con lo nuevo. */
     if(e&&e.status===409 && intento<3){ _syncEnviando=false; return enviarEstado(intento+1).then(function(ok){ return {otra:ok}; }); }
@@ -7545,6 +7558,8 @@ function pideDecision(R){
         adoptarServidor(R);
         sv(K_SYNCB,{gen:R.generado, c:huellasDe(R)});
         setSync('esperaDecision',false); setSync('pend',false);
+        setSync('ok',{generado:R.generado, t:Date.now(), movs:R.movimientos.length, anomalia:false, motivo:''});
+        setCfg('respaldo',Date.now()); avisoRespaldo();
         var n=corridaAuto(); repinta();
         toast('Listo: este aparato quedó igual al servidor');
         if(n) marcaCambio();
