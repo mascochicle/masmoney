@@ -1178,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-0655";
+<script>window.MM_VER="20260919-0724";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -7408,6 +7408,7 @@ function abrirSync(){
       'autocapitalize="off" spellcheck="false" placeholder="'+(s.token?'guardada':'pégala aquí')+'"></div>'+
     '<div class="edit-acts"><button class="b-save" id="syOk">'+(s.token?'Guardar y probar':'Conectar')+'</button></div>'+
     (s.token?'<div class="edit-acts"><button class="b-save" id="syYa" style="background:var(--surface2);color:var(--ink)">Enviar ahora</button></div>':'')+
+    (s.token?'<div class="edit-acts"><button class="b-save" id="syTraer" style="background:var(--surface2);color:var(--ink)">Traer la copia del servidor</button></div>':'')+
     '<div class="note">Con la clave puesta, cada cambio se manda solo al servidor de tu casa, '+
       'medio minuto después. Si no hay señal o Tailscale está apagado, se queda pendiente y se '+
       'manda en cuanto se pueda: aquí no se pierde nada, tu teléfono sigue siendo la copia buena.'+
@@ -7415,6 +7416,8 @@ function abrirSync(){
       'una copia de pruebas no debe llegarle al servidor.'+
       '<br><br>Las <b>fotos de las notas</b> también suben solas y ya no caen en Descargas: '+
       'aparecen en <b>Drive › SamsungS25ultra › Descargas › Fotos transacciones</b>, como siempre.'+
+      '<br><br><b>¿Teléfono nuevo o borrado?</b> Conéctalo con la misma clave y toca '+
+      '<b>Traer la copia del servidor</b>: te enseña lo que trae antes de tocar nada.'+
       '<br><br>La clave no viaja en el respaldo ni en el código de la app.</div>'+
     (s.token?'<div class="edit-acts"><button class="b-del" id="syOff">Desconectar este teléfono</button></div>':'')+
     '</div>';
@@ -7425,11 +7428,21 @@ function abrirSync(){
     var antes=syncCfg();
     setSync('url',u); if(k) setSync('token',k);
     $('syOk').textContent='Probando…'; $('syOk').disabled=true;
-    llamaServidor('/masmoney/ping',{method:'GET'}).then(function(){
-      setSync('err',null); _syncVer++; setSync('pend',true);
+    llamaServidor('/masmoney/ping',{method:'GET'}).then(function(p){
+      setSync('err',null);
+      var aqui=ordenados().length, alla=p&&p.movimientos||0;
+      if(alla && aqui < alla-Math.max(20,alla*0.01)){
+        abrirSync(); renderCfg();
+        ask('Conectado. El servidor tiene <b>'+alla.toLocaleString('en-US')+' movimientos</b> y este '+
+            'teléfono '+aqui.toLocaleString('en-US')+'.<br>¿Traer la copia del servidor?',
+            'Traer', traerDelServidor, 'Ahora no');
+        return 'traer';
+      }
+      _syncVer++; setSync('pend',true);
       toast('Conectado. Mandando la primera copia…');
       return enviarEstado();
     }).then(function(ok){
+      if(ok==='traer') return;
       if(ok) toast('Listo: tu información ya está en el servidor');
       abrirSync(); renderCfg();
     })['catch'](function(e){
@@ -7443,11 +7456,42 @@ function abrirSync(){
     _syncVer++; setSync('pend',true);
     enviarEstado().then(function(ok){ toast(ok?'Enviado':'No se pudo: queda pendiente',!ok); });
   };
+  if($('syTraer')) $('syTraer').onclick=traerDelServidor;
   if($('syOff')) $('syOff').onclick=function(){
     try{ localStorage.removeItem(K_SYNC); }catch(e){}
     clearTimeout(_syncT); clearTimeout(_syncReint);
     closeSheet(); renderCfg(); toast('Este teléfono ya no manda al servidor');
   };
+}
+/* ---- TRAER LA COPIA DEL SERVIDOR (19-sep-2026) ----
+   Para un teléfono nuevo, perdido o borrado. GET /masmoney/estado devuelve el JSON de
+   Exportar tal cual (sin campo ok, por eso no pasa por llamaServidor). Se entrega a
+   revisarImport: la misma pantalla de Importar, con Agregar / Reemplazar y su pregunta
+   de confirmación. Aquí no se escribe nada sin que Marco lo elija. */
+function traerDelServidor(){
+  if(!syncActivo()){ toast('Primero conecta el servidor',true); return; }
+  var ctl=new AbortController(), t=setTimeout(function(){ ctl.abort(); },60000);
+  toast('Trayendo la copia del servidor…');
+  fetch(syncBase()+'/masmoney/estado',{method:'GET', signal:ctl.signal,
+        headers:{'Authorization':'Bearer '+syncCfg().token}})
+  .then(function(r){
+    clearTimeout(t);
+    if(r.status===401||r.status===403) throw new Error('La clave no es correcta ('+r.status+')');
+    if(r.status===404) throw new Error('El servidor todavía no tiene ninguna copia');
+    if(!r.ok) throw new Error('El servidor contestó HTTP '+r.status);
+    return r.text();
+  }, function(e){
+    clearTimeout(t);
+    throw new Error(e&&e.name==='AbortError' ? 'Sin respuesta en 60 s (¿Tailscale apagado?)'
+                                             : 'No se alcanzó el servidor (¿Tailscale apagado?)');
+  }).then(function(x){
+    var d=null; try{ d=JSON.parse(x); }catch(e){}
+    if(!d || d.app!=='MasMoney' || !Array.isArray(d.movimientos))
+      throw new Error('Lo que mandó el servidor no es una copia de MasMoney');
+    /* sin closeSheet: openSheet reutiliza la hoja abierta. Cerrar y abrir en el mismo
+       instante encola un history.back() que se cruza con el pushState de la nueva. */
+    revisarImport(d,'Copia del servidor');
+  })['catch'](function(e){ toast(String(e&&e.message||e),true); });
 }
 function iniciaSync(){
   window.addEventListener('online', function(){ if(syncCfg().pend) enviarEstado(); subirFotos(); });
