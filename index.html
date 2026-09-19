@@ -1178,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-0734";
+<script>window.MM_VER="20260919-1048";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1188,11 +1188,33 @@ function pantallaInicio(){
     '<p>Esta app arranca vacía a propósito: tus saldos no viven en el código, viven en tu teléfono.</p>'+
     '<p>Carga tu último respaldo <b>masmoney-….json</b> para empezar.</p>'+
     '<button id="bImp">Importar mi respaldo</button>'+
-    '<small>Lo encuentras en Descargas, o en Drive › SamsungS25ultra › Descargas.</small></div>';
+    '<small>Lo encuentras en Descargas, o en Drive › SamsungS25ultra › Descargas.</small>'+
+    '<p style="margin-top:10px">¿Ya la usas en otro aparato? Pega la <b>clave del servidor</b> y trae todo de ahí.</p>'+
+    '<input id="bKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" '+
+      'placeholder="clave del servidor" style="padding:13px;border-radius:12px;border:1px solid var(--line);'+
+      'background:var(--surface);color:var(--ink);font:inherit;font-size:15px">'+
+    '<button id="bSrv">Traer del servidor</button></div>';
   /* DENTRO del marco del teléfono, no en el <body>: ahí viven las variables de color y el
      recorte. Colgado del body salía transparente y se encimaba todo (2-ago-2026). */
   $('app').appendChild(d);
   $('bImp').onclick=function(){ $('impIn').click(); };
+  /* aparato nuevo (la compu, un teléfono nuevo): con la clave trae el vigente y ese queda
+     como el acuerdo de la sincronización de dos aparatos */
+  $('bSrv').onclick=function(){
+    var k=$('bKey').value.trim(); if(!k){ toast('Falta la clave',true); return; }
+    setSync('url',SYNC_URL_DEF); setSync('token',k);
+    $('bSrv').textContent='Trayendo…'; $('bSrv').disabled=true;
+    traerEstado().then(function(R){
+      adoptarServidor(R);
+      sv(K_SYNCB,{gen:R.generado, c:huellasDe(R)});
+      setSync('pend',false); setSync('esperaDecision',false);
+      location.reload();
+    })['catch'](function(e){
+      try{ localStorage.removeItem(K_SYNC); }catch(x){}
+      $('bSrv').textContent='Traer del servidor'; $('bSrv').disabled=false;
+      toast(String(e&&e.message||e),true);
+    });
+  };
   /* al terminar de importar, la app se recarga: el arranque se cortó antes de armarse */
   var _imp=aplicarImport;
   aplicarImport=function(a,b,c){ _imp(a,b,c); if(!primeraVez()) location.reload(); };
@@ -7194,7 +7216,7 @@ function estadoCompleto(a){
     base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a||ordenados(),
     catalogos:{agentes:agentes(), agentes_iconos:agIcos(), ambitos:ambitos(),
                cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs(),
-               viajes:viajes(), sub_iconos:subIcos()}};
+               viajes:viajes(), sub_iconos:subIcos(), autoborrados:ld(K_AUTOX,{})}};
 }
 function exportarTodo(){
   var a=ordenados(); if(!a.length){ toast('Nada que exportar',true); return; }
@@ -7220,11 +7242,11 @@ function exportarTodo(){
 /* ================= SINCRONIZAR CON EL SERVIDOR (19-sep-2026) =================
    Cada cambio manda el ESTADO COMPLETO (lo mismo que Exportar) al Beelink de Marco por
    Tailscale. Contrato con «Red tienda»: Finanzas Claude/contrato-app-finanzas-node.md.
-   - El teléfono sigue siendo la copia buena: esto solo manda copias.
-   - Solo manda donde se tecleó la clave. El Chrome de la compu (banco de pruebas) NO
-     debe tenerla: una copia de pruebas con `generado` más nuevo pasaría por la buena.
+   - Desde el 19-sep (tarde) SINCRONIZA en los dos sentidos: teléfono y compu con la
+     misma clave. Ver "DOS APARATOS" abajo. Las pruebas de Claude van contra un servidor
+     falso en localhost, nunca con la clave real.
    - La clave vive en su propia llave (K_SYNC): no viaja en el respaldo ni la pisa Importar.
-   - Espera 30 s tras el último cambio (captura varios seguidos = un envío). Al salir de la
+   - Espera 15 s tras el último cambio (captura varios seguidos = un envío). Al salir de la
      app manda en ese momento, que es cuando más importa.
    - Sin conexión no pasa nada: queda "pendiente" y reintenta al volver la red, al abrir
      la app y cada 5 min. Solo se encola el ÚLTIMO estado (cada uno es completo).
@@ -7234,18 +7256,12 @@ var K_SYNC='masmoney_sync_v1';
 var SYNC_URL_DEF='https://ximbal-node.tail611cba.ts.net';
 var _syncT=null, _syncVer=0, _syncEnviando=false, _syncReint=null;
 function esLlaveDeDatos(k){
-  return [K_MOV,K_CTA,K_TC,K_CAT,K_ING,K_NEG,K_AMB,K_VJE,K_AG,K_SUBICO,K_AGICO].indexOf(k)>=0;
+  return [K_MOV,K_CTA,K_TC,K_CAT,K_ING,K_NEG,K_AMB,K_VJE,K_AG,K_SUBICO,K_AGICO,K_AUTOX].indexOf(k)>=0;
 }
 function syncCfg(){ return ld(K_SYNC,{}); }
 function setSync(k,v){ var s=syncCfg(); s[k]=v; try{ localStorage.setItem(K_SYNC,JSON.stringify(s)); }catch(e){} }
 function syncActivo(){ var s=syncCfg(); return !!(s.token&&s.url); }
 function syncBase(){ return (syncCfg().url||SYNC_URL_DEF).replace(/\/+$/,''); }
-function marcaCambio(){
-  if(!syncActivo()) return;
-  _syncVer++; setSync('pend',true);
-  clearTimeout(_syncT); _syncT=setTimeout(enviarEstado,30000);
-  pintaSync();
-}
 function cuerpoGzip(txt){
   if(!window.CompressionStream) return Promise.resolve({body:txt,gz:false});
   var cs=new Blob([txt]).stream().pipeThrough(new CompressionStream('gzip'));
@@ -7269,35 +7285,283 @@ function llamaServidor(ruta, op){
                                              : 'No se alcanzó el servidor (¿Tailscale apagado?)');
   });
 }
-function enviarEstado(){
+/* ================= DOS APARATOS: TELÉFONO Y COMPU (19-sep-2026) =================
+   Marco quiere capturar también en la compu, como hacía con Money Pro: si se queda mucho
+   rato en MasMoney, el banco del teléfono le cierra la sesión.
+   Mandar la foto completa ya no alcanza: el segundo aparato que mandara pisaría lo que
+   capturó el primero. Por eso ahora se MEZCLA DE TRES VÍAS, en la app:
+     - cada aparato recuerda lo último que acordó con el servidor (K_SYNCB). No guarda la
+       copia entera, que no cabría en localStorage: solo una huella por id;
+     - al sincronizar trae el vigente y lo mezcla contra ese acuerdo. Lo que cambió solo
+       allá se toma de allá, altas, ediciones y BORRADOS incluidos. Lo que cambió solo aquí
+       se queda. Por eso no hacen falta marcas de borrado;
+     - manda el resultado con sync.base = el vigente sobre el que mezcló. Si mientras tanto
+       el otro aparato mandó algo, el servidor contesta 409 y se repite. Encargo a Red
+       tienda: Reportes Claude/encargo-sync-dos-aparatos.md.
+   Si los dos aparatos editan lo mismo antes de sincronizar, gana el de este aparato.
+   Si uno lo borró y el otro lo editó, se queda editado: nunca se pierde un dato por un
+   choque. El formato del estado no cambia, así que los lectores de la PC siguen igual. */
+var K_SYNCB='masmoney_syncbase_v1';
+var _mezclando=false, _pingT=null;
+function dispositivo(){ return /Android|iPhone|iPad/i.test(navigator.userAgent)?'telefono':'compu'; }
+/* huella corta de un valor (cyrb53). Solo compara igual / distinto; no es seguridad. */
+function huella(v){
+  var s=typeof v==='string'?v:JSON.stringify(v), h1=0xdeadbeef, h2=0x41c6ce57;
+  for(var i=0,ch;i<s.length;i++){ ch=s.charCodeAt(i);
+    h1=Math.imul(h1^ch,2654435761); h2=Math.imul(h2^ch,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (4294967296*(2097151&h2)+(h1>>>0)).toString(36);
+}
+/* Qué se mezcla. `llave`: cómo se reconoce un elemento de la lista (null = el texto mismo).
+   `obj`: es un objeto {clave: valor}, sin orden. `orden`: la lista tiene orden que Marco
+   acomoda a mano (cuentas, categorías), y ese orden también viaja. */
+var COLS_SYNC=[
+  {k:'movimientos',  llave:'id', get:function(){ return movs(); },   set:function(v){ saveMovs(v); }},
+  {k:'cuentas',      llave:'id', orden:1, get:function(){ return ctas(); }, set:function(v){ saveCtas(v); }},
+  {k:'tipos_de_cambio', obj:1,   get:function(){ return tcs(); },    set:function(v){ sv(K_TC,v); }},
+  {k:'agentes',      llave:null, orden:1, cat:1, get:function(){ return agentes(); }, set:function(v){ guardaAgentes(v); }},
+  {k:'agentes_iconos', obj:1,    cat:1, get:function(){ return agIcos(); }, set:function(v){ sv(K_AGICO,v); }},
+  {k:'ambitos',      llave:'n',  orden:1, cat:1, get:function(){ return ambitos(); }, set:function(v){ sv(K_AMB,v); }},
+  {k:'cats_gasto',   llave:'n',  orden:1, cat:1, get:function(){ return cats(); }, set:function(v){ saveCats(v); }},
+  {k:'cats_ingreso', llave:'n',  orden:1, cat:1, get:function(){ return ings(); }, set:function(v){ saveIngs(v); }},
+  {k:'cats_negocio', llave:'n',  orden:1, cat:1, get:function(){ return negs(); }, set:function(v){ saveNegs(v); }},
+  {k:'viajes',       llave:'n',  orden:1, cat:1, get:function(){ return viajes(); }, set:function(v){ sv(K_VJE,v); }},
+  {k:'sub_iconos',   obj:1,      cat:1, get:function(){ return subIcos(); }, set:function(v){ sv(K_SUBICO,v); }},
+  /* los automáticos que borró a mano: si no viajaran, el otro aparato los regeneraría */
+  {k:'autoborrados', obj:1,      cat:1, get:function(){ return ld(K_AUTOX,{}); }, set:function(v){ sv(K_AUTOX,v); }}
+];
+function colDe(est,C){ var o=C.cat?(est.catalogos||{}):est; return o[C.k]; }
+function llaveDe(C,x){ return C.llave===null ? String(x) : (x&&x[C.llave]!=null ? String(x[C.llave]) : '#'+huella(x)); }
+/* {llave: huella} de una colección, más el orden si lo lleva */
+function mapaHuellas(C,v){
+  var r={h:{}};
+  if(C.obj){ Object.keys(v||{}).forEach(function(k){ r.h[k]=huella(v[k]); }); return r; }
+  var ks=[]; (v||[]).forEach(function(x){ var k=llaveDe(C,x); r.h[k]=huella(x); ks.push(k); });
+  if(C.orden) r.o=huella(ks.join(''));
+  return r;
+}
+/* ¿dos versiones de una colección son la misma? Sin importar el orden, salvo en las
+   que Marco ordena a mano. Comparar el JSON entero no sirve: la mezcla puede dejar los
+   movimientos en otro orden, y cada aparato le devolvería el cambio al otro para siempre. */
+function mismaCol(C,v1,v2){
+  var a=mapaHuellas(C,v1), b=mapaHuellas(C,v2), ka=Object.keys(a.h), kb=Object.keys(b.h);
+  if(ka.length!==kb.length || a.o!==b.o) return false;
+  return ka.every(function(k){ return b.h[k]===a.h[k]; });
+}
+function huellasDe(est){
+  var r={}; COLS_SYNC.forEach(function(C){ r[C.k]=mapaHuellas(C,colDe(est,C)); }); return r;
+}
+/* MEZCLA DE TRES VÍAS de una colección. B = huellas del último acuerdo (o null: no hay
+   acuerdo, se junta todo sin borrar nada). L = aquí, R = el servidor.
+   Devuelve {v: el resultado, choques: n}. */
+function mezclaCol(C,B,L,R){
+  var bh=B?B.h:null, choques=0;
+  var mL={}, mR={}, oL=[], oR=[];
+  if(C.obj){ oL=Object.keys(L||{}); oR=Object.keys(R||{});
+    oL.forEach(function(k){ mL[k]=L[k]; }); oR.forEach(function(k){ mR[k]=R[k]; }); }
+  else { (L||[]).forEach(function(x){ var k=llaveDe(C,x); if(!(k in mL)){ mL[k]=x; oL.push(k); } });
+         (R||[]).forEach(function(x){ var k=llaveDe(C,x); if(!(k in mR)){ mR[k]=x; oR.push(k); } }); }
+  var out={};
+  function decide(k){
+    var inL=k in mL, inR=k in mR, inB=!!(bh&&(k in bh));
+    var hL=inL?huella(mL[k]):null, hR=inR?huella(mR[k]):null;
+    if(inL&&inR){
+      if(hL===hR) return mL[k];
+      if(inB&&hL===bh[k]) return mR[k];          // solo cambió allá
+      if(inB&&hR===bh[k]) return mL[k];          // solo cambió aquí
+      choques++; return mL[k];                   // cambió en los dos: gana este aparato
+    }
+    if(inL){                                     // allá no está
+      if(!inB) return mL[k];                     // nuevo de aquí
+      if(hL===bh[k]) return undefined;           // allá lo borraron
+      choques++; return mL[k];                   // allá lo borraron pero aquí lo editaron
+    }
+    if(!inB) return mR[k];                       // nuevo de allá
+    if(hR===bh[k]) return undefined;             // aquí lo borré
+    choques++; return mR[k];                     // aquí lo borré pero allá lo editaron
+  }
+  /* el orden: si aquí no se movió desde el acuerdo, manda el de allá */
+  var ordenL=true;
+  if(C.orden && B && B.o) ordenL = huella(oL.join(''))!==B.o;
+  var prim=ordenL?oL:oR, seg=ordenL?oR:oL, vistos={}, ks=[];
+  prim.concat(seg).forEach(function(k){ if(vistos[k]) return; vistos[k]=1;
+    var v=decide(k); if(v!==undefined){ out[k]=v; ks.push(k); } });
+  if(C.obj){ var o={}; ks.forEach(function(k){ o[k]=out[k]; }); return {v:o, choques:choques}; }
+  return {v:ks.map(function(k){ return out[k]; }), choques:choques};
+}
+/* aplica al teléfono el estado R mezclado con lo de aquí. Devuelve {choques, cambiosAqui}:
+   cambiosAqui = el resultado NO es igual al del servidor (hay que mandarlo). */
+function mezclarCon(R, B){
+  var L=estadoCompleto(movs()), choques=0, distinto=false, cambioLocal=false;
+  _mezclando=true;
+  try{
+    COLS_SYNC.forEach(function(C){
+      var r=mezclaCol(C, B?B[C.k]:null, colDe(L,C), colDe(R,C));
+      choques+=r.choques;
+      if(!mismaCol(C, r.v, colDe(R,C))) distinto=true;
+      if(!mismaCol(C, r.v, colDe(L,C))){ C.set(r.v); cambioLocal=true; }
+    });
+  } finally { _mezclando=false; }
+  return {choques:choques, distinto:distinto, cambioLocal:cambioLocal};
+}
+function adoptarServidor(R){
+  _mezclando=true;
+  try{ COLS_SYNC.forEach(function(C){ var v=colDe(R,C); if(v!=null) C.set(v); }); }
+  finally { _mezclando=false; }
+}
+function repinta(){ try{ renderSaldos(); renderCuenta(); }catch(e){} }
+function traerEstado(){
+  return fetch(syncBase()+'/masmoney/estado',{method:'GET',
+        headers:{'Authorization':'Bearer '+syncCfg().token}})
+    .then(function(r){
+      if(r.status===401||r.status===403) throw new Error('La clave no es correcta ('+r.status+')');
+      if(!r.ok) throw new Error('El servidor contestó HTTP '+r.status);
+      return r.json();
+    }, function(){ throw new Error('No se alcanzó el servidor (¿Tailscale apagado?)'); })
+    .then(function(d){
+      if(!d || d.app!=='MasMoney' || !Array.isArray(d.movimientos))
+        throw new Error('Lo que mandó el servidor no es una copia de MasMoney');
+      return d;
+    });
+}
+/* Movimientos de este aparato que el servidor no tiene, o tiene distintos. Los
+   automáticos (auto-…) no cuentan: la app los genera sola al abrir, y un aparato nuevo
+   los genera desde las cuentas de fábrica. Las cuentas y catálogos tampoco: sin
+   movimientos propios, lo de aquí es lo de fábrica. */
+function propiosNoEnServidor(R){
+  var hR=mapaHuellas(COLS_SYNC[0],R.movimientos).h, n=0;
+  movs().forEach(function(m){
+    if(String(m.id).slice(0,5)==='auto-') return;
+    if(hR[llaveDe(COLS_SYNC[0],m)]!==huella(m)) n++;
+  });
+  return n;
+}
+/* Primera vez de este aparato con la sincronización nueva. No hay acuerdo previo, así
+   que no se sabe qué borró cada lado. Tres casos:
+   - el vigente lo mandó ESTE aparato (el teléfono al actualizarse) → ese es el acuerdo;
+   - aquí no hay nada propio que el servidor no tenga (compu nueva o atrasada) → se toma
+     el del servidor tal cual;
+   - si no, NO se adivina: se le pregunta a Marco. Pasa con el Chrome de la compu, que
+     tuvo copias de prueba: juntarlas en silencio metería movimientos falsos. */
+function primeraSync(R){
+  var s=syncCfg();
+  if(s.ok && s.ok.generado===R.generado) return {base:huellasDe(R)};
+  if(!propiosNoEnServidor(R)){ adoptarServidor(R); return {adoptado:true}; }
+  return {preguntar:true};
+}
+function marcaCambio(){
+  if(!syncActivo() || _mezclando) return;
+  _syncVer++; setSync('pend',true);
+  clearTimeout(_syncT); _syncT=setTimeout(enviarEstado,15000);
+  pintaSync();
+}
+/* enviarEstado conserva su nombre (lo llaman el botón, la red, la pantalla…), pero ahora
+   SINCRONIZA: trae, mezcla y manda. */
+function enviarEstado(intento){
+  intento=intento||0;
   clearTimeout(_syncT); _syncT=null;
   if(!syncActivo()) return Promise.resolve(false);
+  if(syncCfg().esperaDecision) return Promise.resolve(false);
   if(_syncEnviando){ _syncT=setTimeout(enviarEstado,5000); return Promise.resolve(false); }
-  var a=ordenados(); if(!a.length) return Promise.resolve(false);   // vacía no se manda nunca
-  var ver=_syncVer, est=estadoCompleto(a);
   _syncEnviando=true; pintaSync();
-  return cuerpoGzip(JSON.stringify(est)).then(function(b){
-    var h={'Content-Type':'application/json'};
-    if(b.gz) h['Content-Encoding']='gzip';
-    return llamaServidor('/masmoney/estado',{method:'POST',headers:h,body:b.body});
-  }).then(function(j){
-    /* vigente:false SIN anomalía = ya hay uno más nuevo arriba: cuenta como sincronizado */
-    setSync('ok',{generado:est.generado, t:Date.now(), movs:a.length, anomalia:!!j.anomalia, motivo:j.motivo||''});
-    setSync('err',null);
-    if(ver===_syncVer) setSync('pend',false);
-    if(j.anomalia) toast('El servidor lo apartó por seguridad. Avísale a Red tienda',true);
-    else { setCfg('respaldo',Date.now()); avisoRespaldo(); }   // cuenta como respaldo
-    return true;
-  }, function(e){
+  var B=ld(K_SYNCB,null), baseGen=null, aviso='', ver=_syncVer, est=null;
+  return llamaServidor('/masmoney/ping',{method:'GET'}).then(function(p){
+    var gv=p&&p.generado_vigente;
+    if(!gv){ baseGen=null; return; }                   // el servidor está vacío: se manda
+    baseGen=gv;
+    if(B && B.gen===gv) return;                        // allá nada nuevo
+    return traerEstado().then(function(R){
+      baseGen=R.generado;
+      if(!B){
+        var pv=primeraSync(R);
+        if(pv.preguntar){ setSync('esperaDecision',true); throw {decidir:R}; }
+        if(pv.adoptado){
+          sv(K_SYNCB,{gen:R.generado, c:huellasDe(R)}); B=ld(K_SYNCB,null);
+          var n=corridaAuto(); repinta();
+          aviso='Traje '+R.movimientos.length.toLocaleString('en-US')+' movimientos del servidor';
+          if(!n){ if(ver===_syncVer) setSync('pend',false); throw {listo:true}; }
+          return;
+        }
+        B={gen:R.generado, c:pv.base};
+      }
+      var m=mezclarCon(R, B.c);
+      /* el acuerdo nuevo con el servidor es lo que trajimos: ya quedó mezclado aquí */
+      sv(K_SYNCB,{gen:R.generado, c:huellasDe(R)});
+      var n=corridaAuto();
+      if(m.cambioLocal||n) repinta();
+      if(m.choques) aviso=m.choques+(m.choques>1?' movimientos cambiaron':' movimiento cambió')+
+                          ' en los dos aparatos: quedó el de este';
+      else if(m.cambioLocal) aviso='Llegaron cambios del otro aparato';
+      if(!m.distinto && !n && !syncCfg().pend) throw {listo:true};
+    });
+  }).then(function(){
+    if(!syncCfg().pend && B && B.gen===baseGen) throw {listo:true};   // nada que mandar
+    var a=ordenados(); if(!a.length) throw {listo:true};              // vacía no se manda nunca
+    ver=_syncVer; est=estadoCompleto(a);
+    est.sync={base:baseGen, disp:dispositivo()};
+    return cuerpoGzip(JSON.stringify(est)).then(function(b){
+      var h={'Content-Type':'application/json'};
+      if(b.gz) h['Content-Encoding']='gzip';
+      return llamaServidor('/masmoney/estado',{method:'POST',headers:h,body:b.body});
+    }).then(function(j){
+      setSync('ok',{generado:est.generado, t:Date.now(), movs:est.movimientos.length, anomalia:!!j.anomalia, motivo:j.motivo||''});
+      setSync('err',null);
+      if(ver===_syncVer) setSync('pend',false);
+      if(j.anomalia) toast('El servidor lo apartó por seguridad. Avísale a Red tienda',true);
+      else {
+        if(j.vigente!==false) sv(K_SYNCB,{gen:est.generado, c:huellasDe(est)});
+        setCfg('respaldo',Date.now()); avisoRespaldo();
+      }
+      return true;
+    });
+  })['catch'](function(e){
+    if(e&&e.listo){ setSync('err',null); return true; }
+    if(e&&e.decidir){ _syncEnviando=false; pideDecision(e.decidir); return false; }
+    /* 409: el otro aparato mandó algo mientras mezclábamos. Se repite con lo nuevo. */
+    if(e&&e.status===409 && intento<3){ _syncEnviando=false; return enviarEstado(intento+1).then(function(ok){ return {otra:ok}; }); }
     setSync('err',{t:Date.now(), msg:String(e&&e.message||e)});
     return false;
   }).then(function(ok){
+    if(ok&&typeof ok==='object') return ok.otra;       // lo terminó la otra vuelta
     _syncEnviando=false; pintaSync();
+    if(aviso) toast(aviso);
     if(ok) subirFotos();                   // si los datos pasaron, hay red: que suban las fotos
     clearTimeout(_syncReint); _syncReint=null;
     if(syncCfg().pend && !_syncT) _syncReint=setTimeout(enviarEstado,5*60000);
     return ok;
   });
+}
+function pideDecision(R){
+  pintaSync();
+  var aqui=ordenados().length, alla=R.movimientos.length, dist=propiosNoEnServidor(R);
+  ask('Este aparato tiene <b>'+dist.toLocaleString('en-US')+' movimiento'+(dist===1?'':'s')+
+      '</b> que el servidor no tiene o que están distintos ('+aqui.toLocaleString('en-US')+
+      ' aquí, '+alla.toLocaleString('en-US')+' allá).<br><br>Si son copias de prueba, toca '+
+      '<b>Usar los del servidor</b>: este aparato queda igual al servidor y desde ahí se '+
+      'sincroniza solo.<br><br>Si ahí hay algo tuyo que no está en el teléfono, toca '+
+      '<b>Ahora no</b> y pídele a Claude que los junte.',
+      'Usar los del servidor', function(){
+        adoptarServidor(R);
+        sv(K_SYNCB,{gen:R.generado, c:huellasDe(R)});
+        setSync('esperaDecision',false); setSync('pend',false);
+        var n=corridaAuto(); repinta();
+        toast('Listo: este aparato quedó igual al servidor');
+        if(n) marcaCambio();
+      }, 'Ahora no');
+}
+/* mientras la app está en pantalla, cada minuto pregunta (barato: solo el ping) si el
+   otro aparato mandó algo */
+function vigilaServidor(){
+  clearTimeout(_pingT); _pingT=null;
+  if(!syncActivo() || document.visibilityState!=='visible') return;
+  _pingT=setTimeout(function(){
+    if(_syncEnviando || syncCfg().esperaDecision){ vigilaServidor(); return; }
+    llamaServidor('/masmoney/ping',{method:'GET'}).then(function(p){
+      var B=ld(K_SYNCB,null);
+      if(p && p.generado_vigente && (!B || B.gen!==p.generado_vigente)) return enviarEstado();
+    })['catch'](function(){}).then(vigilaServidor);
+  }, 60000);
 }
 /* ---- FOTOS (19-sep-2026): cola en IndexedDB, porque una foto completa no cabe en
    localStorage. Se sube una por una a POST /masmoney/foto?nombre=... y solo se borra de
@@ -7379,8 +7643,9 @@ function subirFotos(){
 }
 function textoSync(){
   var s=syncCfg();
-  if(!s.token) return {v:'apagado', d:'tus datos solo viven en este teléfono', cls:''};
-  if(_syncEnviando) return {v:'enviando…', d:'mandando la copia al servidor', cls:''};
+  if(!s.token) return {v:'apagado', d:'tus datos solo viven en este aparato', cls:''};
+  if(s.esperaDecision) return {v:'⚠ en pausa', d:'falta decidir qué hacer con lo de este aparato: toca Sincronizar ahora', cls:'mal'};
+  if(_syncEnviando) return {v:'sincronizando…', d:'juntando lo de este aparato con el servidor', cls:''};
   var ok=s.ok, hace=ok?haceCuanto(ok.t):'';
   if(ok&&ok.anomalia&&!s.pend) return {v:'⚠ apartado', d:'el servidor lo apartó por seguridad'+(ok.motivo?' ('+ok.motivo+')':'')+'. Avísale a Red tienda', cls:'mal'};
   if(s.pend&&s.err) return {v:'⚠ pendiente', d:s.err.msg, cls:'mal'};
@@ -7421,19 +7686,21 @@ function abrirSync(){
     '<div class="fld"><div class="k">Clave</div><input id="syK" type="password" autocomplete="off" '+
       'autocapitalize="off" spellcheck="false" placeholder="'+(s.token?'guardada':'pégala aquí')+'"></div>'+
     '<div class="edit-acts"><button class="b-save" id="syOk">'+(s.token?'Guardar y probar':'Conectar')+'</button></div>'+
-    (s.token?'<div class="edit-acts"><button class="b-save" id="syYa" style="background:var(--surface2);color:var(--ink)">Enviar ahora</button></div>':'')+
+    (s.token?'<div class="edit-acts"><button class="b-save" id="syYa" style="background:var(--surface2);color:var(--ink)">Sincronizar ahora</button></div>':'')+
     (s.token?'<div class="edit-acts"><button class="b-save" id="syTraer" style="background:var(--surface2);color:var(--ink)">Traer la copia del servidor</button></div>':'')+
-    '<div class="note">Con la clave puesta, cada cambio se manda solo al servidor de tu casa, '+
-      'medio minuto después. Si no hay señal o Tailscale está apagado, se queda pendiente y se '+
-      'manda en cuanto se pueda: aquí no se pierde nada, tu teléfono sigue siendo la copia buena.'+
-      '<br><br><b>Ponla solo en este celular.</b> En el Chrome de la compu no: ahí hago pruebas, y '+
-      'una copia de pruebas no debe llegarle al servidor.'+
+    '<div class="note">Con la clave puesta, este aparato se <b>sincroniza</b> con el servidor de tu casa: '+
+      'lo que captures aquí se manda solo unos segundos después, y lo que captures en el otro aparato '+
+      'llega al abrir la app o en menos de un minuto si la tienes abierta. Sirve igual en el teléfono '+
+      'y en la compu, con la <b>misma clave</b>.'+
+      '<br><br>Sin señal o con Tailscale apagado no se pierde nada: queda pendiente y se junta en '+
+      'cuanto se pueda. Si editas el mismo movimiento en los dos antes de que se junten, se queda '+
+      'el del aparato que sincronice después, y te avisa.'+
       '<br><br>Las <b>fotos de las notas</b> también suben solas y ya no caen en Descargas: '+
       'aparecen en <b>Drive › SamsungS25ultra › Descargas › Fotos transacciones</b>, como siempre.'+
       '<br><br><b>¿Teléfono nuevo o borrado?</b> Conéctalo con la misma clave y toca '+
       '<b>Traer la copia del servidor</b>: te enseña lo que trae antes de tocar nada.'+
       '<br><br>La clave no viaja en el respaldo ni en el código de la app.</div>'+
-    (s.token?'<div class="edit-acts"><button class="b-del" id="syOff">Desconectar este teléfono</button></div>':'')+
+    (s.token?'<div class="edit-acts"><button class="b-del" id="syOff">Desconectar este aparato</button></div>':'')+
     '</div>';
   $('syOk').onclick=function(){
     var u=$('syU').value.trim().replace(/\/+$/,''), k=$('syK').value.trim();
@@ -7443,21 +7710,13 @@ function abrirSync(){
     setSync('url',u); if(k) setSync('token',k);
     $('syOk').textContent='Probando…'; $('syOk').disabled=true;
     llamaServidor('/masmoney/ping',{method:'GET'}).then(function(p){
-      setSync('err',null);
-      var aqui=ordenados().length, alla=p&&p.movimientos||0;
-      if(alla && aqui < alla-Math.max(20,alla*0.01)){
-        abrirSync(); renderCfg();
-        ask('Conectado. El servidor tiene <b>'+alla.toLocaleString('en-US')+' movimientos</b> y este '+
-            'teléfono '+aqui.toLocaleString('en-US')+'.<br>¿Traer la copia del servidor?',
-            'Traer', traerDelServidor, 'Ahora no');
-        return 'traer';
-      }
+      setSync('err',null); setSync('esperaDecision',false);
       _syncVer++; setSync('pend',true);
-      toast('Conectado. Mandando la primera copia…');
+      toast('Conectado. Sincronizando…');
+      vigilaServidor();
       return enviarEstado();
     }).then(function(ok){
-      if(ok==='traer') return;
-      if(ok) toast('Listo: tu información ya está en el servidor');
+      if(ok) toast('Listo: sincronizado con el servidor');
       abrirSync(); renderCfg();
     })['catch'](function(e){
       /* si la clave nueva no sirve, se regresa la que había: no dejarlo desconectado */
@@ -7467,14 +7726,14 @@ function abrirSync(){
     });
   };
   if($('syYa')) $('syYa').onclick=function(){
-    _syncVer++; setSync('pend',true);
-    enviarEstado().then(function(ok){ toast(ok?'Enviado':'No se pudo: queda pendiente',!ok); });
+    setSync('esperaDecision',false);
+    enviarEstado().then(function(ok){ if(ok) toast('Sincronizado'); else if(!syncCfg().esperaDecision) toast('No se pudo: queda pendiente',true); });
   };
   if($('syTraer')) $('syTraer').onclick=traerDelServidor;
   if($('syOff')) $('syOff').onclick=function(){
     try{ localStorage.removeItem(K_SYNC); }catch(e){}
     clearTimeout(_syncT); clearTimeout(_syncReint);
-    closeSheet(); renderCfg(); toast('Este teléfono ya no manda al servidor');
+    clearTimeout(_pingT); closeSheet(); renderCfg(); toast('Este aparato ya no se sincroniza');
   };
 }
 /* ---- TRAER LA COPIA DEL SERVIDOR (19-sep-2026) ----
@@ -7550,10 +7809,14 @@ function iniciaSync(){
     /* al salir de la app: lo que esté esperando sus 30 s se manda YA */
     if(document.visibilityState==='hidden' && _syncT) enviarEstado();
     else if(document.visibilityState==='visible' && syncCfg().pend && !_syncT && !_syncEnviando) enviarEstado();
-    if(document.visibilityState==='visible'){ subirFotos(); if(indicadoresViejos()) traerIndicadores(); }
+    if(document.visibilityState==='visible'){ subirFotos(); if(indicadoresViejos()) traerIndicadores();
+      /* al volver a la app: lo del otro aparato, de una vez */
+      if(!_syncEnviando && !syncCfg().esperaDecision) enviarEstado();
+      vigilaServidor(); }
+    else { clearTimeout(_pingT); _pingT=null; }
   });
   if(syncActivo()) setTimeout(traerIndicadores,4000);
-  if(syncActivo() && syncCfg().pend) setTimeout(enviarEstado,5000);
+  if(syncActivo()) setTimeout(function(){ enviarEstado(); vigilaServidor(); },2500);
   if(syncActivo() && window.indexedDB) setTimeout(subirFotos,3000);
 }
 
