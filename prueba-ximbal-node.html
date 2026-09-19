@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Prueba Ximbal Node</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --tx:#1c1f24; --mu:#667; --ok:#1a7f37; --err:#c62828; --bt:#3B49C4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161a; --card:#1e2127; --tx:#e8eaed; --mu:#9aa0a6; --ok:#4cc26a; --err:#ff6b6b; --bt:#6e7bff; }
+  }
+  body { margin:0; background:var(--bg); color:var(--tx); font:16px/1.45 system-ui, sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:24px 16px; }
+  .card { background:var(--card); border-radius:14px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  h1 { font-size:20px; margin:0 0 6px; }
+  p.mu { color:var(--mu); font-size:14px; margin:0 0 18px; }
+  button { width:100%; padding:16px; font-size:17px; font-weight:600; border:0; border-radius:10px;
+           background:var(--bt); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  #res { margin-top:18px; font-size:18px; white-space:pre-wrap; word-break:break-word; min-height:1.5em; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  #det { margin-top:10px; font:13px/1.4 ui-monospace, monospace; color:var(--mu); white-space:pre-wrap; word-break:break-all; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Prueba de envío al Ximbal Node</h1>
+    <p class="mu">Página de prueba, aparte de MasMoney. Manda solo <code>{prueba:true}</code>: ningún dato tuyo. Tailscale tiene que estar encendido en el celular.</p>
+    <button id="b">Probar envío al Ximbal Node</button>
+    <div id="res"></div>
+    <div id="det"></div>
+  </div>
+</main>
+<script>
+const URL_SRV = 'https://ximbal-node.tail611cba.ts.net/prueba';
+const b = document.getElementById('b'), res = document.getElementById('res'), det = document.getElementById('det');
+
+b.onclick = async () => {
+  b.disabled = true; res.className = ''; res.textContent = 'Enviando…'; det.textContent = '';
+  const t0 = performance.now();
+  const ctl = new AbortController();
+  const reloj = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(URL_SRV, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prueba: true, desde: 'github.io', cuando: new Date().toISOString() }),
+      signal: ctl.signal
+    });
+    const txt = await r.text();
+    let j = null; try { j = JSON.parse(txt); } catch (_) {}
+    if (r.ok && j && j.ok) {
+      res.className = 'ok';
+      res.textContent = '✅ Llegó. ' + j.bytes + ' bytes · hora del servidor ' + j.hora;
+    } else {
+      res.className = 'err';
+      res.textContent = '❌ El servidor contestó HTTP ' + r.status;
+      det.textContent = txt.slice(0, 300);
+    }
+  } catch (e) {
+    res.className = 'err';
+    res.textContent = '❌ ' + (e.name === 'AbortError' ? 'Sin respuesta en 15 s (¿Tailscale apagado?)' : String(e));
+  }
+  clearTimeout(reloj);
+  det.textContent += (det.textContent ? '\n' : '') +
+    'origen: ' + location.origin + '\n' +
+    'tiempo: ' + Math.round(performance.now() - t0) + ' ms\n' +
+    'navegador: ' + navigator.userAgent;
+  b.disabled = false;
+};
+</script>
+</body>
+</html>
