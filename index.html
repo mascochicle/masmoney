@@ -845,6 +845,7 @@ body.capturando .tabbar{display:none;}
 .cfg-i .chev{color:var(--mut2);font-size:16px;}
 .cfg-d{padding:11px 16px 4px;font-size:13px;color:var(--ink);border-top:1px solid var(--surface);}
 .cfg-d small{display:block;color:var(--mut2);font-size:11px;line-height:1.5;margin-top:4px;}
+.cfg-i .val.mal{color:var(--gasto);} .cfg-i .val.bien{color:var(--ingreso);}
 .secttl span.mal{color:var(--gasto);} .secttl span.bien{color:var(--ingreso);}
 .cfg-i .sw{flex:none;}
 /* aviso de respaldo: se sienta justo encima de las pestañas */
@@ -1177,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260915-1513";
+<script>window.MM_VER="20260919-0641";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1811,7 +1812,9 @@ function saveIngs(L){ return sv(K_ING,L); }
 function saveNegs(L){ return sv(K_NEG,L); }
 function saveAmbitos(L){ return sv(K_AMB,L); }
 function ld(k,d){try{var v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}}
-function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));
+    if(typeof marcaCambio==='function' && esLlaveDeDatos(k)) marcaCambio();
+    return true}
   catch(e){toast('Sin espacio: quita alguna foto',true);return false}}
 function movs(){return ld(K_MOV,[]);}
 function saveMovs(a){return sv(K_MOV,a);}
@@ -5821,6 +5824,7 @@ function renderCfg(){
     fila('fotocal','📷','Calidad de la foto', fotoCal().n, 'la que se guarda en Descargas')+
 
     '<div class="secttl">Respaldo'+(resp.txt?'<span class="'+resp.cls+'">'+resp.txt+'</span>':'')+'</div>'+
+    fila('sync','🛰️','Servidor Ximbal', textoSync().v, textoSync().d)+
     '<div class="export">'+
       '<button class="btn-exp" id="exportar">Exportar / respaldar</button>'+
       '<button class="btn-imp" id="importar">Importar</button>'+
@@ -5849,7 +5853,7 @@ function renderCfg(){
     '<div class="cfg-d">MasMoney · hecho para Marco'+
       (window.MM_VER?'<br><b>versión '+window.MM_VER+'</b>':'')+
       '<br><small>'+(window.MM_VER?'Cerrar la app y volver a abrirla casi siempre la actualiza sola. Si no, usa el botón de aquí abajo. ':'')+
-      'Cuando pase al servidor, los datos se respaldan solos y esta pantalla crece.</small></div>'+
+      'Con el Servidor Ximbal conectado, tus datos se respaldan solos en tu casa.</small></div>'+
     /* Cuando el service worker se queda pegado a una copia vieja, cerrar la app no basta y
        lo que se antoja es borrarla y reinstalarla — y ahí se van los datos, porque viven en
        este teléfono. Este botón tira la caché y recarga: sin tocar movimientos ni cuentas,
@@ -5892,9 +5896,11 @@ function renderCfg(){
       else if(a==='letra') elegirLetra();
       else if(a==='fotocal') elegirFotoCal();
       else if(a==='tema') elegirTema();
+      else if(a==='sync') abrirSync();
     };
   });
   conectarRespaldo();
+  pintaSync();
 }
 /* ---- categorías: grupos y sus subcategorías ---- */
 var EMOJIS_CAT=['🧺','❤️','👶','🧹','🍽️','🚗','👕','🔧','📱','🏛️','💳','🏢','💡','🪙','🤲','📈','🗄️',
@@ -7155,17 +7161,20 @@ function aplicarImport(d,reemplazar,cuantos){
   toast(reemplazar?('Reemplazado · '+cuantos+' movimientos'):('Agregados '+cuantos+' movimientos'));
 }
 
+function estadoCompleto(a){
+  return {app:"MasMoney", v:13, generado:new Date().toISOString(),
+    base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a||ordenados(),
+    catalogos:{agentes:agentes(), agentes_iconos:agIcos(), ambitos:ambitos(),
+               cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs(),
+               viajes:viajes(), sub_iconos:subIcos()}};
+}
 function exportarTodo(){
   var a=ordenados(); if(!a.length){ toast('Nada que exportar',true); return; }
   /* Desde la v13 el respaldo lleva TAMBIÉN los catálogos: agentes, las tres listas de
      categorías, los ámbitos y las caras de los agentes. Antes solo iban cuentas y
      movimientos, así que si perdía el teléfono se le iban 248 agentes y sus categorías
      hechas a mano (5-ago-2026). */
-  var data=JSON.stringify({app:"MasMoney", v:13, generado:new Date().toISOString(),
-    base:BASE, tipos_de_cambio:tcs(), cuentas:ctas(), movimientos:a,
-    catalogos:{agentes:agentes(), agentes_iconos:agIcos(), ambitos:ambitos(),
-               cats_gasto:cats(), cats_ingreso:ings(), cats_negocio:negs(),
-               viajes:viajes(), sub_iconos:subIcos()}},null,2);
+  var data=JSON.stringify(estadoCompleto(a),null,2);
   /* con la fecha en el nombre: se acumulan en Descargas y así se sabe cuál es el bueno */
   var nom='masmoney-backup-'+hoyISO()+'.json';   // va a la carpeta "Masmoney Backup"
   if(window.claude&&window.claude.downloads){
@@ -7178,6 +7187,179 @@ function exportarTodo(){
     var l=document.createElement('a'); l.href=u; l.download=nom; l.click(); URL.revokeObjectURL(u);
     setCfg('respaldo',Date.now()); renderCfg(); avisoRespaldo(); toast('Exportado');
   }
+}
+
+/* ================= SINCRONIZAR CON EL SERVIDOR (19-sep-2026) =================
+   Cada cambio manda el ESTADO COMPLETO (lo mismo que Exportar) al Beelink de Marco por
+   Tailscale. Contrato con «Red tienda»: Finanzas Claude/contrato-app-finanzas-node.md.
+   - El teléfono sigue siendo la copia buena: esto solo manda copias.
+   - Solo manda donde se tecleó la clave. El Chrome de la compu (banco de pruebas) NO
+     debe tenerla: una copia de pruebas con `generado` más nuevo pasaría por la buena.
+   - La clave vive en su propia llave (K_SYNC): no viaja en el respaldo ni la pisa Importar.
+   - Espera 30 s tras el último cambio (captura varios seguidos = un envío). Al salir de la
+     app manda en ese momento, que es cuando más importa.
+   - Sin conexión no pasa nada: queda "pendiente" y reintenta al volver la red, al abrir
+     la app y cada 5 min. Solo se encola el ÚLTIMO estado (cada uno es completo).
+   - Si el servidor contesta anomalia:true (bajaron cuentas o > max(20,1%) movimientos),
+     lo guardó aparte y NO quedó como vigente: se le avisa y no se pinta "sincronizado". */
+var K_SYNC='masmoney_sync_v1';
+var SYNC_URL_DEF='https://ximbal-node.tail611cba.ts.net';
+var _syncT=null, _syncVer=0, _syncEnviando=false, _syncReint=null;
+function esLlaveDeDatos(k){
+  return [K_MOV,K_CTA,K_TC,K_CAT,K_ING,K_NEG,K_AMB,K_VJE,K_AG,K_SUBICO,K_AGICO].indexOf(k)>=0;
+}
+function syncCfg(){ return ld(K_SYNC,{}); }
+function setSync(k,v){ var s=syncCfg(); s[k]=v; try{ localStorage.setItem(K_SYNC,JSON.stringify(s)); }catch(e){} }
+function syncActivo(){ var s=syncCfg(); return !!(s.token&&s.url); }
+function syncBase(){ return (syncCfg().url||SYNC_URL_DEF).replace(/\/+$/,''); }
+function marcaCambio(){
+  if(!syncActivo()) return;
+  _syncVer++; setSync('pend',true);
+  clearTimeout(_syncT); _syncT=setTimeout(enviarEstado,30000);
+  pintaSync();
+}
+function cuerpoGzip(txt){
+  if(!window.CompressionStream) return Promise.resolve({body:txt,gz:false});
+  var cs=new Blob([txt]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Response(cs).blob().then(function(b){ return {body:b,gz:true}; });
+}
+function llamaServidor(ruta, op){
+  var ctl=new AbortController(), t=setTimeout(function(){ ctl.abort(); },30000);
+  op=op||{}; op.signal=ctl.signal;
+  op.headers=op.headers||{}; op.headers['Authorization']='Bearer '+syncCfg().token;
+  return fetch(syncBase()+ruta, op).then(function(r){
+    clearTimeout(t);
+    return r.text().then(function(x){
+      var j=null; try{ j=JSON.parse(x); }catch(e){}
+      if(r.status===401||r.status===403) throw new Error('La clave no es correcta ('+r.status+')');
+      if(!r.ok||!j||!j.ok) throw new Error('El servidor contestó HTTP '+r.status);
+      return j;
+    });
+  }, function(e){
+    clearTimeout(t);
+    throw new Error(e&&e.name==='AbortError' ? 'Sin respuesta en 30 s (¿Tailscale apagado?)'
+                                             : 'No se alcanzó el servidor (¿Tailscale apagado?)');
+  });
+}
+function enviarEstado(){
+  clearTimeout(_syncT); _syncT=null;
+  if(!syncActivo()) return Promise.resolve(false);
+  if(_syncEnviando){ _syncT=setTimeout(enviarEstado,5000); return Promise.resolve(false); }
+  var a=ordenados(); if(!a.length) return Promise.resolve(false);   // vacía no se manda nunca
+  var ver=_syncVer, est=estadoCompleto(a);
+  _syncEnviando=true; pintaSync();
+  return cuerpoGzip(JSON.stringify(est)).then(function(b){
+    var h={'Content-Type':'application/json'};
+    if(b.gz) h['Content-Encoding']='gzip';
+    return llamaServidor('/masmoney/estado',{method:'POST',headers:h,body:b.body});
+  }).then(function(j){
+    /* vigente:false SIN anomalía = ya hay uno más nuevo arriba: cuenta como sincronizado */
+    setSync('ok',{generado:est.generado, t:Date.now(), movs:a.length, anomalia:!!j.anomalia, motivo:j.motivo||''});
+    setSync('err',null);
+    if(ver===_syncVer) setSync('pend',false);
+    if(j.anomalia) toast('El servidor lo apartó por seguridad. Avísale a Red tienda',true);
+    else { setCfg('respaldo',Date.now()); avisoRespaldo(); }   // cuenta como respaldo
+    return true;
+  }, function(e){
+    setSync('err',{t:Date.now(), msg:String(e&&e.message||e)});
+    return false;
+  }).then(function(ok){
+    _syncEnviando=false; pintaSync();
+    clearTimeout(_syncReint); _syncReint=null;
+    if(syncCfg().pend && !_syncT) _syncReint=setTimeout(enviarEstado,5*60000);
+    return ok;
+  });
+}
+function textoSync(){
+  var s=syncCfg();
+  if(!s.token) return {v:'apagado', d:'tus datos solo viven en este teléfono', cls:''};
+  if(_syncEnviando) return {v:'enviando…', d:'mandando la copia al servidor', cls:''};
+  var ok=s.ok, hace=ok?haceCuanto(ok.t):'';
+  if(ok&&ok.anomalia&&!s.pend) return {v:'⚠ apartado', d:'el servidor lo apartó por seguridad'+(ok.motivo?' ('+ok.motivo+')':'')+'. Avísale a Red tienda', cls:'mal'};
+  if(s.pend&&s.err) return {v:'⚠ pendiente', d:s.err.msg, cls:'mal'};
+  if(s.pend) return {v:'pendiente', d:'se manda en unos segundos', cls:''};
+  if(ok) return {v:hace, d:ok.movs.toLocaleString('en-US')+' movimientos en el servidor', cls:'bien'};
+  return {v:'sin enviar', d:'toca para mandar la primera copia', cls:''};
+}
+function haceCuanto(t){
+  var m=Math.floor((Date.now()-t)/60000);
+  if(m<1) return 'ahorita'; if(m<60) return 'hace '+m+' min';
+  var h=Math.floor(m/60); if(h<24) return 'hace '+h+' h';
+  var d=Math.floor(h/24); return d===1?'ayer':'hace '+d+' días';
+}
+function pintaSync(){
+  var el=document.querySelector('.cfg-i[data-a="sync"]'); if(!el) return;
+  var x=textoSync();
+  el.querySelector('.val').textContent=x.v;
+  el.querySelector('.val').className='val '+x.cls;
+  el.querySelector('.nm small').textContent=x.d;
+  if($('syncEstado')) $('syncEstado').innerHTML=detalleSync();
+}
+function detalleSync(){
+  var s=syncCfg(), x=textoSync(), r='<b>'+x.v+'</b> · '+x.d;
+  if(s.ok) r+='<br><small>Última copia buena: '+new Date(s.ok.t).toLocaleString('es-MX')+'</small>';
+  if(s.err) r+='<br><small>Último error: '+s.err.msg+' ('+new Date(s.err.t).toLocaleString('es-MX')+')</small>';
+  return r;
+}
+function abrirSync(){
+  var s=syncCfg();
+  openSheet('Servidor Ximbal');
+  $('sheetBody').innerHTML='<div class="edit-b">'+
+    '<div class="note" id="syncEstado" style="margin-top:0">'+detalleSync()+'</div>'+
+    '<div class="fld"><div class="k">Dirección</div><input id="syU" type="url" autocomplete="off" '+
+      'autocapitalize="off" spellcheck="false" value="'+(s.url||SYNC_URL_DEF)+'"></div>'+
+    '<div class="fld"><div class="k">Clave</div><input id="syK" type="password" autocomplete="off" '+
+      'autocapitalize="off" spellcheck="false" placeholder="'+(s.token?'guardada':'pégala aquí')+'"></div>'+
+    '<div class="edit-acts"><button class="b-save" id="syOk">'+(s.token?'Guardar y probar':'Conectar')+'</button></div>'+
+    (s.token?'<div class="edit-acts"><button class="b-save" id="syYa" style="background:var(--surface2);color:var(--ink)">Enviar ahora</button></div>':'')+
+    '<div class="note">Con la clave puesta, cada cambio se manda solo al servidor de tu casa, '+
+      'medio minuto después. Si no hay señal o Tailscale está apagado, se queda pendiente y se '+
+      'manda en cuanto se pueda: aquí no se pierde nada, tu teléfono sigue siendo la copia buena.'+
+      '<br><br><b>Ponla solo en este celular.</b> En el Chrome de la compu no: ahí hago pruebas, y '+
+      'una copia de pruebas no debe llegarle al servidor.'+
+      '<br><br>La clave no viaja en el respaldo ni en el código de la app.</div>'+
+    (s.token?'<div class="edit-acts"><button class="b-del" id="syOff">Desconectar este teléfono</button></div>':'')+
+    '</div>';
+  $('syOk').onclick=function(){
+    var u=$('syU').value.trim().replace(/\/+$/,''), k=$('syK').value.trim();
+    if(!/^https:\/\//.test(u)){ toast('La dirección tiene que empezar con https://',true); return; }
+    if(!k && !s.token){ toast('Falta la clave',true); return; }
+    var antes=syncCfg();
+    setSync('url',u); if(k) setSync('token',k);
+    $('syOk').textContent='Probando…'; $('syOk').disabled=true;
+    llamaServidor('/masmoney/ping',{method:'GET'}).then(function(){
+      setSync('err',null); _syncVer++; setSync('pend',true);
+      toast('Conectado. Mandando la primera copia…');
+      return enviarEstado();
+    }).then(function(ok){
+      if(ok) toast('Listo: tu información ya está en el servidor');
+      abrirSync(); renderCfg();
+    })['catch'](function(e){
+      /* si la clave nueva no sirve, se regresa la que había: no dejarlo desconectado */
+      if(k){ if(antes.token) setSync('token',antes.token); else setSync('token',null); }
+      setSync('url',antes.url||null);
+      toast(String(e&&e.message||e),true); abrirSync();
+    });
+  };
+  if($('syYa')) $('syYa').onclick=function(){
+    _syncVer++; setSync('pend',true);
+    enviarEstado().then(function(ok){ toast(ok?'Enviado':'No se pudo: queda pendiente',!ok); });
+  };
+  if($('syOff')) $('syOff').onclick=function(){
+    try{ localStorage.removeItem(K_SYNC); }catch(e){}
+    clearTimeout(_syncT); clearTimeout(_syncReint);
+    closeSheet(); renderCfg(); toast('Este teléfono ya no manda al servidor');
+  };
+}
+function iniciaSync(){
+  window.addEventListener('online', function(){ if(syncCfg().pend) enviarEstado(); });
+  document.addEventListener('visibilitychange', function(){
+    if(!syncActivo()) return;
+    /* al salir de la app: lo que esté esperando sus 30 s se manda YA */
+    if(document.visibilityState==='hidden' && _syncT) enviarEstado();
+    else if(document.visibilityState==='visible' && syncCfg().pend && !_syncT && !_syncEnviando) enviarEstado();
+  });
+  if(syncActivo() && syncCfg().pend) setTimeout(enviarEstado,5000);
 }
 
 /* ================= init ================= */
@@ -7194,6 +7376,7 @@ function exportarTodo(){
   irA(cfg().inicio);                 // la pestaña que Marco eligió en Ajustes
   if(autoN) toast(autoN+' ajuste'+(autoN>1?'s':'')+' de valor aplicado'+(autoN>1?'s':''));
   avisoRespaldo();
+  iniciaSync();
 })();
 
 /* ===== CUADRAR CON EL BANCO (26-ago-2026) =====
