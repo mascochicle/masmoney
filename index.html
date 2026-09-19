@@ -34,6 +34,10 @@ body{font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(
   display:flex;flex-direction:column;position:relative;overflow:hidden;}
 @media(min-width:460px){.phone{margin:18px 0;height:calc(100vh - 36px);border-radius:30px;
   box-shadow:0 30px 80px rgba(0,0,0,.6);border:1px solid var(--line);}}
+/* Instalada como programa en la compu (19-sep-2026): la ventana YA es el marco, así que
+   nada de bordes redondos ni márgenes negros; la app llena la ventana. */
+@media (display-mode: standalone){.phone{margin:0;height:100dvh;border-radius:0;box-shadow:none;
+  border:0;max-width:none;}}
 button{font-family:inherit;}
 :focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px;}
 .pane{display:none;flex-direction:column;flex:1;min-height:0;}
@@ -1178,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-1105";
+<script>window.MM_VER="20260919-1108";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -7893,6 +7897,15 @@ function iniciaSync(){
   if(autoN) toast(autoN+' ajuste'+(autoN>1?'s':'')+' de valor aplicado'+(autoN>1?'s':''));
   avisoRespaldo();
   iniciaSync();
+  /* la PRIMERA vez que se abre como programa en la compu, la ventana toma forma de
+     teléfono. Después Marco la acomoda y Chrome recuerda su tamaño. */
+  try{
+    if(matchMedia('(display-mode: standalone)').matches && !/Android|iPhone|iPad/i.test(navigator.userAgent) &&
+       !localStorage.getItem('masmoney_ventana_v1')){
+      window.resizeTo(460, Math.min(screen.availHeight||900, 940));
+      localStorage.setItem('masmoney_ventana_v1','1');
+    }
+  }catch(e){}
 })();
 
 /* ===== CUADRAR CON EL BANCO (26-ago-2026) =====
