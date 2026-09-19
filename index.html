@@ -1178,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-0724";
+<script>window.MM_VER="20260919-0734";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5184,7 +5184,21 @@ var INFL=[
    esto se actualiza en CADA versión de la app junto con INFL y el tipo de cambio. Sin
    este tope se estaría inventando la inflación de los meses que aún no salen. */
 var INPC_HASTA='2026-08';
+/* 19-sep-2026: los meses POSTERIORES a INPC_HASTA los trae el Servidor Ximbal
+   (GET /masmoney/indicadores, guardados en K_IND). Solo se usan si son consecutivos y
+   nunca encima de un mes que el código ya trae: la serie se encadena y un mes cambiado
+   desfasaría todo lo que viene después (misma regla que INFL: se agrega, no se modifica). */
+var K_IND='masmoney_indicadores_v1';
+function inpcSrv(){ return (ld(K_IND,{}).inpc)||{}; }
+function sigMes(ym){ var y=+ym.slice(0,4), m=+ym.slice(5,7)+1; if(m>12){ m=1; y++; }
+  return y+'-'+String(m).padStart(2,'0'); }
+function inpcHasta(){
+  var s=inpcSrv(), h=INPC_HASTA, n=sigMes(h);
+  while(typeof s[n]==='number'){ h=n; n=sigMes(n); }
+  return h;
+}
 function tasaInfl(ym){
+  if(ym>INPC_HASTA){ var s=inpcSrv(); if(typeof s[ym]==='number') return s[ym]; }
   for(var i=0;i<INFL.length;i++) if(ym<=INFL[i].h) return INFL[i].m;
   return INFL[INFL.length-1].m;
 }
@@ -5226,7 +5240,7 @@ function periodosAuto(c){
   } else {                                   // mensual con INPC
     /* se avanza con año/mes a mano y NO con setMonth(): partiendo de un día 30, al pasar
        a febrero la fecha se desborda a marzo y ese mes se pierde (se comió uno) */
-    var y=+desde.slice(0,4), mo=+desde.slice(5,7);
+    var y=+desde.slice(0,4), mo=+desde.slice(5,7), tope=inpcHasta();
     for(var i=0;i<600;i++){
       mo++; if(mo>12){ mo=1; y++; }
       var ym=y+'-'+String(mo).padStart(2,'0');
@@ -5234,7 +5248,7 @@ function periodosAuto(c){
       if(f>hoy) break;
       /* solo meses con INPC ya publicado: el INEGI lo saca ~el día 9 del mes siguiente.
          Si no, se estaría inventando la inflación del mes en curso. */
-      if(ym>INPC_HASTA) break;
+      if(ym>tope) break;
       var inc=Math.round(val*tasaInfl(ym)*100)/100;
       val=Math.round((val+inc)*100)/100;
       out.push({f:f, monto:inc, per:ym});
@@ -7493,6 +7507,42 @@ function traerDelServidor(){
     revisarImport(d,'Copia del servidor');
   })['catch'](function(e){ toast(String(e&&e.message||e),true); });
 }
+/* ---- INDICADORES (19-sep-2026): FIX del DOF e INPC del INEGI, del Servidor Ximbal ----
+   Antes los metía a mano una tarea de Claude el día 10, modificando y republicando la app.
+   El servidor ya pasa 5 puertas (solo agrega, consecutivos, rangos, cuadre, último bueno);
+   aquí se revisan los rangos otra vez. Se piden al abrir y cada 12 h con la app abierta.
+   - INPC: se guardan solo los meses > INPC_HASTA del código; tasaInfl/inpcHasta los usan.
+   - FIX: se aplica solo si el USD guardado sigue siendo el último que puso el sistema
+     (tcAuto, o TC_DEF si nunca hubo uno). Si Marco lo cambió a mano, se respeta. */
+var _indT=null;
+function traerIndicadores(){
+  if(!syncActivo()) return Promise.resolve(false);
+  var antes=inpcHasta();
+  return llamaServidor('/masmoney/indicadores',{method:'GET'}).then(function(j){
+    var I=ld(K_IND,{}); I.inpc=I.inpc||{};
+    (j.inpc||[]).forEach(function(x){
+      if(!x || !/^\d{4}-\d{2}$/.test(x.mes) || x.mes<=INPC_HASTA) return;
+      if(typeof x.mensual!=='number' || x.mensual<-0.02 || x.mensual>0.03) return;
+      if(typeof I.inpc[x.mes]==='number') return;          // un mes ya tomado no cambia
+      I.inpc[x.mes]=x.mensual;
+    });
+    var f=j.fix, T=ld(K_TC,{}), ref=(typeof I.tcAuto==='number')?I.tcAuto:TC_DEF.USD, cambioTC=false;
+    if(f && typeof f.usd==='number' && f.usd>=12 && f.usd<=30 &&
+       Math.abs(f.usd/ref-1)<0.15 && f.usd!==ref){
+      var hoy=(T.USD==null)?TC_DEF.USD:T.USD;
+      if(Math.abs(hoy-ref)<0.000001){ T.USD=f.usd; sv(K_TC,T); cambioTC=true; }
+      if(Math.abs(hoy-ref)<0.000001) I.tcAuto=f.usd;
+    }
+    if(f) I.fix=f;
+    I.t=Date.now();
+    try{ localStorage.setItem(K_IND,JSON.stringify(I)); }catch(e){}
+    var n=(inpcHasta()>antes)?corridaAuto():0;
+    if(n||cambioTC){ renderSaldos(); renderCuenta(); }
+    if(n) toast('INPC de '+inpcHasta()+': '+n+' ajuste'+(n>1?'s':'')+' de valor aplicado'+(n>1?'s':''));
+    return true;
+  })['catch'](function(){ return false; });
+}
+function indicadoresViejos(){ return Date.now()-((ld(K_IND,{}).t)||0) > 12*3600000; }
 function iniciaSync(){
   window.addEventListener('online', function(){ if(syncCfg().pend) enviarEstado(); subirFotos(); });
   document.addEventListener('visibilitychange', function(){
@@ -7500,8 +7550,9 @@ function iniciaSync(){
     /* al salir de la app: lo que esté esperando sus 30 s se manda YA */
     if(document.visibilityState==='hidden' && _syncT) enviarEstado();
     else if(document.visibilityState==='visible' && syncCfg().pend && !_syncT && !_syncEnviando) enviarEstado();
-    if(document.visibilityState==='visible') subirFotos();
+    if(document.visibilityState==='visible'){ subirFotos(); if(indicadoresViejos()) traerIndicadores(); }
   });
+  if(syncActivo()) setTimeout(traerIndicadores,4000);
   if(syncActivo() && syncCfg().pend) setTimeout(enviarEstado,5000);
   if(syncActivo() && window.indexedDB) setTimeout(subirFotos,3000);
 }
