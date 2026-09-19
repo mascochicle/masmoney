@@ -1178,7 +1178,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260919-1053";
+<script>window.MM_VER="20260919-1105";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3478,12 +3478,26 @@ function descargaFoto(nom, blob, pdf){
 /* Regla ÚNICA, igual que Money Pro: si hay algo abierto encima, el gesto lo cierra.
    Si no hay nada, el gesto sale de la app. Nada de brincar entre pestañas — eso era lo
    que se sentía errático, porque el mismo gesto hacía tres cosas distintas. */
-var _pila=[], _saltar=0;
-function abrirCapa(cerrar){ _pila.push(cerrar); try{ history.pushState({mm:_pila.length},''); }catch(e){} }
+/* ⚠️ CERRAR Y ABRIR EN EL MISMO INSTANTE (19-sep-2026). history.back() es asíncrono: si
+   justo después se abre otra capa, su pushState entra ANTES de que el navegador procese el
+   back, y el historial queda un paso corrido. La capa siguiente, al cerrarse, retrocedía
+   FUERA de la app: en una pestaña de Chrome parecía que se cerraba sola (Marco, en la compu,
+   al elegir Gasto → categorías). Por eso el back se aplaza un instante, y si en ese instante
+   se abre otra capa, se REUSA el paso del historial: ni back ni push. */
+var _pila=[], _saltar=0, _backPend=0;
+function abrirCapa(cerrar){
+  _pila.push(cerrar);
+  if(_backPend>0){ _backPend--; try{ history.replaceState({mm:_pila.length},''); }catch(e){} return; }
+  try{ history.pushState({mm:_pila.length},''); }catch(e){}
+}
 function cerrarCapa(){                       // cierre desde un botón de la app
   if(!_pila.length) return false;
   _pila.pop()();                             // cierra ya, sin esperar al navegador
-  _saltar++; try{ history.back(); }catch(e){ _saltar--; }
+  _backPend++;
+  setTimeout(function(){
+    if(_backPend<=0) return;                 // otra capa tomó este paso
+    _backPend--; _saltar++; try{ history.back(); }catch(e){ _saltar--; }
+  },0);
   return true;
 }
 window.addEventListener('popstate', function(){
@@ -3599,6 +3613,35 @@ $('sheetX').onclick=function(){
 };
 $('sheetBack').style.display='none';
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') cerrarCapa(); });
+/* TECLADO FÍSICO en la compu (19-sep-2026): los montos solo tenían el teclado en pantalla,
+   hecho para el teléfono. Si hay un teclado de la app a la vista (#padHoja de una hoja o el
+   #pad de la captura), las teclas de la compu "tocan" su botón: números, punto, + − × ÷,
+   Backspace, Supr/C, = y Enter (Listo). Si el foco está en un campo de texto, no se mete. */
+document.addEventListener('keydown',function(e){
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  var a=document.activeElement;
+  if(a && (a.tagName==='TEXTAREA' || a.isContentEditable ||
+     (a.tagName==='INPUT' && !a.readOnly && !/^(button|checkbox|radio)$/.test(a.type)))) return;
+  var ph=$('padHoja'), p=$('pad'), mini=ph && ph.offsetParent!==null;
+  /* en la captura, teclear un número abre solo el teclado del monto (si no hay hoja encima) */
+  if(!mini && p && p.classList.contains('off') && /^[0-9]$/.test(e.key) &&
+     $('vForm').classList.contains('on') && !$('sheet').classList.contains('show')) verPad(true);
+  if(!mini && (!p || p.classList.contains('off') || p.offsetParent===null)) return;
+  var k=e.key, sel=null;
+  if(k===','||k==='Decimal') k='.';
+  if(/^[0-9.]$/.test(k)) sel=mini?'[data-t="'+k+'"]':null;
+  else if(k==='Backspace') sel=mini?'[data-t="back"]':'[data-op="back"]';
+  else if(k==='Delete'||k==='c'||k==='C') sel=mini?'[data-t="c"]':'[data-op="c"]';
+  else if(k==='Enter') sel=mini?'[data-t="ok"]':'[data-op="cerrar"]';
+  else if(k==='=') sel=mini?'[data-t="="]':'[data-op="="]';
+  else if(/^[+\-*/]$/.test(k)) sel=mini?'[data-t="'+k+'"]':'[data-op="'+k+'"]';
+  else return;
+  var b=null;
+  if(sel) b=(mini?ph:p).querySelector('.key'+sel);
+  else p.querySelectorAll('.key').forEach(function(x){ if(!x.dataset.op && x.textContent===k) b=x; });
+  if(!b) return;
+  e.preventDefault(); b.click();
+});
 
 /* El gesto de retroceder del teléfono lo atrapa el sistema antes que la página, así que
    no se puede interceptar desde aquí. En su lugar: DESLIZAR A LA DERECHA sobre el
