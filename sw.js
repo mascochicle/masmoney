@@ -1,4 +1,4 @@
-const V = 'masmoney-20260919-1108';
+const V = 'masmoney-20260922-1356';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -19,6 +19,13 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
+  // Solo la app, nunca el receptor. Desde que la página TAMBIÉN se sirve del nodo
+  // (https://ximbal-node…/apps/masmoney/), las llamadas a /masmoney/estado, /ping e
+  // /indicadores son del MISMO origen y caían aquí: este handler las repetía con
+  // `fetch(url.href)`, que NO lleva el `Authorization: Bearer`, así que el servidor
+  // contestaba 403 y la app decía "La clave no es correcta". Y de paso guardaba el
+  // estado financiero en la caché. Fuera del scope de la app = no es mía, pasa de largo.
+  if (!url.href.startsWith(self.registration.scope)) return;
   e.respondWith(
     fetch(url.href, { cache: 'no-store' })
       .then(r => {
