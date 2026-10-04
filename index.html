@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20260922-1356";
+<script>window.MM_VER="20261004-0818";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -3667,6 +3667,24 @@ document.addEventListener('keydown',function(e){
     if(dx>70 && Math.abs(dy)<55 && (Date.now()-t0)<700) cerrarCapa();
   },{passive:true});
 })();
+
+/* FECHA Y HORA CON EL DEDO (4-oct-2026). Marco, con capturas: en el editor tocaba la fecha,
+   se sombreaba el "03" y no salía ni teclado ni calendario — en Descripción el teclado sí
+   salía. El teléfono empezó a pintar <input type=date|time> como en la compu (por partes,
+   esperando un teclado físico) en vez de abrir solo su calendario; la app no había cambiado
+   desde el 22-sep. Antes funcionaba y en la compu sigue funcionando: ahí se teclea.
+   Arreglo: con el DEDO se abre el selector a propósito con showPicker(). Con el ratón no se
+   hace nada, para no tapar la escritura en la compu. Vale para todas las fechas y horas de
+   la app (editor, captura, viajes), y también al tocar cualquier parte del RENGLÓN, no solo
+   la franja delgada del texto. */
+document.addEventListener('click', function(e){
+  if(e.pointerType!=='touch') return;
+  var t=e.target, el=null;
+  if(t && t.tagName==='INPUT') el=t;
+  else if(t && t.closest){ var f=t.closest('.fld'); if(f) el=f.querySelector('input[type=date],input[type=time]'); }
+  if(!el || !/^(date|time)$/.test(el.type) || el.readOnly || el.disabled) return;
+  if(el.showPicker){ try{ el.focus({preventScroll:true}); el.showPicker(); }catch(_){} }
+});
 
 var _askCb=null;
 function ask(msg,okTxt,cb,noTxt){

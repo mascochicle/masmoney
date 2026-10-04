@@ -1,4 +1,4 @@
-const V = 'masmoney-20260922-1356';
+const V = 'masmoney-20261004-0818';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -25,6 +25,7 @@ self.addEventListener('fetch', e => {
   // `fetch(url.href)`, que NO lleva el `Authorization: Bearer`, así que el servidor
   // contestaba 403 y la app decía "La clave no es correcta". Y de paso guardaba el
   // estado financiero en la caché. Fuera del scope de la app = no es mía, pasa de largo.
+  // (22-sep-2026: se arregló directo en el repo y no aquí; pasado al script el 4-oct.)
   if (!url.href.startsWith(self.registration.scope)) return;
   e.respondWith(
     fetch(url.href, { cache: 'no-store' })
