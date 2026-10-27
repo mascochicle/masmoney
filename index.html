@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20261004-0818";
+<script>window.MM_VER="20261027-1741";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5330,6 +5330,12 @@ function periodosAuto(c){
     /* se avanza con año/mes a mano y NO con setMonth(): partiendo de un día 30, al pasar
        a febrero la fecha se desborda a marzo y ese mes se pierde (se comió uno) */
     var y=+desde.slice(0,4), mo=+desde.slice(5,7), tope=inpcHasta();
+    /* Si Marco corrigió el valor a mano (baseTs fuera del ancla), los meses POSTERIORES a esa
+       corrección se encadenan desde SU valor y no desde `valor0`. Pasó con Casa Lomas el
+       27-oct-2026: `valor0` era el valor FÍSICO del avalúo de 2023 y el bueno era el
+       COMERCIAL; tecleó el comercial llevado a hoy. Sin esto cada mes sumaría ~8.5% de menos.
+       El monto no va escrito aquí a propósito: el código se publica en un repo PÚBLICO. */
+    var fijo=(c.baseTs && c.baseTs!==ANCLA) ? dISO(new Date(c.baseTs)) : null;
     for(var i=0;i<600;i++){
       mo++; if(mo>12){ mo=1; y++; }
       var ym=y+'-'+String(mo).padStart(2,'0');
@@ -5338,6 +5344,7 @@ function periodosAuto(c){
       /* solo meses con INPC ya publicado: el INEGI lo saca ~el día 9 del mes siguiente.
          Si no, se estaría inventando la inflación del mes en curso. */
       if(ym>tope) break;
+      if(fijo && f>fijo){ val=+c.base||val; fijo=null; }
       var inc=Math.round(val*tasaInfl(ym)*100)/100;
       val=Math.round((val+inc)*100)/100;
       out.push({f:f, monto:inc, per:ym});
@@ -5645,6 +5652,9 @@ function editarCuenta(id,grupoNuevo){
              corte:($('aG').value==='tarjeta'&&+$('aCorte').value>=1&&+$('aCorte').value<=31)?+$('aCorte').value:undefined,
              orig:($('aG').value==='credito'&&parseFloat($('aOrig').value)>0)?parseFloat($('aOrig').value):undefined};
     if(c.nota && delta===0) reg.nota=c.nota;   // la nota de origen muere si mueve el saldo
+    /* la regla de revaluación/depreciación se conserva: sin esto, corregir el valor de Casa
+       Lomas o de la camioneta a mano la borraba y la cuenta dejaba de moverse sola (27-oct-2026) */
+    if(c.auto) reg.auto=c.auto;
     if(ix>=0) L[ix]=reg; else L.push(reg);
     if(!saveCtas(L)) return;
     if(delta!==0){
