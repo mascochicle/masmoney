@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20261110-1608";
+<script>window.MM_VER="20261110-1611";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1316,12 +1316,21 @@ var TC_DEF={MXN:1, USD:16.9722, EUR:19.10, BTC:1850000};
 var K_TC='appcaptura_tc_v1';
 /* 10-nov-2026: "¿lo puso Marco a mano?" vive AQUI y VIAJA en la sincronizacion.
    Antes se guardaba el ultimo valor que habia puesto el sistema (I.tcAuto, en K_IND) y se
-   comparaba contra el guardado. Pero K_TC SI se sincroniza entre los tres aparatos y K_IND
-   NO: en cuanto dos escribieron en dias distintos, cada uno vio el valor del otro como si
-   Marco lo hubiera tecleado y el autoajuste se apago para siempre. El dolar quedo clavado
-   49 dias en 17.2203 (el FIX del DOF del 22-sep-2026) mientras el servidor servia el del
-   dia. Mismo caso que `autoborrados`: una marca que no viaja no sirve de marca.
-   Ahora es una BANDERA por moneda, y solo se prende cuando Marco cambia el valor A MANO. */
+   comparaba contra el valor guardado; si no habia tcAuto se comparaba contra TC_DEF.
+   El defecto: el VALOR (K_TC) viaja en la sincronizacion y la MARCA (K_IND) no. Basta con
+   que a un aparato le falte el tcAuto -- verificado en el Chrome de la compu, que nunca lo
+   tuvo -- para que compare el valor que le llego por sync contra TC_DEF, no coincidan nunca
+   y no aplique el FIX jamas. Si eso le pasa a todos los aparatos, el dolar se congela: quedo
+   clavado 49 dias en 17.2203 (el FIX del DOF del 22-sep-2026) mientras el servidor servia el
+   del dia, sin una sola queja. Un aparato pierde K_IND con solo abrir la app desde otro
+   origen (localStorage va por origen), y eso paso el 22-sep al servirla tambien desde el nodo.
+   Mismo caso que `autoborrados`: una marca que no viaja no sirve de marca. Y la leccion mas
+   de fondo: lo que se quiere recordar es SI HUBO UNA DECISION DE MARCO, no que numero habia,
+   y una constante vieja del codigo (TC_DEF) no tiene nada que hacer en una comparacion viva.
+   Ahora es una BANDERA por moneda, y solo se prende cuando Marco cambia el valor A MANO.
+   NO sirve guardarla dentro de K_TC (`T._manual`): `tcs()` devuelve solo las monedas de
+   MONEDAS, asi que no viajaria, y el `set` del sync reemplaza K_TC entero y la borraria.
+   Por eso va en su propia columna de COLS_SYNC. Probado. */
 var K_TCMAN='appcaptura_tcman_v1';
 function tcManual(c){ return !!ld(K_TCMAN,{})[c]; }
 /* se llama desde los dos unicos lugares donde el lo teclea, y solo si de veras cambio */
@@ -7898,9 +7907,14 @@ function traerIndicadores(){
        puede quedarse trabado como el `tcAuto` viejo; el cinturon de verdad es el rango 12-30,
        y el servidor ya trae sus propias puertas. `I.tcAuto` ya no se usa. */
     var f=j.fix, T=ld(K_TC,{}), cambioTC=false;
-    var hoy=(T.USD==null)?TC_DEF.USD:T.USD;
-    if(f && typeof f.usd==='number' && f.usd>=12 && f.usd<=30 && f.usd!==hoy &&
-       Math.abs(f.usd/hoy-1)<0.20 && !tcManual('USD')){
+    /* contra el valor GUARDADO, nunca contra TC_DEF: si no hay valor guardado no hay nada
+       de Marco que proteger y el FIX entra tal cual. Comparar contra TC_DEF era el otro
+       camino al congelamiento -- en una instalacion nueva, un FIX a mas del tope sobre esa
+       constante vieja se rechazaba, y como T.USD nunca se escribia, se rechazaba para
+       siempre. El tope solo defiende un valor que de veras existe. */
+    var guardado=(typeof T.USD==='number')?T.USD:null;
+    if(f && typeof f.usd==='number' && f.usd>=12 && f.usd<=30 && f.usd!==guardado &&
+       !tcManual('USD') && (guardado===null || Math.abs(f.usd/guardado-1)<0.20)){
       T.USD=f.usd; sv(K_TC,T); cambioTC=true;
     }
     if(f) I.fix=f;
