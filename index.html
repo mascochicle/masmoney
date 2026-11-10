@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20261027-1741";
+<script>window.MM_VER="20261110-1608";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1314,6 +1314,18 @@ var MONEDAS=[
    servidor se jalará solo. Última: 11-sep-2026 (FIX del 11-sep, vía DOF). */
 var TC_DEF={MXN:1, USD:16.9722, EUR:19.10, BTC:1850000};
 var K_TC='appcaptura_tc_v1';
+/* 10-nov-2026: "¿lo puso Marco a mano?" vive AQUI y VIAJA en la sincronizacion.
+   Antes se guardaba el ultimo valor que habia puesto el sistema (I.tcAuto, en K_IND) y se
+   comparaba contra el guardado. Pero K_TC SI se sincroniza entre los tres aparatos y K_IND
+   NO: en cuanto dos escribieron en dias distintos, cada uno vio el valor del otro como si
+   Marco lo hubiera tecleado y el autoajuste se apago para siempre. El dolar quedo clavado
+   49 dias en 17.2203 (el FIX del DOF del 22-sep-2026) mientras el servidor servia el del
+   dia. Mismo caso que `autoborrados`: una marca que no viaja no sirve de marca.
+   Ahora es una BANDERA por moneda, y solo se prende cuando Marco cambia el valor A MANO. */
+var K_TCMAN='appcaptura_tcman_v1';
+function tcManual(c){ return !!ld(K_TCMAN,{})[c]; }
+/* se llama desde los dos unicos lugares donde el lo teclea, y solo si de veras cambio */
+function marcaTCManual(c){ var m=ld(K_TCMAN,{}); if(!m[c]){ m[c]=1; sv(K_TCMAN,m); } }
 function tcs(){ var t=ld(K_TC,{}); var r={}; MONEDAS.forEach(function(m){
   r[m.c] = (t[m.c]!=null?t[m.c]:TC_DEF[m.c]) || 1; }); return r; }
 function tc(c){ return tcs()[c||BASE]||1; }
@@ -5642,7 +5654,9 @@ function editarCuenta(id,grupoNuevo){
     var nuevo=parseFloat($('aS').value); if(isNaN(nuevo)) nuevo=0;
     if($('aM').value!==BASE){                      // guarda el TC de esa moneda
       var v=parseFloat($('aTC').value);
-      if(v>0){ var t=ld(K_TC,{}); t[$('aM').value]=v; sv(K_TC,t); }
+      if(v>0){ var mm2=$('aM').value, t=ld(K_TC,{});
+        if(v!==tc(mm2)) marcaTCManual(mm2);  /* guardar la cuenta sin mover el TC no lo marca */
+        t[mm2]=v; sv(K_TC,t); }
     }
     var L=ctas(), ix=-1; for(var i=0;i<L.length;i++) if(L[i].id===c.id) ix=i;
     var delta = esNueva ? 0 : +(nuevo - saldoActual).toFixed(2);
@@ -7030,7 +7044,7 @@ function editarTC(m){
     '<div class="edit-acts"><button class="b-save" id="tcOk">Guardar</button></div></div>';
   $('tcOk').onclick=function(){
     var v=parseFloat($('tcV').value); if(!(v>0)){ toast('Valor inválido',true); return; }
-    var t=ld(K_TC,{}); t[m]=v; sv(K_TC,t);
+    var t=ld(K_TC,{}); if(v!==tc(m)) marcaTCManual(m); t[m]=v; sv(K_TC,t);
     closeSheet(); renderCfg(); renderSaldos(); toast('Tipo de cambio actualizado');
   };
 }
@@ -7333,7 +7347,7 @@ var K_SYNC='masmoney_sync_v1';
 var SYNC_URL_DEF='https://ximbal-node.tail611cba.ts.net';
 var _syncT=null, _syncVer=0, _syncEnviando=false, _syncReint=null;
 function esLlaveDeDatos(k){
-  return [K_MOV,K_CTA,K_TC,K_CAT,K_ING,K_NEG,K_AMB,K_VJE,K_AG,K_SUBICO,K_AGICO,K_AUTOX].indexOf(k)>=0;
+  return [K_MOV,K_CTA,K_TC,K_TCMAN,K_CAT,K_ING,K_NEG,K_AMB,K_VJE,K_AG,K_SUBICO,K_AGICO,K_AUTOX].indexOf(k)>=0;
 }
 function syncCfg(){ return ld(K_SYNC,{}); }
 function setSync(k,v){ var s=syncCfg(); s[k]=v; try{ localStorage.setItem(K_SYNC,JSON.stringify(s)); }catch(e){} }
@@ -7397,6 +7411,8 @@ var COLS_SYNC=[
   {k:'movimientos',  llave:'id', get:function(){ return movs(); },   set:function(v){ saveMovs(v); }},
   {k:'cuentas',      llave:'id', orden:1, get:function(){ return ctas(); }, set:function(v){ saveCtas(v); }},
   {k:'tipos_de_cambio', obj:1,   get:function(){ return tcs(); },    set:function(v){ sv(K_TC,v); }},
+  /* por que viaja: ver K_TCMAN. Si se queda local, el autoajuste del dolar se vuelve a apagar */
+  {k:'tc_manual',    obj:1,      cat:1, get:function(){ return ld(K_TCMAN,{}); }, set:function(v){ sv(K_TCMAN,v); }},
   {k:'agentes',      llave:null, orden:1, cat:1, get:function(){ return agentes(); }, set:function(v){ guardaAgentes(v); }},
   {k:'agentes_iconos', obj:1,    cat:1, get:function(){ return agIcos(); }, set:function(v){ sv(K_AGICO,v); }},
   {k:'ambitos',      llave:'n',  orden:1, cat:1, get:function(){ return ambitos(); }, set:function(v){ sv(K_AMB,v); }},
@@ -7861,8 +7877,10 @@ function traerDelServidor(){
    El servidor ya pasa 5 puertas (solo agrega, consecutivos, rangos, cuadre, último bueno);
    aquí se revisan los rangos otra vez. Se piden al abrir y cada 12 h con la app abierta.
    - INPC: se guardan solo los meses > INPC_HASTA del código; tasaInfl/inpcHasta los usan.
-   - FIX: se aplica solo si el USD guardado sigue siendo el último que puso el sistema
-     (tcAuto, o TC_DEF si nunca hubo uno). Si Marco lo cambió a mano, se respeta. */
+   - FIX: se aplica siempre, salvo que Marco haya tecleado el dólar a mano (bandera
+     K_TCMAN, que VIAJA en la sincronización). Corregido el 10-nov-2026: la regla vieja
+     era "solo si el guardado sigue siendo el último que puso el sistema", y con tres
+     aparatos eso se apagó solo y dejó el dólar clavado 49 días. Ver K_TCMAN. */
 var _indT=null;
 function traerIndicadores(){
   if(!syncActivo()) return Promise.resolve(false);
@@ -7875,12 +7893,15 @@ function traerIndicadores(){
       if(typeof I.inpc[x.mes]==='number') return;          // un mes ya tomado no cambia
       I.inpc[x.mes]=x.mensual;
     });
-    var f=j.fix, T=ld(K_TC,{}), ref=(typeof I.tcAuto==='number')?I.tcAuto:TC_DEF.USD, cambioTC=false;
-    if(f && typeof f.usd==='number' && f.usd>=12 && f.usd<=30 &&
-       Math.abs(f.usd/ref-1)<0.15 && f.usd!==ref){
-      var hoy=(T.USD==null)?TC_DEF.USD:T.USD;
-      if(Math.abs(hoy-ref)<0.000001){ T.USD=f.usd; sv(K_TC,T); cambioTC=true; }
-      if(Math.abs(hoy-ref)<0.000001) I.tcAuto=f.usd;
+    /* El FIX se aplica SALVO que Marco haya tecleado el dolar a mano (bandera K_TCMAN).
+       El tope relativo se mide contra el valor GUARDADO, que se renueva cada dia, asi que no
+       puede quedarse trabado como el `tcAuto` viejo; el cinturon de verdad es el rango 12-30,
+       y el servidor ya trae sus propias puertas. `I.tcAuto` ya no se usa. */
+    var f=j.fix, T=ld(K_TC,{}), cambioTC=false;
+    var hoy=(T.USD==null)?TC_DEF.USD:T.USD;
+    if(f && typeof f.usd==='number' && f.usd>=12 && f.usd<=30 && f.usd!==hoy &&
+       Math.abs(f.usd/hoy-1)<0.20 && !tcManual('USD')){
+      T.USD=f.usd; sv(K_TC,T); cambioTC=true;
     }
     if(f) I.fix=f;
     I.t=Date.now();
