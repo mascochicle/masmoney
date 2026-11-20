@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20261110-1611";
+<script>window.MM_VER="20261120-1630";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5604,9 +5604,19 @@ function renderSaldos(){
   });
 }
 
+/* Quitar una cuenta (20-nov-2026, a pedido de Marco): solo si NO tiene movimientos, o si es nueva
+   (creada en la app hace menos de 30 días, id 'n'+fecha) y tiene 5 o menos. Las de siempre (c1, t1...)
+   con cualquier movimiento ya no se quitan: se ocultan. Azteca tenía solo 4 movimientos y era vieja. */
+function movsDeCta(id){ return movs().filter(function(m){return m.cuentaId===id||m.destinoId===id;}).length; }
+function sePuedeQuitar(id){
+  var n=movsDeCta(id); if(n===0) return true;
+  var t=/^n(\d{12,})$/.exec(id), nueva=!!t && (Date.now()-(+t[1]))<30*864e5;
+  return nueva && n<=5;
+}
 function borrarCuenta(id){
   var c=cta(id); if(!c) return;
-  var usada=movs().some(function(m){return m.cuentaId===id||m.destinoId===id;});
+  var nUso=movsDeCta(id), usada=nUso>0;
+  if(!sePuedeQuitar(id)){ toast('Esta cuenta ya tiene historia: ocúltala en vez de quitarla',true); return; }
   ask('¿Quitar <b>'+c.n+'</b> de tus saldos?'+(usada?'<br><span style="color:var(--op)">Tiene movimientos capturados; se quedan en la lista.</span>':''),
     'Quitar', function(){
       var L=ctas().filter(function(x){return x.id!==id;});
@@ -5617,11 +5627,16 @@ function borrarCuenta(id){
 function editarCuenta(id,grupoNuevo){
   var c = id ? cta(id) : {id:'n'+Date.now(), n:'', e:'💳', g:grupoNuevo||'corriente', base:0, mon:BASE};
   var esNueva=!id, saldoActual = esNueva ? 0 : c._v;
+  /* 20-nov-2026, Marco: borró Banco Azteca porque no vio Ocultar y el servidor lo apartó. Pidió que una
+     cuenta con historia NO se pueda quitar, solo ocultar; una nueva o con pocos movimientos, sí. */
+  var nMovsCta=esNueva?0:movsDeCta(c.id), puedeQuitar=!esNueva && sePuedeQuitar(c.id);
   if(saldoActual===undefined) saldoActual=saldoDe(c,movs());
   openSheet(esNueva?'Nueva cuenta':'Cuenta');
   $('sheetBody').innerHTML='<div class="edit-b">'+
     '<div class="fld"><div class="k">Nombre</div><input id="aN" type="text" value="'+(c.n||'').replace(/"/g,'&quot;')+'" placeholder="Casa Lomas"></div>'+
     '<div class="fld"><div class="k">Saldo</div><input id="aS" type="number" inputmode="decimal" step="0.01" value="'+(esNueva?'':saldoActual.toFixed(2))+'" placeholder="0.00"></div>'+
+    '<div class="fld" id="aOrow"><div class="k">🙈 Ocultar</div><div class="ro">No aparece en la lista, pero sigue contando y conserva sus movimientos</div>'+
+      '<button class="sw'+(c.oculta?' on':'')+'" id="aO" style="margin-left:auto"></button></div>'+
     '<div class="fld"><div class="k">Tipo</div><select id="aG">'+GRUPOS.map(function(G){
         return '<option value="'+G.g+'"'+(G.g===c.g?' selected':'')+'>'+G.t+'</option>';}).join('')+'</select></div>'+
     '<div class="fld"><div class="k">Moneda</div><select id="aM">'+MONEDAS.map(function(m){
@@ -5635,10 +5650,9 @@ function editarCuenta(id,grupoNuevo){
       '<div class="emojis" id="aE">'+EMOJIS.map(function(x){
         return '<button data-e="'+x+'"'+(x===c.e?' class="on"':'')+'>'+x+'</button>';}).join('')+
         campoOtroIco('aEotro')+'</div></div>'+
-    '<div class="fld"><div class="k">Ocultar</div><div class="ro">No aparece en la lista, pero sigue contando y conserva sus movimientos</div>'+
-      '<button class="sw'+(c.oculta?' on':'')+'" id="aO" style="margin-left:auto"></button></div>'+
     '<div class="note">En tarjetas y créditos el saldo es <b>lo que debes</b> (en positivo). Cuando liquides uno, <b>ocúltalo</b> en vez de borrarlo: así no se descuadra nada.</div>'+
-    '<div class="edit-acts">'+(esNueva?'':'<button class="b-del" id="aDel">Quitar</button>')+
+    (puedeQuitar?'':'<div class="note">Esta cuenta ya tiene <b>'+nMovsCta+(nMovsCta===1?' movimiento':' movimientos')+'</b>: no se puede quitar, para no perder su historia. Si ya no la usas, prende <b>🙈 Ocultar</b> (arriba) y toca Guardar.</div>')+
+    '<div class="edit-acts">'+(puedeQuitar?'<button class="b-del" id="aDel">Quitar</button>':'')+
       '<button class="b-save" id="aSave">Guardar</button></div></div>';
   var pick=c.e, oculta=!!c.oculta;
   $('aO').onclick=function(){ oculta=!oculta; this.classList.toggle('on',oculta); };
@@ -5693,7 +5707,7 @@ function editarCuenta(id,grupoNuevo){
     closeSheet(); renderSaldos(); renderCuenta();
     toast(delta!==0 ? ('Ajuste de '+(delta>0?'+':'−')+fmtM(delta,reg.mon)) : 'Guardado');
   };
-  if(!esNueva) $('aDel').onclick=function(){ closeSheet(); borrarCuenta(c.id); };
+  if(puedeQuitar) $('aDel').onclick=function(){ closeSheet(); borrarCuenta(c.id); };
 }
 
 /* ================= AJUSTES ================= */
