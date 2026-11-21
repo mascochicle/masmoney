@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20261120-1630";
+<script>window.MM_VER="20261121-1134";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -5689,6 +5689,11 @@ function editarCuenta(id,grupoNuevo){
              corte:($('aG').value==='tarjeta'&&+$('aCorte').value>=1&&+$('aCorte').value<=31)?+$('aCorte').value:undefined,
              orig:($('aG').value==='credito'&&parseFloat($('aOrig').value)>0)?parseFloat($('aOrig').value):undefined};
     if(c.nota && delta===0) reg.nota=c.nota;   // la nota de origen muere si mueve el saldo
+    /* Guardar la ficha SIN mover el saldo (p. ej. teclear la línea de crédito) no toca el saldo de
+       arranque. Antes se re-fechaba a "ahora" y todo lo capturado después con fecha anterior se
+       volvía invisible: el 12-nov-2026 se perdieron así los paños de Liverpool ($386.15) y el
+       PlayStation de Plata ($100) (21-nov-2026). */
+    if(!esNueva && delta===0){ reg.base=c.base; reg.baseTs=c.baseTs; }
     /* la regla de revaluación/depreciación se conserva: sin esto, corregir el valor de Casa
        Lomas o de la camioneta a mano la borraba y la cuenta dejaba de moverse sola (27-oct-2026) */
     if(c.auto) reg.auto=c.auto;
