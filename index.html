@@ -1182,7 +1182,7 @@ body.capturando .tabbar{display:none;}
   <div class="toast" id="toast">Guardado</div>
 </div>
 
-<script>window.MM_VER="20261121-1134";
+<script>window.MM_VER="20261127-1050";
 
 /* ===== primera vez: sin cuentas no hay nada que enseñar, solo importar ===== */
 function primeraVez(){ var v=ld(K_CTA,null); return !v || !v.length; }
@@ -1821,6 +1821,7 @@ function migrar(){
       var n19=0;
       M19.forEach(function(m){
         if(m.tipo!=='Ingreso') return;
+        if(esDevolucion(m.grupo,m.sub) && m.ambito==='Negocio') return;   // 27-nov-2026: ver ambDeIngreso
         if(m.ambito!=='Personal'){ m.ambito='Personal'; n19++; }
       });
       if(n19) sv(K_MOV,M19);
@@ -3804,11 +3805,22 @@ var AMB_INGRESO=['Negocio','Propiedades','Personal'];
    `Negocio` escondía $589,151.87 y luego `Arrendamiento` escondía las rentas del reporte
    personal. En GASTOS el ámbito sí sigue vivo: ahí Propiedades separa lo que le metes a esas
    casas de lo que gastas tú. */
-function ambDeIngreso(g){ return 'Personal'; }
+/* EXCEPCIÓN: LA DEVOLUCIÓN (27-nov-2026). Marco: *"no vaya a ser que una devolución se reste de
+   mis gastos personales cuando se debería restar de los gastos del negocio"*. Una devolución no
+   es dinero que entra: deshace una compra, y lleva el ámbito de ESA compra. Si el licor de la
+   tienda se reembolsa como Personal, el tablero de Tarjetas lo resta de su parte personal.
+   Solo ahí se elige, y solo entre Personal y Negocio; todo otro ingreso sigue siendo Personal. */
+/* grupo «Devolución» u «Otros / Devolución». NO «SAT / Devolución SAT»: eso es un ingreso suyo */
+function esDevolucion(g,sub){ return /^devoluci[oó]n$/i.test(String(sub||'').trim())||/^devoluci/i.test(String(g||'')); }
+function ambDeIngreso(g,sub,elegido){
+  return (esDevolucion(g,sub) && elegido==='Negocio') ? 'Negocio' : 'Personal'; }
+var AMB_DEVOLUCION=['Personal','Negocio'];
 /* `tipo` se lo pasa el EDITOR, que trabaja sobre un movimiento guardado y no sobre `st` */
-function ambitosPara(tipo){
+function ambitosPara(tipo,dev){
   var L=ambitos();
   if((tipo||st.tipo)!=='Ingreso') return L;
+  if(dev) return AMB_DEVOLUCION.map(function(n){
+    return L.filter(function(x){ return x.n===n; })[0]; }).filter(Boolean);
   var out=[];
   AMB_INGRESO.forEach(function(n){
     var a=L.filter(function(x){ return x.n===n; })[0]; if(a) out.push(a); });
@@ -3846,12 +3858,16 @@ function pintaAmbChips(){
   var b=$('ambChips'); if(!b) return;
   var T=tipoDe(st.tipo);
   /* en ingreso el ámbito se deriva de la categoría, y en transferencias no aplica */
-  if(T.sinAmb || st.tipo==='Ingreso'){ b.innerHTML=''; b.style.display='none'; return; }
+  var dev=(st.tipo==='Ingreso' && st.cat && esDevolucion(st.cat.g,st.cat.sub));
+  if(T.sinAmb || (st.tipo==='Ingreso' && !dev)){ b.innerHTML=''; b.style.display='none'; return; }
+  /* devolución: arranca en Personal y Marco toca Negocio si la compra era de la tienda */
+  if(dev && AMB_DEVOLUCION.indexOf(st.ambito)<0){ st.ambito='Personal'; $('ambNm').textContent='Personal';
+    var AP=ambitos().filter(function(x){return x.n==='Personal';})[0]; if(AP) $('ambIc').textContent=AP.e; }
   b.style.display='';
   /* Círculos, no píldoras (Marco, 12-ago-2026): en una fila caben los cuatro, y es el mismo
      lenguaje de la rejilla de categorías. En píldoras se iban a dos renglones porque pedían
      403px de ancho y hay 361. */
-  b.innerHTML=ambitosPara(st.tipo).map(function(A){
+  b.innerHTML=ambitosPara(st.tipo,dev).map(function(A){
     return '<button class="amb'+(A.n===st.ambito?' on':'')+'" data-a="'+escAtr(A.n)+'">'+
            '<span class="o">'+A.e+'</span><span class="t">'+A.n+'</span></button>'; }).join('');
   b.querySelectorAll('[data-a]').forEach(function(x){
@@ -4477,6 +4493,7 @@ function pickCat(g,e,sub){
      de Transferencia lee `catSub` para el título de la hoja. Por eso se escribe igual. */
   $('catNm').textContent=sub; $('catSub').textContent=g; $('catIc').textContent=e;
   acomodaNegocio();
+  if(st.tipo==='Ingreso' && typeof pintaAmbChips==='function') pintaAmbChips();   // devolución: aparecen los chips
   /* ⚠️ REPINTAR AQUÍ, no en cada quien que elige (15-ago-2026, con video de Marco).
      Lo que se ve en la captura son las LÍNEAS, y escribir en `catNm` ya no pinta nada:
      al elegir "Ayudas y Donaciones" desde el buscador, el renglón seguía diciendo
@@ -4531,7 +4548,7 @@ $('guardar').onclick=function(){
     amount: total,
     msi:(st.msi&&st.tipo==='Gasto'), meses:st.meses,
     agente:st.agente,
-    ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g) : st.ambito),
+    ambito:(T.sinAmb?null : st.tipo==='Ingreso'?ambDeIngreso(st.cat.g,st.cat.sub,st.ambito) : st.ambito),
     /* el viaje solo tiene sentido en un GASTO: ni ingresos, ni transferencias, ni pagos a
        creditos, ni cambios de valor (13-ago-2026) */
     viaje:(llevaViaje()?(st.viaje||null):null),
@@ -4936,7 +4953,7 @@ function editarMov(id, pre){
       (agN?htmlCaraAg(agN)+'<span>'+agN+'</span>':'<span style="color:var(--mut)">Sin agente</span>')+
       '</div><div class="chev">›</div></button>'+
     /* en un Ingreso el ámbito se deriva de la categoría: ni se pregunta ni se edita */
-    ((m.ajuste||m.tipo==='Ingreso')?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
+    ((m.ajuste||(m.tipo==='Ingreso' && !esDevolucion(cat.g,cat.sub)))?'':'<button class="fld tocable" id="eAmb"><div class="k">De quién es</div>'+
       '<div class="ro">'+amb.e+'  '+amb.n+'</div><div class="chev">›</div></button>')+
     /* la parte del pago que era del negocio, solo en "Negocio · Pago de tarjetas" */
     ((m.tipo==='Ingreso' && (editable?cat.sub:m.sub)==='Pago de tarjetas')
@@ -5056,7 +5073,7 @@ function editarMov(id, pre){
     var v=leer();
     openSheet('De quién es');
     /* en un ingreso el catálogo de ámbitos es más corto (Casa Sol no genera ingreso) */
-    var L=ambitosPara(m.tipo);
+    var L=ambitosPara(m.tipo, m.tipo==='Ingreso' && esDevolucion(v.cat.g,v.cat.sub));
     $('sheetBody').innerHTML=L.map(function(A){
       return '<div class="acct'+(A.n===v.amb?' sel':'')+'" data-n="'+A.n+'"><div class="ic">'+A.e+'</div>'+
         '<div class="nm">'+A.n+'<small>'+A.d+'</small></div></div>';}).join('');
@@ -5172,7 +5189,8 @@ function editarMov(id, pre){
       if($('eVje')) b[i].viaje=vjeN||null;
       if($('eNeg')) b[i].negocio=(evalua($('eNeg').value)||0)||null;
       /* el ámbito de un Ingreso sigue a la categoría, también al editarla */
-      if(b[i].tipo==='Ingreso') b[i].ambito=ambDeIngreso(editable?cat.g:b[i].grupo);
+      if(b[i].tipo==='Ingreso') b[i].ambito=ambDeIngreso(editable?cat.g:b[i].grupo,
+                                    editable?cat.sub:b[i].sub, $('eAmb')?amb.n:b[i].ambito);
       if(editable){ b[i].grupo=cat.g; b[i].sub=cat.sub; b[i].e=cat.e;
                     b[i].partes = dividido ? partes : undefined; }
       /* la cuenta manda la moneda: si la cambia a una en otra divisa, el movimiento
